@@ -26,6 +26,8 @@
 #include <filament/VertexBuffer.h>
 #include <filament/View.h>
 
+#include <viewer/ViewerGui.h>
+
 #include <utils/EntityManager.h>
 
 #include <filamentapp/Config.h>
@@ -38,20 +40,25 @@
 
 
 #include "generated/resources/resources.h"
+#include <imgui.h>
 
+using namespace filament::viewer;
 using namespace filament;
 using utils::Entity;
 using utils::EntityManager;
 
 struct App {
     Config config;
+    ViewerGui* viewer;
     VertexBuffer* vb;
     IndexBuffer* ib;
-    Material* mat;
+    Material* mat1;
+    Material* mat2;
     Camera* cam;
     Entity camera;
     Skybox* skybox;
-    Entity renderable;
+    Entity renderable1;
+    Entity renderable2;
 };
 
 struct Vertex {
@@ -119,13 +126,20 @@ static int handleCommandLineArguments(int argc, char* argv[], App* app) {
     return optind;
 }
 
+static void onClick(App& app, View* view, ImVec2 pos) {
+    view->pick(pos.x, pos.y, [&app](View::PickingQueryResult const& result) {
+        std::cout << result.renderable.getId() << std::endl;
+        });
+}
+
 int main(int argc, char** argv) {
     App app{};
     app.config.title = "hellotriangle";
-    app.config.featureLevel = backend::FeatureLevel::FEATURE_LEVEL_0;
+    app.config.featureLevel = backend::FeatureLevel::FEATURE_LEVEL_1;
     handleCommandLineArguments(argc, argv, &app);
 
     auto setup = [&app](Engine* engine, View* view, Scene* scene) {
+        app.viewer = new ViewerGui(engine, scene, view);
         app.skybox = Skybox::Builder().color({0.1, 0.125, 0.25, 1.0}).build(*engine);
         scene->setSkybox(app.skybox);
         view->setPostProcessingEnabled(false);
@@ -145,28 +159,64 @@ int main(int argc, char** argv) {
                 .build(*engine);
         app.ib->setBuffer(*engine,
                 IndexBuffer::BufferDescriptor(TRIANGLE_INDICES, 6, nullptr));
-        app.mat = Material::Builder()
-                .package(RESOURCES_BAKEDCOLOR_DATA, RESOURCES_BAKEDCOLOR_SIZE)
+        app.mat1 = Material::Builder()
+                .package(RESOURCES_SANDBOXLITTRANSPARENT_DATA, RESOURCES_SANDBOXLITTRANSPARENT_SIZE)
                 .build(*engine);
-        app.renderable = EntityManager::get().create();
+        app.mat2 = Material::Builder()
+                 .package(RESOURCES_BAKEDCOLOR_DATA, RESOURCES_BAKEDCOLOR_SIZE)
+                 .build(*engine);
+        app.renderable1 = EntityManager::get().create();
+        app.renderable2 = EntityManager::get().create();
         RenderableManager::Builder(1)
                 .boundingBox({{ -1, -1, -1 }, { 1, 1, 1 }})
-                .material(0, app.mat->getDefaultInstance())
+                .material(0, app.mat1->getDefaultInstance())
                 .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb, app.ib, 0, 3)
                 .culling(false)
                 .receiveShadows(false)
                 .castShadows(false)
-                .build(*engine, app.renderable);
-        scene->addEntity(app.renderable);
+                .build(*engine, app.renderable1);
+         RenderableManager::Builder(1)
+             .boundingBox({ { -1, -1, -1 }, { 1, 1, 1 } })
+             .material(0, app.mat2->getDefaultInstance())
+             .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb, app.ib, 0, 3)
+             .culling(false)
+             .receiveShadows(false)
+             .castShadows(false)
+             .build(*engine, app.renderable2);
+        scene->addEntity(app.renderable1);
+        scene->addEntity(app.renderable2);
         app.camera = utils::EntityManager::get().create();
         app.cam = engine->createCamera(app.camera);
         view->setCamera(app.cam);
+
+        app.viewer->setUiCallback([&app, scene, view, engine]() {
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                ImVec2 pos = ImGui::GetMousePos();
+                pos.x -= app.viewer->getSidebarWidth();
+                pos.x *= ImGui::GetIO().DisplayFramebufferScale.x;
+                pos.y *= ImGui::GetIO().DisplayFramebufferScale.y;
+                if (pos.x > 0) {
+                    pos.y = view->getViewport().height - 1 - pos.y;
+                    onClick(app, view, pos);
+                }
+            }
+         });
     };
 
+    auto gui = [&app](Engine*, View*) {
+        app.viewer->updateUserInterface();
+
+        FilamentApp::get().setSidebarWidth(app.viewer->getSidebarWidth());
+    };
+
+
     auto cleanup = [&app](Engine* engine, View*, Scene*) {
+        delete app.viewer;
         engine->destroy(app.skybox);
-        engine->destroy(app.renderable);
-        engine->destroy(app.mat);
+        engine->destroy(app.renderable1);
+        engine->destroy(app.renderable2);
+        engine->destroy(app.mat1);
+        engine->destroy(app.mat2);
         engine->destroy(app.vb);
         engine->destroy(app.ib);
         engine->destroyCameraComponent(app.camera);
@@ -182,11 +232,16 @@ int main(int argc, char** argv) {
             -aspect * ZOOM, aspect * ZOOM,
             -ZOOM, ZOOM, 0, 1);
         auto& tcm = engine->getTransformManager();
-        tcm.setTransform(tcm.getInstance(app.renderable),
+        tcm.setTransform(tcm.getInstance(app.renderable1),
                 filament::math::mat4f::rotation(now, filament::math::float3{ 0, 0, 1 }));
+
+        tcm.setTransform(tcm.getInstance(app.renderable2),
+            filament::math::mat4f::translation(filament::math::float3{ 1, 0, 0 }));
+
+        app.mat1->getDefaultInstance()->setParameter("alpha", 0.5f);
     });
 
-    FilamentApp::get().run(app.config, setup, cleanup);
+    FilamentApp::get().run(app.config, setup, cleanup, gui);
 
     return 0;
 }
