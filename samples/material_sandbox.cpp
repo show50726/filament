@@ -37,6 +37,7 @@
 #include <filament/Material.h>
 #include <filament/MaterialInstance.h>
 #include <filament/Renderer.h>
+#include <filament/Skybox.h>
 #include <filament/RenderableManager.h>
 #include <filament/Scene.h>
 #include <filament/TransformManager.h>
@@ -47,13 +48,16 @@
 #include <math/mat4.h>
 #include <math/vec4.h>
 #include <math/norm.h>
+#include <imgui.h>
 
 #include <filamentapp/Config.h>
 #include <filamentapp/IBL.h>
 #include <filamentapp/FilamentApp.h>
 #include <filamentapp/MeshAssimp.h>
+#include <viewer/ViewerGui.h>
 
 #include "material_sandbox.h"
+using namespace filament::viewer;
 
 using namespace filament::math;
 using namespace filament;
@@ -74,6 +78,8 @@ static bool g_shadowPlane = false;
 static bool g_singleMode = false;
 static float g_rangePlot[1024 * 3];
 static float g_curvePlot[1024 * 3];
+static ViewerGui* g_viewer;
+static Skybox* g_skybox;
 
 const static ImVec2 verticalSliderSize(18.0f, 160.0f);
 const static ImVec2 plotLinesSize(320.0f, 160.0f);
@@ -194,6 +200,7 @@ static int handleCommandLineArgments(int argc, char* argv[], Config* config) {
 }
 
 static void cleanup(Engine* engine, View*, Scene*) {
+    delete g_viewer;
     for (const auto& material : g_meshMaterialInstances) {
         engine->destroy(material.second);
     }
@@ -211,17 +218,25 @@ static void cleanup(Engine* engine, View*, Scene*) {
     engine->destroy(g_params.light);
     engine->destroy(g_params.spotLight);
     engine->destroy(g_colorGrading);
+    engine->destroy(g_skybox);
 
     EntityManager& em = EntityManager::get();
     em.destroy(g_params.light);
     em.destroy(g_params.spotLight);
 }
 
-static void setup(Engine* engine, View*, Scene* scene) {
+static void onClick(View* view, ImVec2 pos) {
+    view->pick(pos.x, pos.y, [](View::PickingQueryResult const& result) {
+        std::cerr << result.renderable.getId() << std::endl;
+        });
+}
+
+static void setup(Engine* engine, View* view, Scene* scene) {
     g_scene = scene;
-
+    g_viewer = new ViewerGui(engine, scene, view);
     g_meshSet = std::make_unique<MeshAssimp>(*engine);
-
+    g_skybox = Skybox::Builder().color({ 0.1, 0.125, 0.25, 1.0 }).build(*engine);
+    scene->setSkybox(g_skybox);
     createInstances(g_params, *engine);
 
     for (auto& filename : g_filenames) {
@@ -346,6 +361,19 @@ static void setup(Engine* engine, View*, Scene* scene) {
     }
 
     g_params.bloomOptions.dirt = FilamentApp::get().getDirtTexture();
+
+    g_viewer->setUiCallback([scene, view, engine]() {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            ImVec2 pos = ImGui::GetMousePos();
+            pos.x -= g_viewer->getSidebarWidth();
+            pos.x *= ImGui::GetIO().DisplayFramebufferScale.x;
+            pos.y *= ImGui::GetIO().DisplayFramebufferScale.y;
+            if (pos.x > 0) {
+                pos.y = view->getViewport().height - 1 - pos.y;
+                onClick(view, pos);
+            }
+        }
+        });
 }
 
 static filament::MaterialInstance* updateInstances(
@@ -976,6 +1004,10 @@ static void gui(filament::Engine* engine, filament::View*) {
     lcm.setIntensity(spotLightInstance, params.spotLightIntensity);
     lcm.setSpotLightCone(spotLightInstance, params.spotLightConeAngle * params.spotLightConeFade,
             params.spotLightConeAngle);
+
+    g_viewer->updateUserInterface();
+
+    FilamentApp::get().setSidebarWidth(g_viewer->getSidebarWidth());
 }
 
 static void preRender(filament::Engine* engine, filament::View* view, filament::Scene*,

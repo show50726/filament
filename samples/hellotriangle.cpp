@@ -167,9 +167,12 @@ int main(int argc, char** argv) {
                  .build(*engine);
         app.renderable1 = EntityManager::get().create();
         app.renderable2 = EntityManager::get().create();
+        auto instance = app.mat1->createInstance();
+        instance->setParameter("alpha", 1.0f);
+        instance->setParameter("baseColor", RgbType::sRGB, float3(1, 1, 1));
         RenderableManager::Builder(1)
                 .boundingBox({{ -1, -1, -1 }, { 1, 1, 1 }})
-                .material(0, app.mat1->getDefaultInstance())
+                .material(0, instance)
                 .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb, app.ib, 0, 3)
                 .culling(false)
                 .receiveShadows(false)
@@ -237,8 +240,6 @@ int main(int argc, char** argv) {
 
         tcm.setTransform(tcm.getInstance(app.renderable2),
             filament::math::mat4f::translation(filament::math::float3{ 1, 0, 0 }));
-
-        app.mat1->getDefaultInstance()->setParameter("alpha", 0.5f);
     });
 
     FilamentApp::get().run(app.config, setup, cleanup, gui);
