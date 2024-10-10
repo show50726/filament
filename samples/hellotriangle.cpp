@@ -168,11 +168,11 @@ int main(int argc, char** argv) {
         app.renderable1 = EntityManager::get().create();
         app.renderable2 = EntityManager::get().create();
         auto instance = app.mat1->createInstance();
-        instance->setParameter("alpha", 1.0f);
-        instance->setParameter("baseColor", RgbType::sRGB, float3(1, 1, 1));
+        app.mat1->getDefaultInstance()->setParameter("alpha", 1.0f);
+        app.mat1->getDefaultInstance()->setParameter("baseColor", RgbType::sRGB, float3(1, 1, 1));
         RenderableManager::Builder(1)
                 .boundingBox({{ -1, -1, -1 }, { 1, 1, 1 }})
-                .material(0, instance)
+                .material(0, app.mat1->getDefaultInstance())
                 .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb, app.ib, 0, 3)
                 .culling(false)
                 .receiveShadows(false)
