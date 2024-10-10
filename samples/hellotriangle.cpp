@@ -167,7 +167,6 @@ int main(int argc, char** argv) {
                  .build(*engine);
         app.renderable1 = EntityManager::get().create();
         app.renderable2 = EntityManager::get().create();
-        auto instance = app.mat1->createInstance();
         app.mat1->getDefaultInstance()->setParameter("alpha", 1.0f);
         app.mat1->getDefaultInstance()->setParameter("baseColor", RgbType::sRGB, float3(1, 1, 1));
         RenderableManager::Builder(1)
