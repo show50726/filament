@@ -232,10 +232,10 @@ int main(int argc, char** argv) {
         const float aspect = (float) w / h;
         app.cam->setProjection(Camera::Projection::ORTHO,
             -aspect * ZOOM, aspect * ZOOM,
-            -ZOOM, ZOOM, 0, 1);
+            -ZOOM, ZOOM, -1, 1);
         auto& tcm = engine->getTransformManager();
         tcm.setTransform(tcm.getInstance(app.renderable1),
-                filament::math::mat4f::rotation(now, filament::math::float3{ 0, 0, 1 }));
+                filament::math::mat4f::translation(filament::math::float3{ 0, 0, 0.1 }));
 
         tcm.setTransform(tcm.getInstance(app.renderable2),
             filament::math::mat4f::translation(filament::math::float3{ 1, 0, 0 }));
