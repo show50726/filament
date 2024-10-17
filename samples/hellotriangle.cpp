@@ -143,6 +143,7 @@ int main(int argc, char** argv) {
         app.skybox = Skybox::Builder().color({0.1, 0.125, 0.25, 1.0}).build(*engine);
         scene->setSkybox(app.skybox);
         view->setPostProcessingEnabled(false);
+        view->setTransparentPickingEnabled(false);
         static_assert(sizeof(Vertex) == 12, "Strange vertex size.");
         app.vb = VertexBuffer::Builder()
                 .vertexCount(3)

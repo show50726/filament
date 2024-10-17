@@ -373,6 +373,10 @@ static void setup(Engine* engine, View* view, Scene* scene) {
                 onClick(view, pos);
             }
         }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            auto enabled = view->isTransparentPickingEnabled();
+            view->setTransparentPickingEnabled(!enabled);
+        }
         });
 }
 
