@@ -21,8 +21,11 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.opengl.Matrix
 import android.os.Bundle
+import android.util.Log
 import android.view.Choreographer
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.animation.LinearInterpolator
@@ -35,6 +38,7 @@ import com.google.android.filament.VertexBuffer.*
 import com.google.android.filament.android.DisplayHelper
 import com.google.android.filament.android.FilamentHelper
 import com.google.android.filament.android.UiHelper
+import com.google.android.filament.filamat.MaterialBuilder
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -74,10 +78,14 @@ class MainActivity : Activity() {
     private lateinit var view: View
     // Should be pretty obvious :)
     private lateinit var camera: Camera
+    private lateinit var skybox: Skybox
 
     private lateinit var material: Material
     private lateinit var vertexBuffer: VertexBuffer
     private lateinit var indexBuffer: IndexBuffer
+
+    private val singleTapListener = SingleTapListener()
+    private lateinit var singleTapDetector: GestureDetector
 
     // Filament entity representing a renderable object
     @Entity private var renderable = 0
@@ -105,6 +113,13 @@ class MainActivity : Activity() {
             text = "This TextView is under the Filament SurfaceView."
             textSize = 32.0f
             setPadding((16 * d).toInt(), 0, (16 * d).toInt(), 0)
+        }
+
+        singleTapDetector = GestureDetector(applicationContext, singleTapListener)
+
+        surfaceView.setOnTouchListener { _, event ->
+            singleTapDetector.onTouchEvent(event)
+            true
         }
 
         setContentView(FrameLayout(this).apply {
@@ -137,7 +152,10 @@ class MainActivity : Activity() {
         renderer = engine.createRenderer()
         scene = engine.createScene()
         view = engine.createView()
+        view.setTransparentPickingEnabled(false);
         camera = engine.createCamera(engine.entityManager.create())
+        skybox = Skybox.Builder().color(0.1f, 0.125f, 0.25f, 1.0f).build(engine)
+        scene.skybox = skybox
 
         // clear the swapchain with transparent pixels
         renderer.clearOptions = renderer.clearOptions.apply {
@@ -153,13 +171,69 @@ class MainActivity : Activity() {
         view.scene = scene
     }
 
+    private fun buildMaterial() {
+        // MaterialBuilder.init() must be called before any MaterialBuilder methods can be used.
+        // It only needs to be called once per process.
+        // When your app is done building materials, call MaterialBuilder.shutdown() to free
+        // internal MaterialBuilder resources.
+        MaterialBuilder.init()
+
+        val matPackage = MaterialBuilder()
+            // By default, materials are generated only for DESKTOP. Since we're an Android
+            // app, we set the platform to MOBILE.
+            .platform(MaterialBuilder.Platform.MOBILE)
+
+            // Set the name of the Material for debugging purposes.
+            .name("Transparent")
+
+            // Defaults to LIT. We could change the shading model here if we desired.
+            .shading(MaterialBuilder.Shading.UNLIT)
+            .blending(MaterialBuilder.BlendingMode.TRANSPARENT)
+
+            // Add a parameter to the material that can be set via the setParameter method once
+            // we have a material instance.
+            .uniformParameter(MaterialBuilder.UniformType.FLOAT3, "baseColor")
+            .uniformParameter(MaterialBuilder.UniformType.FLOAT, "alpha")
+
+            // Fragment block- see the material readme (docs/Materials.md.html) for the full
+            // specification.
+            .material("void material(inout MaterialInputs material) {\n" +
+                "    prepareMaterial(material);\n" +
+                "    material.baseColor.rgb = materialParams.baseColor;\n" +
+                "    material.baseColor.a = materialParams.alpha;\n" +
+                "}\n")
+
+            // Turn off shader code optimization so this sample is compatible with the "lite"
+            // variant of the filamat library.
+            .optimization(MaterialBuilder.Optimization.NONE)
+
+            // When compiling more than one material variant, it is more efficient to pass an Engine
+            // instance to reuse the Engine's job system
+            .build(engine)
+
+        if (matPackage.isValid) {
+            val buffer = matPackage.buffer
+            material = Material.Builder().payload(buffer, buffer.remaining()).build(engine)
+        }
+        else {
+            Log.v("Filament", "Mat package is not valid: $matPackage")
+        }
+
+        // We're done building materials, so we call shutdown here to free resources. If we wanted
+        // to build more materials, we could call MaterialBuilder.init() again (with a slight
+        // performance hit).
+        MaterialBuilder.shutdown()
+    }
+
     private fun setupScene() {
-        loadMaterial()
+        buildMaterial()
         createMesh()
 
         // To create a renderable we first create a generic entity
         renderable = EntityManager.get().create()
 
+        material.defaultInstance.setParameter("baseColor", 1, 1, 1)
+        material.defaultInstance.setParameter("alpha", 0.5f)
         // We then create a renderable component on that entity
         // A renderable is made of several primitives; in this case we declare only 1
         RenderableManager.Builder(1)
@@ -367,6 +441,20 @@ class MainActivity : Activity() {
             src.close()
 
             return dst.apply { rewind() }
+        }
+    }
+
+    // Just for testing purposes
+    inner class SingleTapListener : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapUp(event: MotionEvent): Boolean {
+            view.pick(
+                event.x.toInt(),
+                surfaceView.height - event.y.toInt(),
+                surfaceView.handler, {
+                    Log.v("Filament", "Picked ${it.renderable}")
+                },
+            )
+            return super.onSingleTapUp(event)
         }
     }
 }

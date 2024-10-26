@@ -79,7 +79,7 @@ buildscript {
     }
 
     ext.versions = [
-        'jdk': 17,
+        'jdk': 21,
         'minSdk': 21,
         'targetSdk': 34,
         'compileSdk': 34,
