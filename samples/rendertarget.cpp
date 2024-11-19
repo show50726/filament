@@ -29,6 +29,7 @@
 #include <filament/View.h>
 
 #include <utils/EntityManager.h>
+#include <viewer/ViewerGui.h>
 
 #include <filameshio/MeshReader.h>
 
@@ -42,6 +43,9 @@
 #include "generated/resources/resources.h"
 #include "generated/resources/monkey.h"
 
+#include <imgui.h>
+
+using namespace filament::viewer;
 using namespace filament;
 using namespace filamesh;
 using namespace filament::math;
@@ -52,6 +56,7 @@ struct Vertex {
 };
 
 struct App {
+    ViewerGui* viewer;
     utils::Entity lightEntity;
     Material* meshMaterial;
     MaterialInstance* meshMatInstance;
@@ -142,6 +147,12 @@ static void printUsage(char* name) {
     std::cout << usage;
 }
 
+static void onClick(App& app, View* view, ImVec2 pos) {
+    view->pick(pos.x, pos.y, [&app](View::PickingQueryResult const& result) {
+        std::cout << result.renderable.getId() << std::endl;
+        });
+}
+
 static int handleCommandLineArguments(int argc, char* argv[], App* app) {
     static constexpr const char* OPTSTR = "ha:m:";
     static const struct option OPTIONS[] = {
@@ -192,6 +203,8 @@ int main(int argc, char** argv) {
     handleCommandLineArguments(argc, argv, &app);
 
     auto setup = [&app](Engine* engine, View* view, Scene* scene) {
+        app.viewer = new ViewerGui(engine, scene, view);
+        view->setTransparentPickingEnabled(true);
         auto& tcm = engine->getTransformManager();
         auto& rcm = engine->getRenderableManager();
         auto& em = utils::EntityManager::get();
@@ -272,7 +285,7 @@ int main(int argc, char** argv) {
 
         // Instantiate mesh material.
         app.meshMaterial = Material::Builder()
-            .package(RESOURCES_AIDEFAULTMAT_DATA, RESOURCES_AIDEFAULTMAT_SIZE).build(*engine);
+            .package(RESOURCES_SANDBOXLITTRANSPARENT_DATA, RESOURCES_SANDBOXLITTRANSPARENT_SIZE).build(*engine);
         auto mi = app.meshMatInstance = app.meshMaterial->createInstance();
         mi->setParameter("baseColor", RgbType::LINEAR, {0.8, 1.0, 1.0});
         mi->setParameter("metallic", 0.0f);
@@ -309,7 +322,26 @@ int main(int argc, char** argv) {
                 .build(*engine, app.lightEntity);
         scene->addEntity(app.lightEntity);
         app.offscreenScene->addEntity(app.lightEntity);
+
+        app.viewer->setUiCallback([&app, scene, view, engine]() {
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                ImVec2 pos = ImGui::GetMousePos();
+                pos.x -= app.viewer->getSidebarWidth();
+                pos.x *= ImGui::GetIO().DisplayFramebufferScale.x;
+                pos.y *= ImGui::GetIO().DisplayFramebufferScale.y;
+                if (pos.x > 0) {
+                    pos.y = view->getViewport().height - 1 - pos.y;
+                    onClick(app, view, pos);
+                }
+            }
+            });
     };
+
+    auto gui = [&app](Engine*, View*) {
+        app.viewer->updateUserInterface();
+
+        FilamentApp::get().setSidebarWidth(app.viewer->getSidebarWidth());
+        };
 
     auto cleanup = [&app](Engine* engine, View*, Scene*) {
 
@@ -373,7 +405,7 @@ int main(int argc, char** argv) {
         }
     });
 
-    FilamentApp::get().run(app.config, setup, cleanup, FilamentApp::ImGuiCallback(), preRender);
+    FilamentApp::get().run(app.config, setup, cleanup, gui, preRender);
 
     return 0;
 }
