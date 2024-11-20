@@ -44,6 +44,7 @@
 #include "generated/resources/monkey.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 using namespace filament::viewer;
 using namespace filament;
@@ -222,7 +223,7 @@ int main(int argc, char** argv) {
         app.offscreenDepthTexture = Texture::Builder()
             .width(vp.width).height(vp.height).levels(1)
             .usage(Texture::Usage::DEPTH_ATTACHMENT)
-            .format(Texture::InternalFormat::DEPTH24).build(*engine);
+            .format(Texture::InternalFormat::DEPTH32F).build(*engine);
         app.offscreenRenderTarget = RenderTarget::Builder()
             .texture(RenderTarget::AttachmentPoint::COLOR, app.offscreenColorTexture)
             .texture(RenderTarget::AttachmentPoint::DEPTH, app.offscreenDepthTexture)
@@ -337,8 +338,10 @@ int main(int argc, char** argv) {
             });
     };
 
-    auto gui = [&app](Engine*, View*) {
+    auto gui = [&app](Engine*, View* view) {
         app.viewer->updateUserInterface();
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        drawList->AddImage(app.offscreenColorTexture, ImVec2(0, 0), ImVec2((float)view->getViewport().width, (float)view->getViewport().height), ImVec2(0, 0), ImVec2(1, 1));
 
         FilamentApp::get().setSidebarWidth(app.viewer->getSidebarWidth());
         };
