@@ -25,9 +25,21 @@ material {
             name : intensity
         },
         {
-            type : float2,
-            name : sampleCount
+            type : float,
+            name : sliceCount
         },
+        {
+            type : float,
+            name : stepsPerSlice
+        },
+        {
+            type : float,
+            name : projectionScaleRadius
+        },
+        {
+            type : float,
+            name : power
+        }
     ],
     variables : [
          vertex
@@ -69,7 +81,7 @@ fragment {
         vec3 bentNormal; // will be discarded
 
         if (materialParams.intensity > 0.0) {
-            scalableAmbientObscurance(occlusion, bentNormal, uv, origin, normal);
+            groundTruthAmbientOcclusion(occlusion, bentNormal, uv, origin, normal);
         }
 
         if (materialParams.ssctIntensity > 0.0) {

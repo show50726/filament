@@ -773,7 +773,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
         FrameGraphId<FrameGraphTexture> bn;
     };
 
-    const bool computeBentNormals = options.bentNormals;
+    const bool computeBentNormals = false; //options.bentNormals;
 
     const bool highQualityUpsampling =
             options.upsampling >= QualityLevel::HIGH && options.resolution < 1.0f;
@@ -885,10 +885,10 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                 mi->setParameter("peak2", peak * peak);
                 mi->setParameter("bias", options.bias);
                 mi->setParameter("power", power);
-                mi->setParameter("intensity", intensity / sampleCount);
+                mi->setParameter("intensity", intensity);
                 mi->setParameter("maxLevel", uint32_t(levelCount - 1));
-                mi->setParameter("sampleCount", float2{ sampleCount, 1.0f / (sampleCount - 0.5f) });
-                mi->setParameter("spiralTurns", spiralTurns);
+                mi->setParameter("stepsPerSlice", sampleCount);
+                mi->setParameter("sliceCount", spiralTurns);
                 mi->setParameter("angleIncCosSin", float2{ std::cos(inc), std::sin(inc) });
                 mi->setParameter("invFarPlane", 1.0f / -cameraInfo.zf);
 

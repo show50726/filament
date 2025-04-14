@@ -1,5 +1,5 @@
 material {
-    name : sao,
+    name : gtao,
     parameters : [
         {
             type : sampler2d,
@@ -22,31 +22,7 @@ material {
         },
         {
             type : float,
-            name : invRadiusSquared
-        },
-        {
-            type : float,
-            name : minHorizonAngleSineSquared
-        },
-        {
-            type : float,
-            name : peak2
-        },
-        {
-            type : float,
-            name : projectionScale
-        },
-        {
-            type : float,
-            name : projectionScaleRadius
-        },
-        {
-            type : float,
-            name : bias
-        },
-        {
-            type : float,
-            name : power
+            name : invFarPlane
         },
         {
             type : float,
@@ -54,27 +30,19 @@ material {
         },
         {
             type : float,
-            name : spiralTurns
-        },
-        {
-            type : float2,
-            name : sampleCount
-        },
-        {
-            type : float2,
-            name : angleIncCosSin
+            name : sliceCount
         },
         {
             type : float,
-            name : invFarPlane
+            name : stepsPerSlice
         },
         {
-            type : int,
-            name : maxLevel
+            type : float,
+            name : projectionScaleRadius
         },
         {
-            type : float2,
-            name : reserved
+            type : float,
+            name : power
         },
         {
             type : float,
@@ -130,9 +98,7 @@ fragment {
 #define COMPUTE_BENT_NORMAL 0
 
     #include "saoImpl.fs"
-    #include "ssctImpl.fs"
     #include "../utils/geometry.fs"
-    #include "ssaoUtils.fs"
 
     void dummy(){}
 
@@ -151,11 +117,7 @@ fragment {
         vec3 bentNormal; // will be discarded
 
         if (materialParams.intensity > 0.0) {
-            scalableAmbientObscurance(occlusion, bentNormal, uv, origin, normal);
-        }
-
-        if (materialParams.ssctIntensity > 0.0) {
-            occlusion = max(occlusion, dominantLightShadowing(uv, origin, normal));
+            groundTruthAmbientOcclusion(occlusion, bentNormal, uv, origin, normal);
         }
 
         // occlusion to visibility
