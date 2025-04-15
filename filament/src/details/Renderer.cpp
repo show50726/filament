@@ -1459,16 +1459,15 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
     }
 
     auto ssao = blackboard.get<FrameGraphTexture>("ssao");
-    if (ssao.isInitialized()) {
+    if (ssao.isInitialized() && aoOptions.enabled) {
         FrameGraphId<FrameGraphTexture> debug = 
             ppm.blit(fg, false, ssao, svp, {
                 .width = svp.width,
                 .height = svp.height,
-                .format = TextureFormat::R8
-            }, SamplerMagFilter::LINEAR, SamplerMinFilter::LINEAR);
+                .format = TextureFormat::RGB8
+            }, SamplerMagFilter::NEAREST, SamplerMinFilter::NEAREST);
         fg.forwardResource(fgViewRenderTarget, debug);
     } else {
-        slog.i << "SSAO is not initialized" << "\n";
         fg.forwardResource(fgViewRenderTarget, input);
     }
 
