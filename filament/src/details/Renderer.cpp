@@ -1088,7 +1088,9 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
     if (aoOptions.enabled) {
         // we could rely on FrameGraph culling, but this creates unnecessary CPU work
         auto ssao = ppm.screenSpaceAmbientOcclusion(fg, svp, cameraInfo, structure, aoOptions);
-        blackboard["ssao"] = ssao;
+        if (ssao.isInitialized()) {
+            blackboard["ssao"] = ssao;
+        }
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1456,8 +1458,19 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
                 engine.debug.shadowmap.display_shadow_texture_power);
     }
 
-    auto debug = blackboard.get<FrameGraphTexture>("ssao");
-    fg.forwardResource(fgViewRenderTarget, debug ? debug : input);
+    auto ssao = blackboard.get<FrameGraphTexture>("ssao");
+    if (ssao.isInitialized()) {
+        FrameGraphId<FrameGraphTexture> debug = 
+            ppm.blit(fg, false, ssao, svp, {
+                .width = svp.width,
+                .height = svp.height,
+                .format = TextureFormat::R8
+            }, SamplerMagFilter::LINEAR, SamplerMinFilter::LINEAR);
+        fg.forwardResource(fgViewRenderTarget, debug);
+    } else {
+        slog.i << "SSAO is not initialized" << "\n";
+        fg.forwardResource(fgViewRenderTarget, input);
+    }
 
     fg.present(fgViewRenderTarget);
 

@@ -24,7 +24,6 @@
 #include <details/Texture.h>
 
 #include <string>
-#include <utils/Log.h>
 
 using namespace filament::backend;
 
@@ -195,8 +194,6 @@ void RenderPassNode::resolve() noexcept {
         // additionally, clear implies discardStart
         rt.backend.params.flags.discardStart |= (rt.descriptor.clearFlags & rt.targetBufferFlags);
 
-        utils::slog.i << "Debug: " << minWidth << " " << maxWidth << "\n";
-        flush(utils::slog.i);
         assert_invariant(minWidth == maxWidth);
         assert_invariant(minHeight == maxHeight);
         assert_invariant(any(rt.targetBufferFlags));
