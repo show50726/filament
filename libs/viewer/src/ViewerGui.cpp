@@ -827,8 +827,10 @@ void ViewerGui::updateUserInterface() {
         int quality = (int) ssao.quality;
         int lowpass = (int) ssao.lowPassFilter;
         bool upsampling = ssao.upsampling != View::QualityLevel::LOW;
+        bool enableSSAO = ssao.intensity != 0.0f;
 
         bool halfRes = ssao.resolution != 1.0f;
+        ImGui::Checkbox("Enabled", &enableSSAO);
         ImGui::SliderInt("Quality", &quality, 0, 3);
         ImGui::SliderInt("Low Pass", &lowpass, 0, 2);
         ImGui::Checkbox("Bent Normals", &ssao.bentNormals);
@@ -838,6 +840,7 @@ void ViewerGui::updateUserInterface() {
         ImGui::Checkbox("Half resolution", &halfRes);
         ssao.resolution = halfRes ? 0.5f : 1.0f;
 
+        ssao.intensity = enableSSAO ? 1.0f : 0.0f;
         ssao.upsampling = upsampling ? View::QualityLevel::HIGH : View::QualityLevel::LOW;
         ssao.lowPassFilter = (View::QualityLevel) lowpass;
         ssao.quality = (View::QualityLevel) quality;
