@@ -1456,10 +1456,8 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
                 engine.debug.shadowmap.display_shadow_texture_power);
     }
 
-//    auto debug = structure
-//    fg.forwardResource(fgViewRenderTarget, debug ? debug : input);
-
-    fg.forwardResource(fgViewRenderTarget, input);
+    auto debug = blackboard.get<FrameGraphTexture>("ssao");
+    fg.forwardResource(fgViewRenderTarget, debug ? debug : input);
 
     fg.present(fgViewRenderTarget);
 

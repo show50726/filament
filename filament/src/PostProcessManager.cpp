@@ -919,6 +919,8 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
             });
 
     FrameGraphId<FrameGraphTexture> ssao = SSAOPass->ssao;
+    auto& blackboard = fg.getBlackboard();
+    blackboard["ssao"] = ssao;
 
     /*
      * Final separable bilateral blur pass
