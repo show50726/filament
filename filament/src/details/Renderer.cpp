@@ -1460,16 +1460,16 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
 
     auto ssao = blackboard.get<FrameGraphTexture>("ssao");
     if (ssao.isInitialized() && aoOptions.enabled) {
-        FrameGraphId<FrameGraphTexture> debug = 
+        input = 
             ppm.blit(fg, false, ssao, svp, {
                 .width = svp.width,
                 .height = svp.height,
-                .format = TextureFormat::RGB8
+                .format = TextureFormat::R8
             }, SamplerMagFilter::NEAREST, SamplerMinFilter::NEAREST);
-        fg.forwardResource(fgViewRenderTarget, debug);
-    } else {
-        fg.forwardResource(fgViewRenderTarget, input);
+        
     }
+
+    fg.forwardResource(fgViewRenderTarget, input);
 
     fg.present(fgViewRenderTarget);
 
