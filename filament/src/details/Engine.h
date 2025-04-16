@@ -652,7 +652,7 @@ public:
             bool depth_clamp = true;
             float dzn = -1.0f;
             float dzf =  1.0f;
-            float display_shadow_texture_scale = 0.25f;
+            float display_shadow_texture_scale = 1.0f;
             int display_shadow_texture_layer = 0;
             int display_shadow_texture_level = 0;
             int display_shadow_texture_channel = 0;

@@ -1448,8 +1448,8 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
         }
     }
 
-    if (UTILS_UNLIKELY(engine.debug.shadowmap.display_shadow_texture)) {
-        auto shadowmap = blackboard.get<FrameGraphTexture>("shadowmap");
+    if (true) {
+        auto shadowmap = blackboard.get<FrameGraphTexture>("ssao");
         input = ppm.debugDisplayShadowTexture(fg, input, shadowmap,
                 engine.debug.shadowmap.display_shadow_texture_scale,
                 engine.debug.shadowmap.display_shadow_texture_layer,
@@ -1458,16 +1458,15 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
                 engine.debug.shadowmap.display_shadow_texture_power);
     }
 
-    auto ssao = blackboard.get<FrameGraphTexture>("ssao");
-    if (ssao.isInitialized() && aoOptions.enabled) {
-        input = 
-            ppm.blit(fg, false, ssao, svp, {
-                .width = svp.width,
-                .height = svp.height,
-                .format = TextureFormat::R8
-            }, SamplerMagFilter::NEAREST, SamplerMinFilter::NEAREST);
-        
-    }
+    // auto ssao = blackboard.get<FrameGraphTexture>("ssao");
+    // if (ssao.isInitialized() && aoOptions.enabled) {
+    //     input =
+    //         ppm.blit(fg, false, ssao, svp, {
+    //             .width = svp.width,
+    //             .height = svp.height
+    //         }, SamplerMagFilter::NEAREST, SamplerMinFilter::NEAREST);
+    //
+    // }
 
     fg.forwardResource(fgViewRenderTarget, input);
 
