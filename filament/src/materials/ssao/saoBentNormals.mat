@@ -141,47 +141,12 @@ fragment {
 
 #define COMPUTE_BENT_NORMAL 1
 
-    #include "saoImpl.fs"
-    #include "ssctImpl.fs"
-    #include "../utils/geometry.fs"
     #include "ssaoUtils.fs"
 
     void dummy(){}
 
     void postProcess(inout PostProcessInputs postProcess) {
-        highp vec2 uv = variable_vertex.xy; // interpolated to pixel center
-
-        highp float depth = sampleDepth(materialParams_depth, uv, 0.0);
-        highp float z = linearizeDepth(depth);
-        highp vec3 origin = computeViewSpacePositionFromDepth(uv, z, materialParams.positionParams);
-
-        vec3 normal = computeViewSpaceNormal(materialParams_depth, uv, depth, origin,
-                materialParams.resolution.zw,
-                materialParams.positionParams);
-
-        float occlusion = 0.0;
-        vec3 bentNormal = normal;
-
-        if (materialParams.intensity > 0.0) {
-            scalableAmbientObscurance(occlusion, bentNormal, uv, origin, normal);
-        }
-
-        if (materialParams.ssctIntensity > 0.0) {
-            occlusion = max(occlusion, dominantLightShadowing(uv, origin, normal));
-        }
-
-        // occlusion to visibility
-        float aoVisibility = pow(saturate(1.0 - occlusion), materialParams.power);
-
-#if defined(TARGET_MOBILE)
-        // this line is needed to workaround what seems to be a bug on qualcomm hardware
-        aoVisibility += gl_FragCoord.x * MEDIUMP_FLT_MIN;
-#endif
-
-        // transform to world space (we're guaranteed the view matrix is a rigid body transform)
-        vec3 bn = mat3(getWorldFromViewMatrix()) * bentNormal;
-
-        postProcess.aoData = vec3(aoVisibility, pack(origin.z * materialParams.invFarPlane));
-        postProcess.bnData = packBentNormal(bn);
+        postProcess.aoData = vec3(0, 0, 0);
+        postProcess.bnData = packBentNormal(vec3(0, 0, 0));
     }
 }

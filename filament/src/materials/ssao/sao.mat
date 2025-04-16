@@ -1,5 +1,5 @@
 material {
-    name : gtao,
+    name : sao,
     parameters : [
         {
             type : sampler2d,
@@ -99,6 +99,7 @@ fragment {
 
     #include "saoImpl.fs"
     #include "../utils/geometry.fs"
+    #include "ssaoUtils.fs"
 
     void dummy(){}
 

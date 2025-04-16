@@ -831,6 +831,11 @@ void ViewerGui::updateUserInterface() {
 
         bool halfRes = ssao.resolution != 1.0f;
         ImGui::Checkbox("Enabled", &enableSSAO);
+        ImGui::SliderFloat("Radius", &ssao.radius, 0.0f, 100.0f);
+        ImGui::SliderFloat("Power", &ssao.power, 0.0f, 50.0f);
+        ImGui::SliderFloat("Intensity", &ssao.intensity, 0.0f, 1.0f);
+        ImGui::SliderFloat("Slice Count", &ssao.sliceCount, 1.0f, 10.0f);
+        ImGui::SliderFloat("Steps Per Slice", &ssao.stepsPerSlice, 1.0f, 20.0f);
         ImGui::SliderInt("Quality", &quality, 0, 3);
         ImGui::SliderInt("Low Pass", &lowpass, 0, 2);
         ImGui::Checkbox("Bent Normals", &ssao.bentNormals);

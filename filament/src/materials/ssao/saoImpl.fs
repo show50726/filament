@@ -41,11 +41,6 @@ float integrateArcCosWeight(float h, float n) {
 void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         highp vec2 uv, highp vec3 origin, vec3 normal) {
     vec2 uvSamplePos = uv;
-    if (sampleDepthLinear(materialParams_depth, uvSamplePos, 0.0) <= 1e-7){
-        obscurance = 0.0;
-        return;
-    }
-
     vec3 viewDir = normalize(-origin);
     float ssRadius = -(materialParams.projectionScaleRadius / origin.z);
 
@@ -62,7 +57,7 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         omega *= ssRadius;
         vec3 directionV = vec3(cosPhi, sinPhi, 0.0);
         vec3 orthoDirectionV = directionV - (dot(directionV, viewDir)*viewDir);
-        vec3 axisV = normalize(cross(directionV, viewDir));
+        vec3 axisV = normalize(cross(orthoDirectionV, viewDir));
         vec3 projNormalV = normal - axisV * dot(normal, axisV);
 
         float signNorm = sign(dot(orthoDirectionV, projNormalV));
@@ -89,23 +84,31 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             highp vec3 samplePos1 = computeViewSpacePositionFromDepth(sampleScreenPos1, sampleDepth1,
                 materialParams.positionParams);
 
-            float3 sampleHorizonV0 = normalize(samplePos0 - origin);
-            float3 sampleHorizonV1 = normalize(samplePos1 - origin);
+            float3 sampleDelta0 = (samplePos0 - origin);
+            float3 sampleDelta1 = (samplePos1 - origin);
+            float sampleDist0 = length(sampleDelta0);
+            float sampleDist1 = length(sampleDelta1);
 
-            horizonCos0 = max(horizonCos0, dot(sampleHorizonV0, viewDir));
-            horizonCos1 = max(horizonCos1, dot(sampleHorizonV1, viewDir));
+            float3 sampleHorizonV0 = sampleDelta0/sampleDist0;
+            float3 sampleHorizonV1 = sampleDelta1/sampleDist1;
+
+            float shc0 = dot(sampleHorizonV0, viewDir);
+            float shc1 = dot(sampleHorizonV1, viewDir);
+
+            horizonCos0 = max(horizonCos0, shc0);
+            horizonCos1 = max(horizonCos1, shc1);
         }
 
         float h0 = -acos(horizonCos1);
         float h1 = acos(horizonCos0);
-        h0 = n + clamp(h0-n, -PI * 0.5, PI * 0.5);
-        h1 = n + clamp(h1-n, -PI * 0.5, PI * 0.5);
+        h0 = n + clamp(h0-n, -HALF_PI, HALF_PI);
+        h1 = n + clamp(h1-n, -HALF_PI, HALF_PI);
 
         occlusion += projNormalLength * (integrateArcCosWeight(h0, n) + integrateArcCosWeight(h1, n));
     }
 
     occlusion = saturate(pow(occlusion / materialParams.sliceCount, materialParams.power));
-    obscurance = occlusion;
+    obscurance = 1.0-occlusion;
 
 #if COMPUTE_BENT_NORMAL
     bentNormal = normalize(bentNormal);

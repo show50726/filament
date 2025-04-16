@@ -697,7 +697,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
         AmbientOcclusionOptions const& options) noexcept {
     assert_invariant(depth);
 
-    const size_t levelCount = fg.getDescriptor(depth).levels;
+   // const size_t levelCount = fg.getDescriptor(depth).levels;
 
     // With q the standard deviation,
     // A gaussian filter requires 6q-1 values to keep its gaussian nature
@@ -708,29 +708,29 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
             .bilateralThreshold = options.bilateralThreshold,
     };
 
-    float sampleCount{};
-    float spiralTurns{};
+    // float sampleCount{};
+    // float spiralTurns{};
     float standardDeviation{};
     switch (options.quality) {
         default:
         case QualityLevel::LOW:
-            sampleCount = 7.0f;
-            spiralTurns = 3.0f;
+            // sampleCount = 7.0f;
+            // spiralTurns = 3.0f;
             standardDeviation = 8.0;
             break;
         case QualityLevel::MEDIUM:
-            sampleCount = 11.0f;
-            spiralTurns = 6.0f;
+            // sampleCount = 11.0f;
+            // spiralTurns = 6.0f;
             standardDeviation = 8.0;
             break;
         case QualityLevel::HIGH:
-            sampleCount = 16.0f;
-            spiralTurns = 7.0f;
+            // sampleCount = 16.0f;
+            // spiralTurns = 7.0f;
             standardDeviation = 6.0;
             break;
         case QualityLevel::ULTRA:
-            sampleCount = 32.0f;
-            spiralTurns = 14.0f;
+            // sampleCount = 32.0f;
+            // spiralTurns = 14.0f;
             standardDeviation = 4.0;
             break;
     }
@@ -846,13 +846,13 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                         0.5f * cameraInfo.projection[1].y * desc.height);
 
                 // Where the falloff function peaks
-                const float peak = 0.1f * options.radius;
-                const float intensity = (f::TAU * peak) * options.intensity;
+                // const float peak = 0.1f * options.radius;
+                const float intensity = options.intensity;
                 // always square AO result, as it looks much better
-                const float power = options.power * 2.0f;
+                const float power = options.power;
 
                 const auto invProjection = inverse(cameraInfo.projection);
-                const float inc = (1.0f / (sampleCount - 0.5f)) * spiralTurns * f::TAU;
+                // const float inc = (1.0f / (sampleCount - 0.5f)) * spiralTurns * f::TAU;
 
                 const mat4 screenFromClipMatrix{ mat4::row_major_init{
                         0.5 * desc.width, 0.0, 0.0, 0.5 * desc.width,
@@ -872,24 +872,24 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                         mat4f(screenFromClipMatrix * cameraInfo.projection));
                 mi->setParameter("resolution",
                         float4{ desc.width, desc.height, 1.0f / desc.width, 1.0f / desc.height });
-                mi->setParameter("invRadiusSquared",
-                        1.0f / (options.radius * options.radius));
-                mi->setParameter("minHorizonAngleSineSquared",
-                        std::pow(std::sin(options.minHorizonAngleRad), 2.0f));
-                mi->setParameter("projectionScale",
-                        projectionScale);
+                // mi->setParameter("invRadiusSquared",
+                //         1.0f / (options.radius * options.radius));
+                // mi->setParameter("minHorizonAngleSineSquared",
+                //         std::pow(std::sin(options.minHorizonAngleRad), 2.0f));
+                // mi->setParameter("projectionScale",
+                //         projectionScale);
                 mi->setParameter("projectionScaleRadius",
                         projectionScale * options.radius);
                 mi->setParameter("positionParams", float2{
                         invProjection[0][0], invProjection[1][1] } * 2.0f);
-                mi->setParameter("peak2", peak * peak);
-                mi->setParameter("bias", options.bias);
+                // mi->setParameter("peak2", peak * peak);
+                // mi->setParameter("bias", options.bias);
                 mi->setParameter("power", power);
                 mi->setParameter("intensity", intensity);
-                mi->setParameter("maxLevel", uint32_t(levelCount - 1));
-                mi->setParameter("stepsPerSlice", sampleCount);
-                mi->setParameter("sliceCount", spiralTurns);
-                mi->setParameter("angleIncCosSin", float2{ std::cos(inc), std::sin(inc) });
+                // mi->setParameter("maxLevel", uint32_t(levelCount - 1));
+                mi->setParameter("stepsPerSlice", options.stepsPerSlice);
+                mi->setParameter("sliceCount", options.sliceCount);
+                // mi->setParameter("angleIncCosSin", float2{ std::cos(inc), std::sin(inc) });
                 mi->setParameter("invFarPlane", 1.0f / -cameraInfo.zf);
 
                 mi->setParameter("ssctShadowDistance", options.ssct.shadowDistance);
