@@ -830,12 +830,14 @@ void ViewerGui::updateUserInterface() {
         bool enableSSAO = ssao.enabled;
 
         bool halfRes = ssao.resolution != 1.0f;
+        int sliceCount = ssao.sliceCount;
+        int stepPerSlice = ssao.stepsPerSlice;
         ImGui::Checkbox("Enabled", &enableSSAO);
-        ImGui::SliderFloat("Radius", &ssao.radius, 0.0f, 100.0f);
-        ImGui::SliderFloat("Power", &ssao.power, 0.0f, 50.0f);
+        ImGui::SliderFloat("Radius", &ssao.radius, 0.01f, 5.0f);
+        ImGui::SliderFloat("Power", &ssao.power, 1.0f, 8.0f);
         ImGui::SliderFloat("Intensity", &ssao.intensity, 0.0f, 1.0f);
-        ImGui::SliderFloat("Slice Count", &ssao.sliceCount, 1.0f, 10.0f);
-        ImGui::SliderFloat("Steps Per Slice", &ssao.stepsPerSlice, 1.0f, 20.0f);
+        ImGui::SliderInt("Slice Count", &sliceCount, 1, 10);
+        ImGui::SliderInt("Steps Per Slice", &stepPerSlice, 1, 4);
         ImGui::SliderInt("Quality", &quality, 0, 3);
         ImGui::SliderInt("Low Pass", &lowpass, 0, 2);
         ImGui::Checkbox("Bent Normals", &ssao.bentNormals);
@@ -844,6 +846,8 @@ void ViewerGui::updateUserInterface() {
         ImGui::SliderFloat("Bilateral Threshold", &ssao.bilateralThreshold, 0.0f, 0.1f);
         ImGui::Checkbox("Half resolution", &halfRes);
         ssao.resolution = halfRes ? 0.5f : 1.0f;
+        ssao.sliceCount = sliceCount;
+        ssao.stepsPerSlice = stepPerSlice;
 
         ssao.enabled = enableSSAO;
         ssao.upsampling = upsampling ? View::QualityLevel::HIGH : View::QualityLevel::LOW;

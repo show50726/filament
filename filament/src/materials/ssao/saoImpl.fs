@@ -47,14 +47,16 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     float occlusion = 0.0;
     // TODO: Expose this to the parameters
     const float thicknessAttenuation = 0.04;
-    for (float i = 0.0; i <= materialParams.sliceCount; i+=1.0) {
+    float stepRadius = max(min(ssRadius, 512.0), materialParams.sliceCount);
+    stepRadius /= (materialParams.stepsPerSlice + 1.0);
+    for (float i = 0.0; i < materialParams.sliceCount; i+=1.0) {
         float slice = i / materialParams.sliceCount;
         float phi = slice * PI;
         float cosPhi = cos(phi);
         float sinPhi = sin(phi);
-        vec2 omega = vec2(cosPhi, -sinPhi);
+        vec2 omega = vec2(cosPhi, sinPhi);
 
-        omega *= ssRadius;
+        omega *= stepRadius;
         vec3 directionV = vec3(cosPhi, sinPhi, 0.0);
         vec3 orthoDirectionV = directionV - (dot(directionV, viewDir)*viewDir);
         vec3 axisV = normalize(cross(orthoDirectionV, viewDir));
@@ -69,9 +71,14 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
 
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
-        for (float j = 0.0; j < materialParams.stepsPerSlice; j+=1.0) {
-            float step = j / materialParams.stepsPerSlice;
-            vec2 sampleOffset = step * omega;
+        //float minS = 1.3 / ssRadius;
+        for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
+            //float step = j / materialParams.stepsPerSlice;
+            //step += minS;
+
+            vec2 sampleOffset = j * omega;
+            float jitter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+            sampleOffset += jitter * omega * 0.5;
 
             // TODO: sample Hi-Z
             float2 sampleScreenPos0 = uv + sampleOffset;
@@ -107,8 +114,8 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         occlusion += projNormalLength * (integrateArcCosWeight(h0, n) + integrateArcCosWeight(h1, n));
     }
 
-    occlusion = saturate(pow(occlusion / materialParams.sliceCount, materialParams.power));
-    obscurance = 1.0-occlusion;
+    occlusion = 1.0 - saturate(occlusion / materialParams.sliceCount);
+    obscurance = occlusion;
 
 #if COMPUTE_BENT_NORMAL
     bentNormal = normalize(bentNormal);
