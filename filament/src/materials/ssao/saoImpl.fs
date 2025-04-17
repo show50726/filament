@@ -47,8 +47,7 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     float occlusion = 0.0;
     // TODO: Expose this to the parameters
     const float thicknessAttenuation = 0.04;
-    float stepRadius = max(min(ssRadius, 512.0), materialParams.sliceCount);
-    stepRadius /= (materialParams.stepsPerSlice + 1.0);
+    float stepRadius = ssRadius / (materialParams.stepsPerSlice + 1.0);
     for (float i = 0.0; i < materialParams.sliceCount; i+=1.0) {
         float slice = i / materialParams.sliceCount;
         float phi = slice * PI;

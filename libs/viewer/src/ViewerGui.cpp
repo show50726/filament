@@ -833,7 +833,7 @@ void ViewerGui::updateUserInterface() {
         int sliceCount = ssao.sliceCount;
         int stepPerSlice = ssao.stepsPerSlice;
         ImGui::Checkbox("Enabled", &enableSSAO);
-        ImGui::SliderFloat("Radius", &ssao.radius, 0.01f, 5.0f);
+        ImGui::SliderFloat("Radius", &ssao.radius, 0.001f, 0.01f);
         ImGui::SliderFloat("Power", &ssao.power, 1.0f, 8.0f);
         ImGui::SliderFloat("Intensity", &ssao.intensity, 0.0f, 1.0f);
         ImGui::SliderInt("Slice Count", &sliceCount, 1, 10);
