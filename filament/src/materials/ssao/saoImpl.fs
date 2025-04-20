@@ -98,11 +98,14 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             float3 sampleHorizonV0 = sampleDelta0/sampleDist0;
             float3 sampleHorizonV1 = sampleDelta1/sampleDist1;
 
+            float wsRadius = materialParams.radius;
+            float2 fallOff = saturate(float2(sampleDist0*sampleDist0, sampleDist1*sampleDist1) * (2.0/(wsRadius*wsRadius)));
+
             float shc0 = dot(sampleHorizonV0, viewDir);
             float shc1 = dot(sampleHorizonV1, viewDir);
 
-            horizonCos0 = max(horizonCos0, shc0);
-            horizonCos1 = max(horizonCos1, shc1);
+            horizonCos0 = shc0 > horizonCos0 ? lerp(shc0, horizonCos0, fallOff.x) : horizonCos0;
+            horizonCos1 = shc1 > horizonCos1 ? lerp(shc1, horizonCos1, fallOff.y) : horizonCos1;
         }
 
         float h0 = -acos(horizonCos1);

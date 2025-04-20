@@ -38,11 +38,19 @@ material {
         },
         {
             type : float,
+            name : radius
+        },
+        {
+            type : float,
             name : projectionScaleRadius
         },
         {
             type : float,
             name : power
+        },
+        {
+            type : float,
+            name : fallOffRange
         },
         {
             type : float,
@@ -128,6 +136,8 @@ fragment {
         // this line is needed to workaround what seems to be a bug on qualcomm hardware
         aoVisibility += gl_FragCoord.x * MEDIUMP_FLT_MIN;
 #endif
+
+        aoVisibility = lerp(1.0, aoVisibility, materialParams.intensity);
 
         postProcess.color.rgb = vec3(aoVisibility, pack(origin.z * materialParams.invFarPlane));
     }

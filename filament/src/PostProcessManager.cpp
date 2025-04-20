@@ -878,6 +878,8 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                 //         std::pow(std::sin(options.minHorizonAngleRad), 2.0f));
                 // mi->setParameter("projectionScale",
                 //         projectionScale);
+                mi->setParameter("radius",
+                       options.radius);
                 mi->setParameter("projectionScaleRadius",
                         projectionScale * options.radius);
                 mi->setParameter("positionParams", float2{

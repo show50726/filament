@@ -833,11 +833,12 @@ void ViewerGui::updateUserInterface() {
         int sliceCount = ssao.sliceCount;
         int stepPerSlice = ssao.stepsPerSlice;
         ImGui::Checkbox("Enabled", &enableSSAO);
-        ImGui::SliderFloat("Radius", &ssao.radius, 0.001f, 0.01f);
+        ImGui::SliderFloat("Radius", &ssao.radius, 0.1f, 1.0f);
         ImGui::SliderFloat("Power", &ssao.power, 1.0f, 8.0f);
         ImGui::SliderFloat("Intensity", &ssao.intensity, 0.0f, 1.0f);
         ImGui::SliderInt("Slice Count", &sliceCount, 1, 10);
         ImGui::SliderInt("Steps Per Slice", &stepPerSlice, 1, 4);
+        ImGui::SliderFloat("Fall Off Range", &ssao.fallOffRange, 0.0f, 1.0f);
         ImGui::SliderInt("Quality", &quality, 0, 3);
         ImGui::SliderInt("Low Pass", &lowpass, 0, 2);
         ImGui::Checkbox("Bent Normals", &ssao.bentNormals);
