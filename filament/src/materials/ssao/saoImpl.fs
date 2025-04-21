@@ -38,6 +38,10 @@ float integrateArcCosWeight(float h, float n) {
     return 0.25 * Arc;
 }
 
+float lerp(const float x, const float y, float a) {
+    return x * (1.0 - a) + y * a;
+}
+
 void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         highp vec2 uv, highp vec3 origin, vec3 normal) {
     vec2 uvSamplePos = uv;
@@ -70,14 +74,11 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
 
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
-        //float minS = 1.3 / ssRadius;
         for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
-            //float step = j / materialParams.stepsPerSlice;
-            //step += minS;
-
             vec2 sampleOffset = j * omega;
             float jitter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
             sampleOffset += jitter * omega * 0.5;
+            sampleOffset *= materialParams.resolution.zw;
 
             // TODO: sample Hi-Z
             float2 sampleScreenPos0 = uv + sampleOffset;

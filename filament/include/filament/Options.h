@@ -373,8 +373,8 @@ struct RenderQuality {
  * @see setAmbientOcclusionOptions()
  */
 struct AmbientOcclusionOptions {
-    float radius = 0.1f;    //!< Ambient Occlusion radius in meters, between 0 and ~10.
-    float power = 2.5f;     //!< Controls ambient occlusion's contrast. Must be positive.
+    float radius = 1.0f;    //!< Ambient Occlusion radius in meters, between 0 and ~10.
+    float power = 1.0f;     //!< Controls ambient occlusion's contrast. Must be positive.
     float bias = 0.0005f;   //!< Self-occlusion bias in meters. Use to avoid self-occlusion. Between 0 and a few mm.
     float resolution = 0.5f;//!< How each dimension of the AO buffer is scaled. Must be either 0.5 or 1.0.
     float intensity = 1.0f; //!< Strength of the Ambient Occlusion effect.
