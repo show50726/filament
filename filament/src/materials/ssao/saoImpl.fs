@@ -42,18 +42,32 @@ float lerp(const float x, const float y, float a) {
     return x * (1.0 - a) + y * a;
 }
 
+float gtaoNoise(float2 position) {
+	return fract(52.9829189 * fract(dot(position, vec2(0.06711056, 0.00583715))));
+}
+
+float gtaoOffsets(float2 uv) {
+	int2 position = int2(uv * materialParams.resolution.xy);
+	return 0.25 * float((position.y - position.x) & 3);
+}
+
 void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         highp vec2 uv, highp vec3 origin, vec3 normal) {
     vec2 uvSamplePos = uv;
     vec3 viewDir = normalize(-origin);
     float ssRadius = -(materialParams.projectionScaleRadius / origin.z);
 
+    float noiseOffset = gtaoOffsets(uv);
+    float noiseDirection = gtaoNoise(uv * materialParams.resolution.xy);
+
+    float initialRayStep = fract(noiseOffset);
+
     float occlusion = 0.0;
     // TODO: Expose this to the parameters
     const float thicknessAttenuation = 0.04;
     float stepRadius = ssRadius / (materialParams.stepsPerSlice + 1.0);
     for (float i = 0.0; i < materialParams.sliceCount; i+=1.0) {
-        float slice = i / materialParams.sliceCount;
+        float slice = (i + noiseDirection) / materialParams.sliceCount;
         float phi = slice * PI;
         float cosPhi = cos(phi);
         float sinPhi = sin(phi);
@@ -75,9 +89,9 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
         for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
-            vec2 sampleOffset = j * omega;
+            vec2 sampleOffset = (j + initialRayStep) * omega;
             float jitter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
-            sampleOffset += jitter * omega * 0.5;
+            //sampleOffset += jitter * omega * 0.5;
             sampleOffset *= materialParams.resolution.zw;
 
             // TODO: sample Hi-Z
