@@ -68,6 +68,8 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     vec2 uvSamplePos = uv;
     vec3 viewDir = normalize(-origin);
     float ssRadius = -(materialParams.projectionScaleRadius / origin.z);
+    // TODO: Determine the constant
+    ssRadius = max(min(ssRadius, 256.0), materialParams.sliceCount);
 
     float noiseOffset = spatialOffsetsNoise(uv);
     float noiseDirection = spatialDirectionNoise(uv);
@@ -85,7 +87,6 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         float sinPhi = sin(phi);
         vec2 omega = vec2(cosPhi, sinPhi);
 
-        omega *= stepRadius;
         vec3 directionV = vec3(cosPhi, sinPhi, 0.0);
         vec3 orthoDirectionV = directionV - (dot(directionV, viewDir)*viewDir);
         vec3 axisV = normalize(cross(orthoDirectionV, viewDir));
@@ -100,7 +101,7 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
         for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
-            vec2 sampleOffset = (j + initialRayStep) * omega;
+            vec2 sampleOffset = max((j + initialRayStep)*stepRadius, 1.0 + j) * omega;
             sampleOffset *= materialParams.resolution.zw;
 
             // TODO: sample Hi-Z
