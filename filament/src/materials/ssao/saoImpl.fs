@@ -42,13 +42,25 @@ float lerp(const float x, const float y, float a) {
     return x * (1.0 - a) + y * a;
 }
 
-float gtaoNoise(float2 position) {
-	return fract(52.9829189 * fract(dot(position, vec2(0.06711056, 0.00583715))));
+float spatialDirectionNoise(float2 uv) {
+    int2 position = int2(uv * materialParams.resolution.xy);
+	return (1.0/16.0) * (float(((position.x + position.y) & 3) << 2) + float(position.x & 3));
 }
 
-float gtaoOffsets(float2 uv) {
+float spatialOffsetsNoise(float2 uv) {
 	int2 position = int2(uv * materialParams.resolution.xy);
 	return 0.25 * float((position.y - position.x) & 3);
+}
+
+float fastSqrt(float x) {
+    return intBitsToFloat(0x1fbd1df5 + (floatBitsToInt(x) >> 1));
+}
+
+float fastACos(float inX) {
+    float x = abs(inX);
+    float res = -0.156583 * x + HALF_PI;
+    res *= fastSqrt(1.0 - x);
+    return (inX >= 0.0) ? res : PI - res;
 }
 
 void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
@@ -57,8 +69,8 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     vec3 viewDir = normalize(-origin);
     float ssRadius = -(materialParams.projectionScaleRadius / origin.z);
 
-    float noiseOffset = gtaoOffsets(uv);
-    float noiseDirection = gtaoNoise(uv * materialParams.resolution.xy);
+    float noiseOffset = spatialOffsetsNoise(uv);
+    float noiseDirection = spatialDirectionNoise(uv);
 
     float initialRayStep = fract(noiseOffset);
 
@@ -83,15 +95,12 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         float projNormalLength = length(projNormalV);
         float cosNorm = saturate(dot(projNormalV, viewDir) / projNormalLength);
 
-        // TODO: Implement fast acos and fast sqrt
-        float n = signNorm * acos(cosNorm);
+        float n = signNorm * fastACos(cosNorm);
 
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
         for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
             vec2 sampleOffset = (j + initialRayStep) * omega;
-            float jitter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
-            //sampleOffset += jitter * omega * 0.5;
             sampleOffset *= materialParams.resolution.zw;
 
             // TODO: sample Hi-Z
@@ -123,8 +132,8 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             horizonCos1 = shc1 > horizonCos1 ? lerp(shc1, horizonCos1, fallOff.y) : horizonCos1;
         }
 
-        float h0 = -acos(horizonCos1);
-        float h1 = acos(horizonCos0);
+        float h0 = -fastACos(horizonCos1);
+        float h1 = fastACos(horizonCos0);
         h0 = n + clamp(h0-n, -HALF_PI, HALF_PI);
         h1 = n + clamp(h1-n, -HALF_PI, HALF_PI);
 
