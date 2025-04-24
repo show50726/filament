@@ -697,7 +697,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
         AmbientOcclusionOptions const& options) noexcept {
     assert_invariant(depth);
 
-   // const size_t levelCount = fg.getDescriptor(depth).levels;
+    const size_t levelCount = fg.getDescriptor(depth).levels;
 
     // With q the standard deviation,
     // A gaussian filter requires 6q-1 values to keep its gaussian nature
@@ -889,7 +889,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                 mi->setParameter("thickness", options.thickness);
                 mi->setParameter("power", power);
                 mi->setParameter("intensity", intensity);
-                // mi->setParameter("maxLevel", uint32_t(levelCount - 1));
+                mi->setParameter("maxLevel", uint32_t(levelCount - 1));
                 mi->setParameter("stepsPerSlice", options.stepsPerSlice);
                 mi->setParameter("sliceCount", options.sliceCount);
                 // mi->setParameter("angleIncCosSin", float2{ std::cos(inc), std::sin(inc) });

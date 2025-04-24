@@ -26,6 +26,10 @@ material {
         },
         {
             type : float,
+            name : maxLevel
+        },
+        {
+            type : float,
             name : intensity
         },
         {

@@ -27,6 +27,8 @@
 #error COMPUTE_BENT_NORMAL must be set
 #endif
 
+const float kLog2LodRate = 3.0;
+
 // fallOffRange.x --> Distance to start fallOff
 // fallOffRange.y --> Intensity of the fallOff
 // float computeDistanceFade(const float distance) {
@@ -102,14 +104,16 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             vec2 sampleOffset = max((j + initialRayStep)*stepRadius, 1.0 + j) * omega;
             sampleOffset *= materialParams.resolution.zw;
 
-            // TODO: sample Hi-Z
+            // TODO: Put it outside the loop?
+            float level = clamp(floor(log2(ssRadius)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));
+
             float2 sampleScreenPos0 = uv + sampleOffset;
-            highp float sampleDepth0 = sampleDepthLinear(materialParams_depth, sampleScreenPos0, 0.0);
+            highp float sampleDepth0 = sampleDepthLinear(materialParams_depth, sampleScreenPos0, level);
             highp vec3 samplePos0 = computeViewSpacePositionFromDepth(sampleScreenPos0, sampleDepth0,
                 materialParams.positionParams);
 
             float2 sampleScreenPos1 = uv - sampleOffset;
-            highp float sampleDepth1 = sampleDepthLinear(materialParams_depth, sampleScreenPos1, 0.0);
+            highp float sampleDepth1 = sampleDepthLinear(materialParams_depth, sampleScreenPos1, level);
             highp vec3 samplePos1 = computeViewSpacePositionFromDepth(sampleScreenPos1, sampleDepth1,
                 materialParams.positionParams);
 
