@@ -838,12 +838,12 @@ void ViewerGui::updateUserInterface() {
         ImGui::SliderFloat("Intensity", &ssao.intensity, 0.0f, 1.0f);
         ImGui::SliderInt("Slice Count", &sliceCount, 1, 10);
         ImGui::SliderInt("Steps Per Slice", &stepPerSlice, 1, 4);
-        ImGui::SliderFloat("Fall Off Range", &ssao.fallOffRange, 0.0f, 1.0f);
+        ImGui::SliderFloat("Thickness", &ssao.thickness, 0.0f, 1.0f);
         ImGui::SliderInt("Quality", &quality, 0, 3);
         ImGui::SliderInt("Low Pass", &lowpass, 0, 2);
         ImGui::Checkbox("Bent Normals", &ssao.bentNormals);
         ImGui::Checkbox("High quality upsampling", &upsampling);
-        ImGui::SliderFloat("Min Horizon angle", &ssao.minHorizonAngleRad, 0.0f, (float)M_PI_4);
+        //ImGui::SliderFloat("Min Horizon angle", &ssao.minHorizonAngleRad, 0.0f, (float)M_PI_4);
         ImGui::SliderFloat("Bilateral Threshold", &ssao.bilateralThreshold, 0.0f, 0.1f);
         ImGui::Checkbox("Half resolution", &halfRes);
         ssao.resolution = halfRes ? 0.5f : 1.0f;

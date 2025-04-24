@@ -77,8 +77,6 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     float initialRayStep = fract(noiseOffset);
 
     float occlusion = 0.0;
-    // TODO: Expose this to the parameters
-    const float thicknessAttenuation = 0.04;
     float stepRadius = ssRadius / (materialParams.stepsPerSlice + 1.0);
     for (float i = 0.0; i < materialParams.sliceCount; i+=1.0) {
         float slice = (i + noiseDirection) / materialParams.sliceCount;
@@ -129,8 +127,8 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             float shc0 = dot(sampleHorizonV0, viewDir);
             float shc1 = dot(sampleHorizonV1, viewDir);
 
-            horizonCos0 = shc0 > horizonCos0 ? lerp(shc0, horizonCos0, fallOff.x) : horizonCos0;
-            horizonCos1 = shc1 > horizonCos1 ? lerp(shc1, horizonCos1, fallOff.y) : horizonCos1;
+            horizonCos0 = shc0 > horizonCos0 ? lerp(shc0, horizonCos0, fallOff.x) : lerp(horizonCos0, shc0, materialParams.thickness);
+            horizonCos1 = shc1 > horizonCos1 ? lerp(shc1, horizonCos1, fallOff.y) : lerp(horizonCos1, shc1, materialParams.thickness);
         }
 
         float h0 = -fastACos(horizonCos1);

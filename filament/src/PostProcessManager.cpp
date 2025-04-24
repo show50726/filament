@@ -886,6 +886,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                         invProjection[0][0], invProjection[1][1] } * 2.0f);
                 // mi->setParameter("peak2", peak * peak);
                 // mi->setParameter("bias", options.bias);
+                mi->setParameter("thickness", options.thickness);
                 mi->setParameter("power", power);
                 mi->setParameter("intensity", intensity);
                 // mi->setParameter("maxLevel", uint32_t(levelCount - 1));

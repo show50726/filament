@@ -378,7 +378,7 @@ struct AmbientOcclusionOptions {
     float bias = 0.0005f;   //!< Self-occlusion bias in meters. Use to avoid self-occlusion. Between 0 and a few mm.
     float resolution = 0.5f;//!< How each dimension of the AO buffer is scaled. Must be either 0.5 or 1.0.
     float intensity = 1.0f; //!< Strength of the Ambient Occlusion effect.
-    float fallOffRange = 0.6f; //0~1
+    float thickness = 0.004f; //0~1
     float bilateralThreshold = 0.05f; //!< depth distance that constitute an edge for filtering
     QualityLevel quality = QualityLevel::LOW; //!< affects # of samples used for AO.
     QualityLevel lowPassFilter = QualityLevel::MEDIUM; //!< affects AO smoothness
@@ -386,8 +386,8 @@ struct AmbientOcclusionOptions {
     bool enabled = false;    //!< enables or disables screen-space ambient occlusion
     bool bentNormals = false; //!< enables bent normals computation from AO, and specular AO
     float minHorizonAngleRad = 0.0f;  //!< min angle in radian to consider
-    float sliceCount = 2.0f;
-    float stepsPerSlice = 2.0f;
+    float sliceCount = 4.0f;
+    float stepsPerSlice = 4.0f;
     /**
      * Screen Space Cone Tracing (SSCT) options
      * Ambient shadows from dominant light
