@@ -101,11 +101,13 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
         float horizonCos0 = -1.0;
         float horizonCos1 = -1.0;
         for (float j = 0.0; j < materialParams.stepsPerSlice; j++) {
+            // At least move 1 pixel forward in the screen-space
             vec2 sampleOffset = max((j + initialRayStep)*stepRadius, 1.0 + j) * omega;
-            sampleOffset *= materialParams.resolution.zw;
+            float sampleOffsetLength = length(sampleOffset);
 
-            // TODO: Put it outside the loop?
-            float level = clamp(floor(log2(ssRadius)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));
+            float level = clamp(floor(log2(sampleOffsetLength)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));
+
+            sampleOffset *= materialParams.resolution.zw;
 
             float2 sampleScreenPos0 = uv + sampleOffset;
             highp float sampleDepth0 = sampleDepthLinear(materialParams_depth, sampleScreenPos0, level);
