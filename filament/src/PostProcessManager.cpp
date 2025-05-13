@@ -882,8 +882,20 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
 
                 auto& material = getPostProcessMaterial(materialName);
 
-                FMaterial const * const ma = material.getMaterial(mEngine);
-                FMaterialInstance* const mi = PostProcessMaterial::getMaterialInstance(ma);
+                FMaterial * const ma = material.getMaterial(mEngine);
+
+                if (options.aoType == AmbientOcclusionOptions::AmbientOcclusionType::GTAO) {
+                    bool dirty = false;
+                    setConstantParameter(ma, "costlyBentNormals", options.gtao.costlyBentNormals, dirty);
+
+                    if (dirty) {
+                        ma->invalidate();
+                        // TODO: call Material::compile(), we can't do that now because it works only
+                        //       with surface materials
+                    }
+                }
+
+                FMaterialInstance* const mi = PostProcessMaterial::getMaterialInstance(mEngine, material);
 
                 // Set AO type specific material parameters
                 switch (options.aoType) {

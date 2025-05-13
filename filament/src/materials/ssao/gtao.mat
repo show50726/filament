@@ -97,6 +97,13 @@ material {
             name : ssctSampleCount
         }
     ],
+    constants : [
+        {
+            type : bool,
+            name : costlyBentNormals,
+            default : false
+        }
+    ],
     variables : [
          vertex
     ],

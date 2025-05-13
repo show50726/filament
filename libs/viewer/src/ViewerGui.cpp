@@ -854,6 +854,7 @@ void ViewerGui::updateUserInterface() {
 
                 ImGui::SliderInt("Slice Count", &sliceCount, 1, 10);
                 ImGui::SliderInt("Steps Per Slice", &stepsPerSlice, 1, 4);
+                ImGui::Checkbox("Costly Bent Normals", &ssao.gtao.costlyBentNormals);
 
                 ssao.gtao.sampleSliceCount = static_cast<uint8_t>(sliceCount);
                 ssao.gtao.sampleStepsPerSlice = static_cast<uint8_t>(stepsPerSlice);
