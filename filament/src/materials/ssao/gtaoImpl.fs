@@ -176,9 +176,9 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
 
 #if COMPUTE_BENT_NORMAL
         if (materialConstants_costlyBentNormals) {
-            float t0 = (6.0*sin(h0-n)-sin(3.0*h0-n)+6.0*sin(h1-n)-sin(3.0*h1-n)+16.0*sin(n)-3.0*(sin(h0+n)+sin(h1+n)))/12.0;
-            float t1 = (-cos(3.0 * h0-n)-cos(3.0 * h1-n) +8.0 * cos(n)-3.0 * (cos(h0+n) +cos(h1+n)))/12.0;
-            vec3 localBentNormal = vec3( omega.x * t0, omega.y * t0, - t1);
+            highp float t0 = (6.0*sin(h0-n)-sin(3.0*h0-n)+6.0*sin(h1-n)-sin(3.0*h1-n)+16.0*sin(n)-3.0*(sin(h0+n)+sin(h1+n)))/12.0;
+            highp float t1 = (-cos(3.0 * h0-n)-cos(3.0 * h1-n) +8.0 * cos(n)-3.0 * (cos(h0+n) +cos(h1+n)))/12.0;
+            highp vec3 localBentNormal = vec3( omega.x * t0, omega.y * t0, - t1);
             localBentNormal = rotFromToMatrix( vec3(0.0,0.0,-1.0), viewDir )* localBentNormal * projNormalLength;
             bentNormal += localBentNormal;
         }
