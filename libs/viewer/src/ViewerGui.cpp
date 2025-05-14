@@ -842,6 +842,13 @@ void ViewerGui::updateUserInterface() {
         ImGui::SliderFloat("Radius", &ssao.radius, 0.1f, 10.0f);
         ImGui::SliderFloat("Power", &ssao.power, 1.0f, 8.0f);
 
+        ImGui::Checkbox("Weighted Average Depth", &ssao.weightedAverageDepth);
+        if (ssao.weightedAverageDepth) {
+            ImGui::SliderFloat("Depth Range Scale Factor", &ssao.depthRangeScaleFactor, 0.01f, 2.0f);
+            ImGui::SliderFloat("Fall Off Range", &ssao.fallOffRange, 0.05f, 0.0f);
+        }
+
+
         switch (ssao.aoType) {
             case AmbientOcclusionOptions::AmbientOcclusionType::SAO: {
                 ImGui::SliderFloat("Min Horizon angle", &ssao.minHorizonAngleRad, 0.0f,

@@ -991,8 +991,8 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
     const auto [structure, picking_] = ppm.structure(fg,
             passBuilder, renderFlags, svp.width, svp.height, {
             .scale = aoOptions.resolution,
-            .picking = view.hasPicking() && !view.isTransparentPickingEnabled()
-    });
+            .picking = view.hasPicking() && !view.isTransparentPickingEnabled(),
+    }, aoOptions);
     auto picking = picking_;
 
     // --------------------------------------------------------------------------------------------
@@ -1454,9 +1454,9 @@ void FRenderer::renderJob(RootArenaScope& rootArenaScope, FView& view) {
     }
 
     if (UTILS_UNLIKELY(engine.debug.shadowmap.display_shadow_texture)) {
-        auto shadowmap = blackboard.get<FrameGraphTexture>("shadowmap");
+        auto shadowmap = blackboard.get<FrameGraphTexture>("ssao");
         input = ppm.debugDisplayShadowTexture(fg, input, shadowmap,
-                engine.debug.shadowmap.display_shadow_texture_scale,
+                1.0f,
                 engine.debug.shadowmap.display_shadow_texture_layer,
                 engine.debug.shadowmap.display_shadow_texture_level,
                 engine.debug.shadowmap.display_shadow_texture_channel,

@@ -117,7 +117,7 @@ public:
     };
     StructurePassOutput structure(FrameGraph& fg,
             RenderPassBuilder const& passBuilder, uint8_t structureRenderFlags,
-            uint32_t width, uint32_t height, StructurePassConfig const& config) noexcept;
+            uint32_t width, uint32_t height, StructurePassConfig const& config, AmbientOcclusionOptions const& options) noexcept;
 
     // reflections pass
     FrameGraphId<FrameGraphTexture> ssr(FrameGraph& fg,

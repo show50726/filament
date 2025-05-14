@@ -5,9 +5,28 @@ material {
             type : sampler2d,
             name : depth,
             precision: high
+        },
+        {
+            type : float,
+            name : radius
+        },
+        {
+            type : float,
+            name : depthRangeScaleFactor
+        },
+        {
+            type : float,
+            name : fallOffRange
         }
     ],
     variables : [
+    ],
+    constants : [
+        {
+            type : bool,
+            name : weightedAverage,
+            default : false
+        }
     ],
     outputs : [
         {
@@ -26,8 +45,34 @@ fragment {
     // We use a rotated grid sub-sample as it's cheap and gives good results
     // See Scalable Ambient Obscurance by McGuire and al.
     void postProcess(inout PostProcessInputs postProcess) {
-        ivec2 icoord = ivec2(gl_FragCoord.xy);
-        postProcess.depth = texelFetch(materialParams_depth,
-                2 * icoord + ivec2(icoord.y & 1, icoord.x & 1), 0).r;
+        if (materialConstants_weightedAverage) {
+            ivec2 icoord = ivec2(gl_FragCoord.xy) * 2;
+
+            float d0 = texelFetch(materialParams_depth, icoord + ivec2(0, 0), 0).r;
+            float d1 = texelFetch(materialParams_depth, icoord + ivec2(0, 1), 0).r;
+            float d2 = texelFetch(materialParams_depth, icoord + ivec2(1, 0), 0).r;
+            float d3 = texelFetch(materialParams_depth, icoord + ivec2(1, 1), 0).r;
+
+            float effectRadius = materialParams.depthRangeScaleFactor * materialParams.radius;
+            float fallOff = materialParams.fallOffRange * effectRadius;
+            float fallOffFrom = effectRadius * (1.0 - materialParams.fallOffRange);
+            float fallOffMul = -1.0 / fallOff;
+            float fallOffAdd = fallOffFrom / fallOff + 1.0;
+
+            float maxDepth = max(max(d0, d1), max(d2, d3));
+
+            float weight0 = saturate((maxDepth-d0) * fallOffMul + fallOffAdd);
+            float weight1 = saturate((maxDepth-d1) * fallOffMul + fallOffAdd);
+            float weight2 = saturate((maxDepth-d2) * fallOffMul + fallOffAdd);
+            float weight3 = saturate((maxDepth-d3) * fallOffMul + fallOffAdd);
+
+            float weightSum = weight0 + weight1 + weight2 + weight3;
+            postProcess.depth = (weight0 * d0 + weight1 * d1 + weight2 * d2 + weight3 * d3)/weightSum;
+        }
+        else {
+            ivec2 icoord = ivec2(gl_FragCoord.xy);
+            postProcess.depth = texelFetch(materialParams_depth,
+                    2 * icoord + ivec2(icoord.y & 1, icoord.x & 1), 0).r;
+        }
     }
 }

@@ -34,9 +34,10 @@
 #include "fg/FrameGraphResources.h"
 #include "fg/FrameGraphTexture.h"
 
-#include "fsr.h"
+#include "../../third_party/getopt/include/getopt/getopt.h"
 #include "FrameHistory.h"
 #include "RenderPass.h"
+#include "fsr.h"
 
 #include "details/Camera.h"
 #include "details/ColorGrading.h"
@@ -487,7 +488,7 @@ void PostProcessManager::commitAndRenderFullScreenQuad(DriverApi& driver,
 PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph& fg,
         RenderPassBuilder const& passBuilder, uint8_t const structureRenderFlags,
         uint32_t width, uint32_t height,
-        StructurePassConfig const& config) noexcept {
+        StructurePassConfig const& config, AmbientOcclusionOptions const& options) noexcept {
 
     const float scale = config.scale;
 
@@ -580,10 +581,17 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
 
                 auto in = resources.getTexture(data.depth);
                 auto& material = getPostProcessMaterial("mipmapDepth");
-                FMaterial const* const ma = material.getMaterial(mEngine);
-                auto pipeline = getPipelineState(ma);
+                FMaterial* const ma = material.getMaterial(mEngine);
 
-                FMaterialInstance* const mi = PostProcessMaterial::getMaterialInstance(ma);
+                bool dirty = false;
+                setConstantParameter(ma, "weightedAverage", options.weightedAverageDepth, dirty);
+                if (dirty) {
+                    ma->invalidate();
+                    // TODO: call Material::compile(), we can't do that now because it works only
+                    //       with surface materials
+                }
+
+                FMaterialInstance* const mi = PostProcessMaterial::getMaterialInstance(mEngine, material);
 
                 // The first mip already exists, so we process n-1 lods
                 for (size_t level = 0; level < levelCount - 1; level++) {
@@ -592,6 +600,11 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
                     auto th = driver.createTextureView(in, level, 1);
                     mi->setParameter("depth", th, {
                         .filterMin = SamplerMinFilter::NEAREST_MIPMAP_NEAREST });
+                    mi->setParameter("radius", options.radius);
+                    mi->setParameter("depthRangeScaleFactor", options.depthRangeScaleFactor);
+                    mi->setParameter("fallOffRange", options.fallOffRange);
+
+                    auto pipeline = getPipelineState(ma);
                     mi->commit(driver);
                     mi->use(driver);
                     renderFullScreenQuad(out, pipeline, driver);

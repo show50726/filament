@@ -397,6 +397,9 @@ struct AmbientOcclusionOptions {
     bool enabled = false;    //!< enables or disables screen-space ambient occlusion
     bool bentNormals = false; //!< enables bent normals computation from AO, and specular AO
     float minHorizonAngleRad = 0.0f;  //!< min angle in radian to consider. No effect when aoType set to GTAO.
+    bool weightedAverageDepth = false;
+    float depthRangeScaleFactor = 0.75f;
+    float fallOffRange = 0.05f;
     /**
      * Screen Space Cone Tracing (SSCT) options
      * Ambient shadows from dominant light
