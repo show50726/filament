@@ -67,7 +67,7 @@ void computeAmbientOcclusionSAO(inout float occlusion, inout vec3 bentNormal,
 
     vec2 uvSamplePos = uv + vec2(ssRadius * tap.xy) * materialParams.resolution.zw;
 
-    float level = clamp(floor(log2(ssRadius)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));
+    float level = clamp(floor(log2(ssRadius)) - kLog2LodRate, 0.0, materialParams.maxLevel);
     highp float occlusionDepth = sampleDepthLinear(materialParams_depth, uvSamplePos, level);
     highp vec3 p = computeViewSpacePositionFromDepth(uvSamplePos, occlusionDepth, materialParams.positionParams);
 

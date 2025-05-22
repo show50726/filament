@@ -69,7 +69,7 @@ material {
             name : invFarPlane
         },
         {
-            type : int,
+            type : float,
             name : maxLevel
         },
         {

@@ -103,7 +103,7 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
             vec2 sampleOffset = max((j + initialRayStep)*stepRadius, 1.0 + j) * omega;
             float sampleOffsetLength = length(sampleOffset);
 
-            float level = clamp(floor(log2(sampleOffsetLength)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));
+            float level = clamp(floor(log2(sampleOffsetLength)) - kLog2LodRate, 0.0, materialParams.maxLevel);
 
             vec2 uvSampleOffset = sampleOffset * materialParams.resolution.zw;
 

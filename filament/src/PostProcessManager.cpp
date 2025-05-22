@@ -935,7 +935,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                 mi->setParameter("projectionScaleRadius", projectionScale * options.radius);
                 mi->setParameter("positionParams",
                         float2{ invProjection[0][0], invProjection[1][1] } * 2.0f);
-                mi->setParameter("maxLevel", uint32_t(levelCount - 1));
+                mi->setParameter("maxLevel", static_cast<float>(levelCount - 1));
                 mi->setParameter("invFarPlane", 1.0f / -cameraInfo.zf);
                 mi->setParameter("ssctShadowDistance", options.ssct.shadowDistance);
                 mi->setParameter("ssctConeAngleTangeant",
