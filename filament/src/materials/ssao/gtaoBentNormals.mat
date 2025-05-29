@@ -158,7 +158,7 @@ fragment {
 
         vec3 bentNormal = normal;
         if (materialConstants_costlyBentNormals) {
-            vec3 bentNormal = vec3(0, 0, 0);
+            bentNormal = vec3(0, 0, 0);
         }
 
         if (materialParams.intensity > 0.0) {
