@@ -285,6 +285,10 @@ FEngine::FEngine(Builder const& builder) :
         }
     }
 
+    if (features.material.enable_material_instance_uniform_batching) {
+        mUboManager.emplace(getDriverApi(), 256, 256*256);
+    }
+
     // update "old" feature flags that were specified in Engine::Config
     featureFlagsBackwardCompatibility("backend.disable_parallel_shader_compile",
             mConfig.disableParallelShaderCompile);
@@ -470,7 +474,7 @@ void FEngine::init() {
     }
     // We must commit the default material instance here. It may not be used in a scene, but its
     // descriptor set may still be used for shared variants.
-    mDefaultMaterial->getDefaultInstance()->commit(driverApi);
+    mDefaultMaterial->getDefaultInstance()->commit(driverApi, mUboManager);
 
     if (UTILS_UNLIKELY(getSupportedFeatureLevel() >= FeatureLevel::FEATURE_LEVEL_1)) {
         mDefaultColorGrading = downcast(ColorGrading::Builder().build(*this));
@@ -653,6 +657,8 @@ void FEngine::shutdown() {
 
     driver.destroyRenderTarget(std::move(mDefaultRenderTarget));
 
+    mUboManager.reset();
+
     /*
      * Shutdown the backend...
      */
@@ -694,15 +700,29 @@ void FEngine::prepare() {
     // skipped if the UBO hasn't changed. Still we could have a lot of these.
     DriverApi& driver = getDriverApi();
 
+    if (features.material.enable_material_instance_uniform_batching) {
+        assert_invariant(mUboManager.has_value());
+
+        for (const auto& materialInstanceList: mMaterialInstances) {
+            mUboManager->beginFrame(driver, materialInstanceList.second);
+        }
+    }
+
+    auto& uboManager = mUboManager;
     for (auto& materialInstanceList: mMaterialInstances) {
-        materialInstanceList.second.forEach([&driver](FMaterialInstance* item) {
+        materialInstanceList.second.forEach([&driver, &uboManager](FMaterialInstance* item) {
             // post-process materials instances must be commited explicitly because their
             // parameters are typically not set at this point in time.
             if (item->getMaterial()->getMaterialDomain() == MaterialDomain::SURFACE) {
                 item->commitStreamUniformAssociations(driver);
-                item->commit(driver);
+                item->commit(driver, uboManager);
             }
         });
+    }
+
+    if (features.material.enable_material_instance_uniform_batching) {
+        assert_invariant(mUboManager.has_value());
+        mUboManager->finishBeginFrame(driver);
     }
 
     mMaterials.forEach([](FMaterial* material) {

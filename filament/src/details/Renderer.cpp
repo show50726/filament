@@ -446,6 +446,14 @@ void FRenderer::endFrame() {
     mFrameInfoManager.endFrame(driver);
     mFrameSkipper.submitFrame(driver);
 
+    if (engine.features.material.enable_material_instance_uniform_batching) {
+        auto& uboManager = engine.getUboManager();
+        assert_invariant(uboManager.has_value());
+        for (const auto& materialInstances: engine.getMaterialInstanceResourceList()) {
+            uboManager->endFrame(driver, materialInstances.second);
+        }
+    }
+
     driver.endFrame(mFrameId);
 
     // gives the backend a chance to execute periodic tasks

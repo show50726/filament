@@ -236,15 +236,17 @@ void FMaterialInstance::commitStreamUniformAssociations(FEngine::DriverApi& driv
 
 void FMaterialInstance::commit(FEngine& engine) const {
     if (UTILS_LIKELY(mMaterial->getMaterialDomain() != MaterialDomain::SURFACE)) {
-        commit(engine.getDriverApi());
+        commit(engine.getDriverApi(), engine.getUboManager());
     }
 }
 
-void FMaterialInstance::commit(FEngine::DriverApi& driver) const {
+void FMaterialInstance::commit(FEngine::DriverApi& driver,
+        const std::optional<UboManager>& uboManager) const {
     if (mUniforms.isDirty() || mHasStreamUniformAssociations) {
         mUniforms.clean();
         if (mUseUboBatching) {
-            // TODO: update the content by `copyToMemoryMappedBuffer`
+            assert_invariant(uboManager.has_value());
+            uboManager->updateSlot(driver, getAllocationId(), mUniforms.toBufferDescriptor(driver));
         }
         else {
             auto* ubHandle = std::get_if<Handle<HwBufferObject>>(&mUboData);

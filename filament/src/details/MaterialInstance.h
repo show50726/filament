@@ -72,10 +72,10 @@ public:
     void terminate(FEngine& engine);
 
     void commitStreamUniformAssociations(FEngine::DriverApi& driver);
-    
+
     void commit(FEngine& engine) const;
 
-    void commit(FEngine::DriverApi& driver) const;
+    void commit(FEngine::DriverApi& driver, const std::optional<UboManager>& uboManager) const;
 
     void use(FEngine::DriverApi& driver, Variant variant = {}) const;
 

@@ -21,16 +21,17 @@
 
 #include "Allocators.h"
 #include "DFG.h"
-#include "PostProcessManager.h"
-#include "ResourceList.h"
 #include "HwDescriptorSetLayoutFactory.h"
 #include "HwVertexBufferInfoFactory.h"
 #include "MaterialCache.h"
+#include "PostProcessManager.h"
+#include "ResourceList.h"
+#include "UboManager.h"
 
 #include "components/CameraManager.h"
 #include "components/LightManager.h"
-#include "components/TransformManager.h"
 #include "components/RenderableManager.h"
+#include "components/TransformManager.h"
 
 #include "ds/DescriptorSetLayout.h"
 
@@ -257,6 +258,10 @@ public:
 
     HeapAllocatorArena& getHeapAllocator() noexcept {
         return mHeapAllocator;
+    }
+
+    std::optional<UboManager>& getUboManager() noexcept {
+        return mUboManager;
     }
 
     Backend getBackend() const noexcept {
@@ -650,6 +655,7 @@ private:
 
     uint32_t mFlushCounter = 0;
 
+    std::optional<UboManager> mUboManager = std::nullopt;
     RootArenaScope::Arena mPerRenderPassArena;
     HeapAllocatorArena mHeapAllocator;
 
