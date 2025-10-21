@@ -22,6 +22,9 @@
 #include <backend/DriverEnums.h>
 
 #include <utils/Logger.h>
+#include <private/utils/Tracing.h>
+
+#include <utils/Log.h>
 
 namespace filament {
 
@@ -41,6 +44,8 @@ UboManager::UboManager(DriverApi& driver, allocation_size_t defaultSlotSizeInByt
 
 void UboManager::beginFrame(DriverApi& driver,
         const ResourceList<FMaterialInstance>& materialInstances) {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+
     // Check finished frames and decrement GPU count accordingly.
     checkFenceAndUnlockSlots(driver);
 
@@ -83,6 +88,8 @@ void UboManager::beginFrame(DriverApi& driver,
 }
 
 void UboManager::finishBeginFrame(DriverApi& driver) const {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+
     driver.unmapBuffer(mMmbHandle);
 }
 
@@ -112,6 +119,8 @@ void UboManager::terminate(DriverApi& driver) {
 
 void UboManager::updateSlot(DriverApi& driver, AllocationId id,
         BufferDescriptor bufferDescriptor) const {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+
     const allocation_size_t offset = mAllocator.getAllocationOffset(id);
     driver.copyToMemoryMappedBuffer(mMmbHandle, offset, std::move(bufferDescriptor));
 }
@@ -125,6 +134,8 @@ allocation_size_t UboManager::getAllocationOffset(AllocationId id) const {
 }
 
 void UboManager::checkFenceAndUnlockSlots(DriverApi& driver) {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+
     uint32_t signaledCount = 0;
     bool seenSignaledFence = false;
 
@@ -176,6 +187,8 @@ void UboManager::checkFenceAndUnlockSlots(DriverApi& driver) {
 
 UboManager::AllocationResult UboManager::updateMaterialInstanceAllocations(
         const ResourceList<FMaterialInstance>& materialInstances, bool forceAllocateAll) {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+
     mNeedReallocate = false;
 
     BufferAllocator& allocator = mAllocator;
@@ -217,10 +230,17 @@ UboManager::AllocationResult UboManager::updateMaterialInstanceAllocations(
 }
 
 void UboManager::reallocate(DriverApi& driver, allocation_size_t requiredSize) {
+    FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+    mAllocator.reset(requiredSize);
+
+    // If the new size is same as the old one, we only need to reset allocator metadata
+    // without re-create the buffer object.
+    if (UTILS_UNLIKELY(requiredSize == mUboSize))
+        return;
+
     if (mUbHandle) {
         driver.destroyBufferObject(mUbHandle);
     }
-    mAllocator.reset(requiredSize);
     mUboSize = requiredSize;
     mUbHandle = driver.createBufferObject(requiredSize, BufferObjectBinding::UNIFORM,
             BufferUsage::DYNAMIC);
