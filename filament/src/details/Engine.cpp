@@ -286,7 +286,7 @@ FEngine::FEngine(Builder const& builder) :
     }
 
     if (features.material.enable_material_instance_uniform_batching) {
-        mUboManager.emplace(getDriverApi(), 256, 256*256);
+        mUboManager.emplace(getDriverApi(), 256, mConfig.sharedUboInitialSizeInBytes);
     }
 
     // update "old" feature flags that were specified in Engine::Config
