@@ -285,10 +285,6 @@ FEngine::FEngine(Builder const& builder) :
         }
     }
 
-    if (features.material.enable_material_instance_uniform_batching) {
-        mUboManager.emplace(getDriverApi(), 256, mConfig.sharedUboInitialSizeInBytes);
-    }
-
     // update "old" feature flags that were specified in Engine::Config
     featureFlagsBackwardCompatibility("backend.disable_parallel_shader_compile",
             mConfig.disableParallelShaderCompile);
@@ -340,6 +336,10 @@ void FEngine::init() {
     LOG(INFO) << "Backend feature level: " << int(driverApi.getFeatureLevel());
     LOG(INFO) << "FEngine feature level: " << int(mActiveFeatureLevel);
 
+    // UboManager should be constructed after the driver API is ready
+    if (features.material.enable_material_instance_uniform_batching) {
+        mUboManager.emplace(getDriverApi(), 256, mConfig.sharedUboInitialSizeInBytes);
+    }
 
     mResourceAllocatorDisposer = std::make_shared<ResourceAllocatorDisposer>(driverApi);
 
