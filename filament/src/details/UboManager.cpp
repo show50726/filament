@@ -116,6 +116,10 @@ void UboManager::updateSlot(DriverApi& driver, AllocationId id,
     driver.copyToMemoryMappedBuffer(mMmbHandle, offset, std::move(bufferDescriptor));
 }
 
+void UboManager::retireSlot(BufferAllocator::AllocationId id) {
+    mAllocator.retire(id);
+}
+
 allocation_size_t UboManager::getTotalSize() const noexcept {
     return mUboSize;
 }

@@ -69,6 +69,9 @@ public:
     void updateSlot(backend::DriverApi& driver, BufferAllocator::AllocationId id,
             backend::BufferDescriptor bufferDescriptor) const;
 
+    // Call this when a material instance is no longer holding a slot. e.g. it is destroyed.
+    void retireSlot(BufferAllocator::AllocationId id);
+
     // Returns the size of the actual UBO. Note that when there's allocation failed, it will be
     // reallocated to a bigger size at the next frame.
     [[nodiscard]] BufferAllocator::allocation_size_t getTotalSize() const noexcept;
