@@ -23,6 +23,31 @@
 #include <unordered_map>
 
 namespace filament {
+class UboManager;
+}
+namespace filament {
+
+class BufferAllocator {
+public:
+    virtual ~BufferAllocator();
+    using allocation_size_t = uint32_t;
+    using AllocationId = uint32_t;
+    static constexpr AllocationId UNALLOCATED = 0;
+    static constexpr AllocationId REALLOCATION_REQUIRED = ~0u;
+
+    virtual std::pair<AllocationId, allocation_size_t> allocate(
+            allocation_size_t size) noexcept = 0;
+    virtual void retire(AllocationId id) = 0;
+    virtual void acquireGpu(AllocationId id) = 0;
+    virtual void releaseGpu(AllocationId id) = 0;
+    virtual void releaseFreeSlots() = 0;
+    virtual void reset(allocation_size_t newTotalSize) = 0;
+    virtual allocation_size_t getTotalSize() const noexcept = 0;
+    virtual allocation_size_t getAllocationOffset(AllocationId id) const = 0;
+    virtual bool isLockedByGpu(AllocationId id) const = 0;
+    virtual allocation_size_t alignUp(allocation_size_t size) const noexcept = 0;
+    virtual allocation_size_t getAllocationSize(AllocationId id) const = 0;
+};
 
 // This class is NOT thread-safe.
 //
@@ -32,13 +57,10 @@ namespace filament {
 //
 // If an instance of this class is to be shared between threads, all calls to its member
 // functions MUST be protected by external synchronization (e.g., a std::mutex).
-class BufferAllocator {
+class FBufferAllocator : BufferAllocator {
 public:
     using allocation_size_t = uint32_t;
     using AllocationId = uint32_t;
-
-    static constexpr AllocationId UNALLOCATED = 0;
-    static constexpr AllocationId REALLOCATION_REQUIRED = ~0u;
 
     struct Slot {
         const allocation_size_t offset;       // 4 bytes
@@ -54,53 +76,56 @@ public:
 
     // `slotSize` is derived from the GPU's uniform buffer offset alignment requirement,
     // which can be up to 256 bytes.
-    explicit BufferAllocator(allocation_size_t totalSize,
+    explicit FBufferAllocator(allocation_size_t totalSize,
             allocation_size_t slotSize);
 
-    BufferAllocator(BufferAllocator const&) = delete;
-    BufferAllocator(BufferAllocator&&) = delete;
+    ~FBufferAllocator() override = default;
+    FBufferAllocator(FBufferAllocator const&) = delete;
+    FBufferAllocator(FBufferAllocator&&) = delete;
 
     // Allocate a new slot and return its id and slot offset in the UBO.
     // If the returned id is not valid, that means there's no large enough slot for allocation.
     [[nodiscard]] std::pair<AllocationId, allocation_size_t> allocate(
-            allocation_size_t size) noexcept;
+            allocation_size_t size) noexcept override;
 
     // Call it when MaterialInstance gives up the ownership of the allocation.
     // We don't release the slot immediately in this function even if it is not being used,
     // the release is centralized in releaseFreeSlots().
-    void retire(AllocationId id);
+    void retire(AllocationId id) override;
 
     // Increments the GPU read-lock.
-    void acquireGpu(AllocationId id);
+    void acquireGpu(AllocationId id) override;
 
     // Decrements the GPU read-lock.
     // We don't release the slot immediately in this function even if it is not being used,
     // the release is centralized in releaseFreeSlots().
-    void releaseGpu(AllocationId id);
+    void releaseGpu(AllocationId id) override;
 
     // Traverse all slots and free all slots that are not being used by both CPU and GPU.
     // Perform the merge at the same time.
-    void releaseFreeSlots();
+    void releaseFreeSlots() override;
 
     // Resets the allocator to its initial state with a new total size.
     // All existing allocations are cleared.
-    void reset(allocation_size_t newTotalSize);
+    void reset(allocation_size_t newTotalSize) override;
 
     // Size of the UBO in bytes.
-    [[nodiscard]] allocation_size_t getTotalSize() const noexcept;
+    [[nodiscard]] allocation_size_t getTotalSize() const noexcept override;
 
     // Query the allocation offset by AllocationId.
-    [[nodiscard]] allocation_size_t getAllocationOffset(AllocationId id) const;
+    [[nodiscard]] allocation_size_t getAllocationOffset(AllocationId id) const override;
 
-    [[nodiscard]] bool isLockedByGpu(AllocationId id) const;
+    [[nodiscard]] bool isLockedByGpu(AllocationId id) const override;
 
-    [[nodiscard]] allocation_size_t alignUp(allocation_size_t size) const noexcept;
+    [[nodiscard]] allocation_size_t alignUp(allocation_size_t size) const noexcept override;
 
-    [[nodiscard]] allocation_size_t getAllocationSize(AllocationId id) const;
+    [[nodiscard]] allocation_size_t getAllocationSize(AllocationId id) const override;
 
     [[nodiscard]] static bool isValid(AllocationId id);
 
 private:
+    friend class UboManager;
+
     [[nodiscard]] AllocationId calculateIdByOffset(allocation_size_t offset) const;
 
     // Having an internal node type holding the base slot node and additional information.

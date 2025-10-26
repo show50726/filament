@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "details/BufferAllocator.h"
+#include "details/FBufferAllocator.h"
 
+#include <iostream>
 #include <utils/Panic.h>
 #include <utils/debug.h>
 
@@ -30,7 +31,9 @@ constexpr static bool isPowerOfTwo(uint32_t n) {
 
 } // anonymous namespace
 
-BufferAllocator::BufferAllocator(allocation_size_t totalSize, allocation_size_t slotSize)
+BufferAllocator::~BufferAllocator() = default;
+
+FBufferAllocator::FBufferAllocator(allocation_size_t totalSize, allocation_size_t slotSize)
     : mTotalSize(totalSize),
       mSlotSize(slotSize) {
     assert_invariant(mSlotSize > 0);
@@ -39,7 +42,7 @@ BufferAllocator::BufferAllocator(allocation_size_t totalSize, allocation_size_t 
     reset(mTotalSize);
 }
 
-void BufferAllocator::reset(allocation_size_t newTotalSize) {
+void FBufferAllocator::reset(allocation_size_t newTotalSize) {
     assert_invariant(newTotalSize % mSlotSize == 0);
 
     mTotalSize = newTotalSize;
@@ -69,8 +72,8 @@ void BufferAllocator::reset(allocation_size_t newTotalSize) {
     firstNode->offsetMapIterator = offsetMapIter.first;
 }
 
-std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
-    BufferAllocator::allocate(allocation_size_t size) noexcept {
+std::pair<FBufferAllocator::AllocationId, FBufferAllocator::allocation_size_t>
+    FBufferAllocator::allocate(allocation_size_t size) noexcept {
     if (size == 0) {
         return { UNALLOCATED, 0 };
     }
@@ -122,7 +125,7 @@ std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
     return { allocationId, targetNode->slot.offset };
 }
 
-BufferAllocator::InternalSlotNode* BufferAllocator::getNodeById(
+FBufferAllocator::InternalSlotNode* FBufferAllocator::getNodeById(
         AllocationId id) const noexcept {
     if (!isValid(id)) {
         return nullptr;
@@ -138,21 +141,21 @@ BufferAllocator::InternalSlotNode* BufferAllocator::getNodeById(
     return iter->second;
 }
 
-void BufferAllocator::retire(AllocationId id) {
+void FBufferAllocator::retire(AllocationId id) {
     InternalSlotNode* targetNode = getNodeById(id);
     assert_invariant(targetNode != nullptr);
 
     targetNode->slot.isAllocated = false;
 }
 
-void BufferAllocator::acquireGpu(AllocationId id) {
+void FBufferAllocator::acquireGpu(AllocationId id) {
     InternalSlotNode* targetNode = getNodeById(id);
     assert_invariant(targetNode != nullptr);
 
     targetNode->slot.gpuUseCount++;
 }
 
-void BufferAllocator::releaseGpu(AllocationId id) {
+void FBufferAllocator::releaseGpu(AllocationId id) {
     InternalSlotNode* targetNode = getNodeById(id);
     assert_invariant(targetNode != nullptr);
     assert_invariant(targetNode->slot.gpuUseCount > 0);
@@ -160,7 +163,7 @@ void BufferAllocator::releaseGpu(AllocationId id) {
     targetNode->slot.gpuUseCount--;
 }
 
-void BufferAllocator::releaseFreeSlots() {
+void FBufferAllocator::releaseFreeSlots() {
     auto curr = mSlotPool.begin();
     while (curr != mSlotPool.end()) {
         if (!curr->slot.isFree()) {
@@ -201,25 +204,25 @@ void BufferAllocator::releaseFreeSlots() {
     }
 }
 
-BufferAllocator::allocation_size_t BufferAllocator::getTotalSize() const noexcept {
+FBufferAllocator::allocation_size_t FBufferAllocator::getTotalSize() const noexcept {
     return mTotalSize;
 }
 
-BufferAllocator::allocation_size_t
-    BufferAllocator::getAllocationOffset(AllocationId id) const {
+FBufferAllocator::allocation_size_t
+    FBufferAllocator::getAllocationOffset(AllocationId id) const {
     assert_invariant(isValid(id));
 
     return (id - 1) * mSlotSize;
 }
 
-bool BufferAllocator::isLockedByGpu(AllocationId id) const {
+bool FBufferAllocator::isLockedByGpu(AllocationId id) const {
     InternalSlotNode* targetNode = getNodeById(id);
     assert_invariant(targetNode != nullptr);
 
     return targetNode->slot.gpuUseCount > 0;
 }
 
-BufferAllocator::AllocationId BufferAllocator::calculateIdByOffset(
+FBufferAllocator::AllocationId FBufferAllocator::calculateIdByOffset(
         allocation_size_t offset) const {
     assert_invariant(offset % mSlotSize == 0);
 
@@ -227,18 +230,18 @@ BufferAllocator::AllocationId BufferAllocator::calculateIdByOffset(
     return (offset / mSlotSize) + 1;
 }
 
-BufferAllocator::allocation_size_t BufferAllocator::getAllocationSize(AllocationId id) const {
+FBufferAllocator::allocation_size_t FBufferAllocator::getAllocationSize(AllocationId id) const {
     InternalSlotNode* targetNode = getNodeById(id);
     assert_invariant(targetNode != nullptr);
 
     return targetNode->slot.slotSize;
 }
 
-bool BufferAllocator::isValid(AllocationId id) {
+bool FBufferAllocator::isValid(AllocationId id) {
     return id != UNALLOCATED && id != REALLOCATION_REQUIRED;
 }
 
-BufferAllocator::allocation_size_t BufferAllocator::alignUp(
+FBufferAllocator::allocation_size_t FBufferAllocator::alignUp(
         allocation_size_t size) const noexcept {
     if (size == 0) return 0;
 

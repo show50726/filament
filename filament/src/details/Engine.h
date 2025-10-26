@@ -342,10 +342,10 @@ public:
     FRenderer* createRenderer() noexcept;
 
     FMaterialInstance* createMaterialInstance(const FMaterial* material,
-            const FMaterialInstance* other, const char* name) noexcept;
+            const FMaterialInstance* other, const char* name, bool useUboBatching) noexcept;
 
     FMaterialInstance* createMaterialInstance(const FMaterial* material,
-                                              const char* name) noexcept;
+                                              const char* name, bool useUboBatching) noexcept;
 
     FScene* createScene() noexcept;
     FView* createView() noexcept;
@@ -782,7 +782,7 @@ public:
         } backend;
         struct {
             bool check_crc32_after_loading = false;
-            bool enable_material_instance_uniform_batching = false;
+            bool enable_material_instance_uniform_batching = true;
         } material;
     } features;
 
@@ -834,7 +834,7 @@ public:
               &features.material.check_crc32_after_loading, false },
             { "material.enable_material_instance_uniform_batching",
               "Make all MaterialInstances share a common large uniform buffer and use sub-allocations within it.",
-              &features.material.enable_material_instance_uniform_batching, false },
+              &features.material.enable_material_instance_uniform_batching, true },
     }};
 
     utils::Slice<const FeatureFlag> getFeatureFlags() const noexcept {

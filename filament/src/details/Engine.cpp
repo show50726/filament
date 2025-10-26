@@ -87,6 +87,8 @@
 
 #include "generated/resources/materials.h"
 
+#include <iostream>
+
 using namespace filament::math;
 using namespace utils;
 
@@ -336,11 +338,6 @@ void FEngine::init() {
     LOG(INFO) << "Backend feature level: " << int(driverApi.getFeatureLevel());
     LOG(INFO) << "FEngine feature level: " << int(mActiveFeatureLevel);
 
-    // UboManager should be constructed after the driver API is ready
-    if (features.material.enable_material_instance_uniform_batching) {
-        mUboManager.emplace(getDriverApi(), 256, mConfig.sharedUboInitialSizeInBytes);
-    }
-
     mResourceAllocatorDisposer = std::make_shared<ResourceAllocatorDisposer>(driverApi);
 
     mFullScreenTriangleVb = downcast(VertexBuffer::Builder()
@@ -472,6 +469,7 @@ void FEngine::init() {
         }
         mDefaultMaterial = downcast(defaultMaterialBuilder.build(*this));
     }
+
     // We must commit the default material instance here. It may not be used in a scene, but its
     // descriptor set may still be used for shared variants.
     mDefaultMaterial->getDefaultInstance()->commit(driverApi, mUboManager);
@@ -507,6 +505,11 @@ void FEngine::init() {
 
         mLightManager.init(*this);
         mDFG.init(*this);
+
+        // UboManager should be constructed after the driver API is ready
+        if (features.material.enable_material_instance_uniform_batching) {
+            mUboManager.emplace(getDriverApi(), nullptr, 64, mConfig.sharedUboInitialSizeInBytes);
+        }
     }
 
     mPostProcessManager.init();
@@ -703,14 +706,13 @@ void FEngine::prepare() {
     if (features.material.enable_material_instance_uniform_batching) {
         assert_invariant(mUboManager.has_value());
 
-        for (const auto& materialInstanceList: mMaterialInstances) {
-            mUboManager->beginFrame(driver, materialInstanceList.second);
-        }
+        mUboManager->beginFrame(driver, mMaterialInstances);
     }
 
     auto& uboManager = mUboManager;
     for (auto& materialInstanceList: mMaterialInstances) {
         materialInstanceList.second.forEach([&driver, &uboManager](FMaterialInstance* item) {
+            //std::cout<<"traverse MI: "<< item->getName() << ", isBatching: " << item->isUsingUboBatching() <<std::endl;
             // post-process materials instances must be commited explicitly because their
             // parameters are typically not set at this point in time.
             if (item->getMaterial()->getMaterialDomain() == MaterialDomain::SURFACE) {
@@ -720,16 +722,16 @@ void FEngine::prepare() {
         });
     }
 
-    if (features.material.enable_material_instance_uniform_batching) {
-        assert_invariant(mUboManager.has_value());
-        mUboManager->finishBeginFrame(driver);
-    }
-
     mMaterials.forEach([](FMaterial* material) {
 #if FILAMENT_ENABLE_MATDBG // NOLINT(*-include-cleaner)
         material->checkProgramEdits();
 #endif
     });
+
+    if (features.material.enable_material_instance_uniform_batching) {
+        assert_invariant(getUboManager().has_value());
+        getUboManager()->finishBeginFrame(getDriverApi());
+    }
 }
 
 void FEngine::gc() {
@@ -962,8 +964,12 @@ FRenderer* FEngine::createRenderer() noexcept {
 }
 
 FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
-        const FMaterialInstance* other, const char* name) noexcept {
-    FMaterialInstance* p = mHeapAllocator.make<FMaterialInstance>(*this, other, name);
+        const FMaterialInstance* other, const char* name, bool useUboBatching) noexcept {
+    FILAMENT_CHECK_PRECONDITION(
+            !useUboBatching || material->getMaterialDomain() == MaterialDomain::SURFACE)
+            << "Only surface material instance could enable ubo batching";
+    FMaterialInstance* p =
+            mHeapAllocator.make<FMaterialInstance>(*this, other, name, useUboBatching);
     if (UTILS_LIKELY(p)) {
         auto const pos = mMaterialInstances.emplace(material, "MaterialInstance");
         pos.first->second.insert(p);
@@ -972,8 +978,13 @@ FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
 }
 
 FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
-                                                   const char* name) noexcept {
-    FMaterialInstance* p = mHeapAllocator.make<FMaterialInstance>(*this, material, name);
+                                                   const char* name, bool useUboBatching) noexcept {
+    FILAMENT_CHECK_PRECONDITION(
+            !useUboBatching || material->getMaterialDomain() == MaterialDomain::SURFACE)
+            << "Only surface material instance could enable ubo batching";
+
+    FMaterialInstance* p =
+            mHeapAllocator.make<FMaterialInstance>(*this, material, name, useUboBatching);
     if (UTILS_LIKELY(p)) {
         auto pos = mMaterialInstances.emplace(material, "MaterialInstance");
         pos.first->second.insert(p);

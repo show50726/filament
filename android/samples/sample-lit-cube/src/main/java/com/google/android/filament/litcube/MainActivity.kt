@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +35,8 @@ import com.google.android.filament.android.UiHelper
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.Channels
+import kotlin.math.cos
+import kotlin.math.sin
 
 class MainActivity : Activity() {
     // Make sure to initialize Filament first
@@ -43,6 +45,10 @@ class MainActivity : Activity() {
         init {
             Filament.init()
         }
+
+        private const val NUM_CUBES = 1000
+        private const val GRID_SIZE = 10
+        private const val SPACING = 2.5f
     }
 
     // The View we want to render into
@@ -68,21 +74,83 @@ class MainActivity : Activity() {
     private lateinit var camera: Camera
 
     private lateinit var material: Material
-    private lateinit var materialInstance: MaterialInstance
     private lateinit var vertexBuffer: VertexBuffer
     private lateinit var indexBuffer: IndexBuffer
 
     // Filament entity representing a renderable object
-    @Entity private var renderable = 0
+    @Entity private val renderables = IntArray(NUM_CUBES)
+    private val materialInstances = arrayOfNulls<MaterialInstance>(NUM_CUBES)
+    private val translationMatrices = Array(NUM_CUBES) { FloatArray(16) }
+
     @Entity private var light = 0
 
     // A swap chain is Filament's representation of a surface
     private var swapChain: SwapChain? = null
 
+    private var cameraRadius = 42.7f // Initial distance (calculated from original 15Y, 40Z)
+    private var cameraTheta = 0.0f  // Azimuth (horizontal) in radians
+    private var cameraPhi = 0.358f  // Elevation (vertical) in radians (from original 15Y, 40Z)
+
+    private var mLastX = 0.0f
+    private var mLastY = 0.0f
+    private val DRAG_SPEED = 0.005f
+
     // Performs the rendering and schedules new frames
     private val frameScheduler = FrameCallback()
 
     private val animator = ValueAnimator.ofFloat(0.0f, 360.0f)
+
+    // A listener that updates all cubes every frame
+    private val animatorListener = object : ValueAnimator.AnimatorUpdateListener {
+        // Pre-allocate matrix to avoid GC churn
+        private val transformMatrix = FloatArray(16)
+
+        override fun onAnimationUpdate(a: ValueAnimator) {
+            val tcm = engine.transformManager
+            val time = a.animatedFraction // 0.0 to 1.0
+
+            // Calculate the sine wave scale factor.
+            // sin(time * 2 * PI) oscillates between -1.0 and 1.0.
+            // We multiply by 0.5f (so it's -0.5 to 0.5) and add 1.0f.
+            // This makes the final 'scale' oscillate between 0.5 and 1.5.
+            val scale = 1.0f + sin(time * 2.0 * Math.PI).toFloat() * 0.5f
+
+            for (i in 0 until NUM_CUBES) {
+                val inst = tcm.getInstance(renderables[i])
+                val materialInst = materialInstances[i] ?: continue
+
+                // 1. Update Transform (Translation)
+
+                // Get the cube's base position from its stored matrix
+                // The translation is in elements 12 (x), 13 (y), and 14 (z)
+                val baseX = translationMatrices[i][12]
+                val baseY = translationMatrices[i][13]
+                val baseZ = translationMatrices[i][14]
+
+                // Set the transformMatrix to a new translation matrix,
+                // scaled from the center (0,0,0)
+                Matrix.setIdentityM(transformMatrix, 0)
+                Matrix.translateM(transformMatrix, 0,
+                        baseX * scale,
+                        baseY * scale,
+                        baseZ * scale)
+
+                tcm.setTransform(inst, transformMatrix)
+
+                // 2. Update Material Parameters (This logic remains the same)
+
+                // Vary roughness
+                val roughness = 0.5f + 0.5f * sin(time * 2.0 * Math.PI + i * 0.1).toFloat()
+                materialInst.setParameter("roughness", roughness)
+
+                // Vary color (using linear RGB)
+                val r = 0.5f + 0.5f * cos(time * 2.0 * Math.PI + i * 0.5).toFloat()
+                val g = 0.5f + 0.5f * sin(time * 2.0 * Math.PI + i * 0.3).toFloat()
+                val b = 0.5f + 0.5f * cos(time * 2.0 * Math.PI + i * 0.1).toFloat()
+                materialInst.setParameter("baseColor", Colors.RgbType.LINEAR, r, g, b)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +158,7 @@ class MainActivity : Activity() {
         surfaceView = SurfaceView(this)
         setContentView(surfaceView)
 
+        surfaceView.setOnTouchListener(touchListener)
         choreographer = Choreographer.getInstance()
 
         displayHelper = DisplayHelper(this)
@@ -103,10 +172,6 @@ class MainActivity : Activity() {
     private fun setupSurfaceView() {
         uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
         uiHelper.renderCallback = SurfaceCallback()
-
-        // NOTE: To choose a specific rendering resolution, add the following line:
-        // uiHelper.setDesiredSize(1280, 720)
-
         uiHelper.attachTo(surfaceView)
     }
 
@@ -120,66 +185,74 @@ class MainActivity : Activity() {
 
     private fun setupView() {
         scene.skybox = Skybox.Builder().color(0.035f, 0.035f, 0.035f, 1.0f).build(engine)
-
-        // NOTE: Try to disable post-processing (tone-mapping, etc.) to see the difference
-        // view.isPostProcessingEnabled = false
-
-        // Tell the view which camera we want to use
         view.camera = camera
-
-        // Tell the view which scene we want to render
         view.scene = scene
     }
 
     private fun setupScene() {
         loadMaterial()
-        setupMaterial()
         createMesh()
 
-        // To create a renderable we first create a generic entity
-        renderable = EntityManager.get().create()
+        val tcm = engine.transformManager
+        val center = (GRID_SIZE - 1) * 0.5f
 
-        // We then create a renderable component on that entity
-        // A renderable is made of several primitives; in this case we declare only 1
-        // If we wanted each face of the cube to have a different material, we could
-        // declare 6 primitives (1 per face) and give each of them a different material
-        // instance, setup with different parameters
-        RenderableManager.Builder(1)
-                // Overall bounding box of the renderable
+        for (i in 0 until NUM_CUBES) {
+            // Calculate grid position
+            val x = (i % GRID_SIZE) - center
+            val y = ((i / GRID_SIZE) % GRID_SIZE) - center
+            val z = (i / (GRID_SIZE * GRID_SIZE)) - center
+
+            val posX = x * SPACING
+            val posY = y * SPACING
+            val posZ = z * SPACING
+
+            // Create material instance for this cube
+            materialInstances[i] = material.createInstance()
+
+            // Set initial parameters (will be overwritten by animator, but good practice)
+            materialInstances[i]?.setParameter("baseColor", Colors.RgbType.SRGB, 1.0f, 0.85f, 0.57f)
+            materialInstances[i]?.setParameter("metallic", 0.0f)
+            materialInstances[i]?.setParameter("roughness", 0.3f)
+
+            // Create the renderable entity
+            renderables[i] = EntityManager.get().create()
+
+            // Create the renderable component
+            RenderableManager.Builder(1)
                 .boundingBox(Box(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f))
-                // Sets the mesh data of the first primitive, 6 faces of 6 indices each
                 .geometry(0, PrimitiveType.TRIANGLES, vertexBuffer, indexBuffer, 0, 6 * 6)
-                // Sets the material of the first primitive
-                .material(0, materialInstance)
-                .build(engine, renderable)
+                .material(0, materialInstances[i]!!)
+                .build(engine, renderables[i])
 
-        // Add the entity to the scene to render it
-        scene.addEntity(renderable)
+            // Add to scene
+            scene.addEntity(renderables[i])
+
+            // Set its initial transform
+            // Store the base translation matrix
+            Matrix.setIdentityM(translationMatrices[i], 0)
+            Matrix.translateM(translationMatrices[i], 0, posX, posY, posZ)
+
+            // Get the transform component instance
+            val inst = tcm.getInstance(renderables[i])
+            tcm.setTransform(inst, translationMatrices[i])
+        }
 
         // We now need a light, let's create a directional light
         light = EntityManager.get().create()
 
-        // Create a color from a temperature (5,500K)
         val (r, g, b) = Colors.cct(5_500.0f)
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
                 .color(r, g, b)
-                // Intensity of the sun in lux on a clear day
                 .intensity(110_000.0f)
-                // The direction is normalized on our behalf
                 .direction(0.0f, -0.5f, -1.0f)
                 .castShadows(true)
                 .build(engine, light)
 
-        // Add the entity to the scene to light it
         scene.addEntity(light)
 
-        // Set the exposure on the camera, this exposure follows the sunny f/16 rule
-        // Since we've defined a light that has the same intensity as the sun, it
-        // guarantees a proper exposure
         camera.setExposure(16.0f, 1.0f / 125.0f, 100.0f)
 
-        // Move the camera back to see the object
-        camera.lookAt(0.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+        updateCamera()
 
         startAnimation()
     }
@@ -190,28 +263,12 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun setupMaterial() {
-        // Create an instance of the material to set different parameters on it
-        materialInstance = material.createInstance()
-        // Specify that our color is in sRGB so the conversion to linear
-        // is done automatically for us. If you already have a linear color
-        // you can pass it directly, or use Colors.RgbType.LINEAR
-        materialInstance.setParameter("baseColor", Colors.RgbType.SRGB, 1.0f, 0.85f, 0.57f)
-        // The default value is always 0, but it doesn't hurt to be clear about our intentions
-        // Here we are defining a dielectric material
-        materialInstance.setParameter("metallic", 0.0f)
-        // We increase the roughness to spread the specular highlights
-        materialInstance.setParameter("roughness", 0.3f)
-    }
-
     private fun createMesh() {
+        // This function is unchanged, as all 1000 cubes share the same mesh data.
         val floatSize = 4
         val shortSize = 2
-        // A vertex is a position + a tangent frame:
-        // 3 floats for XYZ position, 4 floats for normal+tangents (quaternion)
         val vertexSize = 3 * floatSize + 4 * floatSize
 
-        // Define a vertex and a function to put a vertex in a ByteBuffer
         @Suppress("ArrayInDataClass")
         data class Vertex(val x: Float, val y: Float, val z: Float, val tangents: FloatArray)
         fun ByteBuffer.put(v: Vertex): ByteBuffer {
@@ -222,10 +279,8 @@ class MainActivity : Activity() {
             return this
         }
 
-        // 6 faces, 4 vertices per face
         val vertexCount = 6 * 4
 
-        // Create tangent frames, one per face
         val tfPX = FloatArray(4)
         val tfNX = FloatArray(4)
         val tfPY = FloatArray(4)
@@ -241,57 +296,42 @@ class MainActivity : Activity() {
         MathUtils.packTangentFrame( 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,  0.0f,  0.0f,  0.0f, -1.0f, tfNZ)
 
         val vertexData = ByteBuffer.allocate(vertexCount * vertexSize)
-                // It is important to respect the native byte order
                 .order(ByteOrder.nativeOrder())
-                // Face -Z
                 .put(Vertex(-1.0f, -1.0f, -1.0f, tfNZ))
                 .put(Vertex(-1.0f,  1.0f, -1.0f, tfNZ))
                 .put(Vertex( 1.0f,  1.0f, -1.0f, tfNZ))
                 .put(Vertex( 1.0f, -1.0f, -1.0f, tfNZ))
-                // Face +X
                 .put(Vertex( 1.0f, -1.0f, -1.0f, tfPX))
                 .put(Vertex( 1.0f,  1.0f, -1.0f, tfPX))
                 .put(Vertex( 1.0f,  1.0f,  1.0f, tfPX))
                 .put(Vertex( 1.0f, -1.0f,  1.0f, tfPX))
-                // Face +Z
                 .put(Vertex(-1.0f, -1.0f,  1.0f, tfPZ))
                 .put(Vertex( 1.0f, -1.0f,  1.0f, tfPZ))
                 .put(Vertex( 1.0f,  1.0f,  1.0f, tfPZ))
                 .put(Vertex(-1.0f,  1.0f,  1.0f, tfPZ))
-                // Face -X
                 .put(Vertex(-1.0f, -1.0f,  1.0f, tfNX))
                 .put(Vertex(-1.0f,  1.0f,  1.0f, tfNX))
                 .put(Vertex(-1.0f,  1.0f, -1.0f, tfNX))
                 .put(Vertex(-1.0f, -1.0f, -1.0f, tfNX))
-                // Face -Y
                 .put(Vertex(-1.0f, -1.0f,  1.0f, tfNY))
                 .put(Vertex(-1.0f, -1.0f, -1.0f, tfNY))
                 .put(Vertex( 1.0f, -1.0f, -1.0f, tfNY))
                 .put(Vertex( 1.0f, -1.0f,  1.0f, tfNY))
-                // Face +Y
                 .put(Vertex(-1.0f,  1.0f, -1.0f, tfPY))
                 .put(Vertex(-1.0f,  1.0f,  1.0f, tfPY))
                 .put(Vertex( 1.0f,  1.0f,  1.0f, tfPY))
                 .put(Vertex( 1.0f,  1.0f, -1.0f, tfPY))
-                // Make sure the cursor is pointing in the right place in the byte buffer
                 .flip()
 
-        // Declare the layout of our mesh
         vertexBuffer = VertexBuffer.Builder()
                 .bufferCount(1)
                 .vertexCount(vertexCount)
-                // Because we interleave position and color data we must specify offset and stride
-                // We could use de-interleaved data by declaring two buffers and giving each
-                // attribute a different buffer index
                 .attribute(VertexAttribute.POSITION, 0, AttributeType.FLOAT3, 0,             vertexSize)
                 .attribute(VertexAttribute.TANGENTS, 0, AttributeType.FLOAT4, 3 * floatSize, vertexSize)
                 .build(engine)
 
-        // Feed the vertex data to the mesh
-        // We only set 1 buffer because the data is interleaved
         vertexBuffer.setBufferAt(engine, 0, vertexData)
 
-        // Create the indices
         val indexData = ByteBuffer.allocate(6 * 2 * 3 * shortSize)
                 .order(ByteOrder.nativeOrder())
         repeat(6) {
@@ -302,7 +342,6 @@ class MainActivity : Activity() {
         }
         indexData.flip()
 
-        // 6 faces, 2 triangles per face,
         indexBuffer = IndexBuffer.Builder()
                 .indexCount(vertexCount * 2)
                 .bufferType(IndexBuffer.Builder.IndexType.USHORT)
@@ -310,20 +349,62 @@ class MainActivity : Activity() {
         indexBuffer.setBuffer(engine, indexData)
     }
 
+    private fun updateCamera() {
+        // Calculate eye position from spherical coordinates
+        val eyeY = cameraRadius * sin(cameraPhi)
+        val horizontalRadius = cameraRadius * cos(cameraPhi)
+        val eyeX = horizontalRadius * sin(cameraTheta)
+        val eyeZ = horizontalRadius * cos(cameraTheta)
+
+        // Point the camera at the center (0,0,0)
+        camera.lookAt(eyeX.toDouble(), eyeY.toDouble(), eyeZ.toDouble(), // eye
+                0.0, 0.0, 0.0, // center
+                0.0, 1.0, 0.0) // up
+    }
+
+    private val touchListener = object : android.view.View.OnTouchListener {
+        override fun onTouch(v: android.view.View?, event: android.view.MotionEvent?): Boolean {
+            if (event == null) return false
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    mLastX = event.x
+                    mLastY = event.y
+                    return true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val dx = event.x - mLastX
+                    val dy = event.y - mLastY
+
+                    // Update camera angles
+                    // Horizontal drag (dx) affects theta (azimuth)
+                    cameraTheta -= dx * DRAG_SPEED
+                    // Vertical drag (dy) affects phi (elevation)
+                    cameraPhi += dy * DRAG_SPEED
+
+                    // Clamp vertical angle to avoid flipping over
+                    // (0.1f is just shy of 0, PI - 0.1f is just shy of 180 deg)
+                    cameraPhi = cameraPhi.coerceIn(0.1f, Math.PI.toFloat() - 0.1f)
+
+                    // Update the camera's transform
+                    updateCamera()
+
+                    // Store last position
+                    mLastX = event.x
+                    mLastY = event.y
+                    return true
+                }
+            }
+            return v?.onTouchEvent(event) ?: false
+        }
+    }
+
     private fun startAnimation() {
-        // Animate the triangle
         animator.interpolator = LinearInterpolator()
         animator.duration = 6000
         animator.repeatMode = ValueAnimator.RESTART
         animator.repeatCount = ValueAnimator.INFINITE
-        animator.addUpdateListener(object : ValueAnimator.AnimatorUpdateListener {
-            val transformMatrix = FloatArray(16)
-            override fun onAnimationUpdate(a: ValueAnimator) {
-                Matrix.setRotateM(transformMatrix, 0, a.animatedValue as Float, 0.0f, 1.0f, 0.0f)
-                val tcm = engine.transformManager
-                tcm.setTransform(tcm.getInstance(renderable), transformMatrix)
-            }
-        })
+        // Use our dedicated listener that updates all cubes
+        animator.addUpdateListener(animatorListener)
         animator.start()
     }
 
@@ -351,11 +432,16 @@ class MainActivity : Activity() {
 
         // Cleanup all resources
         engine.destroyEntity(light)
-        engine.destroyEntity(renderable)
+
+        // Destroy all 1000 entities and material instances
+        for (i in 0 until NUM_CUBES) {
+            engine.destroyEntity(renderables[i])
+            materialInstances[i]?.let { engine.destroyMaterialInstance(it) }
+        }
+
         engine.destroyRenderer(renderer)
         engine.destroyVertexBuffer(vertexBuffer)
         engine.destroyIndexBuffer(indexBuffer)
-        engine.destroyMaterialInstance(materialInstance)
         engine.destroyMaterial(material)
         engine.destroyView(view)
         engine.destroyScene(scene)
@@ -365,7 +451,9 @@ class MainActivity : Activity() {
         // (components), not the entity itself
         val entityManager = EntityManager.get()
         entityManager.destroy(light)
-        entityManager.destroy(renderable)
+        for (entity in renderables) {
+            entityManager.destroy(entity)
+        }
         entityManager.destroy(camera.entity)
 
         // Destroying the engine will free up any resource you may have forgotten
@@ -411,7 +499,8 @@ class MainActivity : Activity() {
 
         override fun onResized(width: Int, height: Int) {
             val aspect = width.toDouble() / height.toDouble()
-            camera.setProjection(45.0, aspect, 0.1, 20.0, Camera.Fov.VERTICAL)
+            // Update the far plane from 20.0 to 100.0 to see the whole grid
+            camera.setProjection(45.0, aspect, 0.1, 100.0, Camera.Fov.VERTICAL)
 
             view.viewport = Viewport(0, 0, width, height)
 

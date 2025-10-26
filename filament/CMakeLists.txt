@@ -117,7 +117,7 @@ set(SRCS
         src/components/LightManager.cpp
         src/components/RenderableManager.cpp
         src/components/TransformManager.cpp
-        src/details/BufferAllocator.cpp
+        src/details/FBufferAllocator.cpp
         src/details/BufferObject.cpp
         src/details/Camera.cpp
         src/details/ColorGrading.cpp
@@ -198,7 +198,7 @@ set(PRIVATE_HDRS
         src/components/LightManager.h
         src/components/RenderableManager.h
         src/components/TransformManager.h
-        src/details/BufferAllocator.h
+        src/details/FBufferAllocator.h
         src/details/BufferObject.h
         src/details/Camera.h
         src/details/ColorGrading.h
@@ -248,6 +248,8 @@ set(PRIVATE_HDRS
         src/materials/fsr/ffx_fsr1.h
         src/materials/fsr/ffx_fsr1_mobile.fs
         src/ZstdHelper.h
+        src/details/FenceManager.h
+        src/details/FenceManager.cpp
 )
 
 set(MATERIAL_SRCS

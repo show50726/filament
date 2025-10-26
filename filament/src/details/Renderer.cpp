@@ -449,9 +449,7 @@ void FRenderer::endFrame() {
     if (engine.features.material.enable_material_instance_uniform_batching) {
         auto& uboManager = engine.getUboManager();
         assert_invariant(uboManager.has_value());
-        for (const auto& materialInstances: engine.getMaterialInstanceResourceList()) {
-            uboManager->endFrame(driver, materialInstances.second);
-        }
+        uboManager->endFrame(driver, engine.getMaterialInstanceResourceList());
     }
 
     driver.endFrame(mFrameId);

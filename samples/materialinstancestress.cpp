@@ -52,8 +52,8 @@ using namespace filamesh;
 
 struct App {
     struct UiState {
-        int objectCountSlider = 100;
-        float updateRatio = 0.5f;
+        int objectCountSlider = 1000;
+        float updateRatio = 1.0f;
         bool animate = true;
         int deltaCount = 5;
     } ui;

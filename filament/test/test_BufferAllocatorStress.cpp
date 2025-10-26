@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include "../src/details/BufferAllocator.h"
+#include "../src/details/FBufferAllocator.h"
 #include "utils/Panic.h"
 
 #include <algorithm>
@@ -31,14 +31,14 @@ class BufferAllocatorStressTest : public ::testing::Test {
 protected:
     // We use a total size of 1024 * 64 and a slot size (alignment) of 64.
     // This gives us 1024 total possible slots if aligned.
-    static constexpr BufferAllocator::allocation_size_t SLOT_SIZE = 64;
-    static constexpr BufferAllocator::allocation_size_t SLOT_COUNT = 4096;
-    static constexpr BufferAllocator::allocation_size_t TOTAL_SIZE = SLOT_COUNT * SLOT_SIZE;
+    static constexpr FBufferAllocator::allocation_size_t SLOT_SIZE = 64;
+    static constexpr FBufferAllocator::allocation_size_t SLOT_COUNT = 4096;
+    static constexpr FBufferAllocator::allocation_size_t TOTAL_SIZE = SLOT_COUNT * SLOT_SIZE;
 
     BufferAllocatorStressTest() : mAllocator(TOTAL_SIZE, SLOT_SIZE) {
     }
 
-    BufferAllocator mAllocator;
+    FBufferAllocator mAllocator;
 };
 
 TEST_F(BufferAllocatorStressTest, StressTest) {
@@ -56,7 +56,7 @@ TEST_F(BufferAllocatorStressTest, StressTest) {
     std::uniform_int_distribution operationDistrib(0, 4);
 
     // 2. Randomly do some actions and expect to have no crash
-    std::vector<BufferAllocator::AllocationId> ids;
+    std::vector<FBufferAllocator::AllocationId> ids;
     for (int i = 0; i < operationCount; i++) {
         switch (operationDistrib(gen)) {
             case 0: // Allocate
@@ -64,7 +64,7 @@ TEST_F(BufferAllocatorStressTest, StressTest) {
             case 2: // Allocate
             {
                 // Random the slot count + its offset.
-                const BufferAllocator::allocation_size_t size =
+                const FBufferAllocator::allocation_size_t size =
                         slotCountDistrib(gen) * SLOT_SIZE - slotOffsetDistrib(gen);
 
                 if (auto [id, _] = mAllocator.allocate(size);
@@ -84,7 +84,7 @@ TEST_F(BufferAllocatorStressTest, StressTest) {
                 std::uniform_int_distribution<uint32_t> idDistrib(0, ids.size() - 1);
                 uint32_t indexToRetire = idDistrib(gen);
 
-                BufferAllocator::AllocationId idToRetire = ids[indexToRetire];
+                FBufferAllocator::AllocationId idToRetire = ids[indexToRetire];
                 mAllocator.retire(idToRetire);
 
                 // Remove the retired id from the list.

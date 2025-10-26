@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include "../src/details/BufferAllocator.h"
+#include "../src/details/FBufferAllocator.h"
 #include "utils/Panic.h"
 
 #include <utility>
@@ -30,18 +30,18 @@ class BufferAllocatorTest : public ::testing::Test {
 protected:
     // We use a total size of 1024 and a slot size (alignment) of 64.
     // This gives us 1024 / 64 = 16 total possible slots if aligned.
-    static constexpr BufferAllocator::allocation_size_t TOTAL_SIZE = 1024;
-    static constexpr BufferAllocator::allocation_size_t SLOT_SIZE = 64;
+    static constexpr FBufferAllocator::allocation_size_t TOTAL_SIZE = 1024;
+    static constexpr FBufferAllocator::allocation_size_t SLOT_SIZE = 64;
 
     BufferAllocatorTest() : mAllocator(TOTAL_SIZE, SLOT_SIZE) {}
 
-    BufferAllocator mAllocator;
+    FBufferAllocator mAllocator;
 };
 
 TEST_F(BufferAllocatorTest, ConstructorFailure) {
     // The constructor requires slotSize to be a power of two.
-    constexpr BufferAllocator::allocation_size_t NON_POT_SLOT_SIZE = 60;
-    EXPECT_DEATH(BufferAllocator(TOTAL_SIZE, NON_POT_SLOT_SIZE), "failed assertion");
+    constexpr FBufferAllocator::allocation_size_t NON_POT_SLOT_SIZE = 60;
+    EXPECT_DEATH(FBufferAllocator(TOTAL_SIZE, NON_POT_SLOT_SIZE), "failed assertion");
 }
 
 TEST_F(BufferAllocatorTest, InitialState) {
@@ -287,9 +287,9 @@ TEST_F(BufferAllocatorTest, MergeFreeSlots) {
 
 TEST_F(BufferAllocatorTest, MergeAllSlots) {
     // Allocate the entire buffer in small chunks.
-    constexpr BufferAllocator::allocation_size_t CHUNK_SIZE = 128;
+    constexpr FBufferAllocator::allocation_size_t CHUNK_SIZE = 128;
     constexpr uint32_t NUM_CHUNKS = TOTAL_SIZE / CHUNK_SIZE;
-    std::vector<BufferAllocator::AllocationId> ids;
+    std::vector<FBufferAllocator::AllocationId> ids;
     for (uint32_t i = 0; i < NUM_CHUNKS; ++i) {
         auto [id, offset] = mAllocator.allocate(CHUNK_SIZE);
         ASSERT_NE(id, BufferAllocator::REALLOCATION_REQUIRED);
@@ -377,7 +377,7 @@ TEST_F(BufferAllocatorTest, ResetWithGpuLock) {
     mAllocator.acquireGpu(id1); // gpuUseCount = 1
 
     // 2. Call reset. This should disregard the GPU lock and clear everything.
-    constexpr BufferAllocator::allocation_size_t NEW_TOTAL_SIZE = 4096;
+    constexpr FBufferAllocator::allocation_size_t NEW_TOTAL_SIZE = 4096;
     mAllocator.reset(NEW_TOTAL_SIZE);
 
     // 3. Verify the allocator is in a pristine state with the new size.
@@ -410,7 +410,7 @@ TEST_F(BufferAllocatorTest, InvalidOperations) {
 }
 
 TEST_F(BufferAllocatorTest, ComplexScenario) {
-    std::vector<BufferAllocator::AllocationId> ids;
+    std::vector<FBufferAllocator::AllocationId> ids;
     // 1. Allocate 4 blocks of 256 bytes
     for (int i = 0; i < 4; ++i) {
         auto [id, offset] = mAllocator.allocate(256);
@@ -451,10 +451,10 @@ TEST_F(BufferAllocatorTest, AlignUp) {
 }
 
 TEST_F(BufferAllocatorTest, ValidId) {
-    EXPECT_FALSE(BufferAllocator::isValid(BufferAllocator::UNALLOCATED));
-    EXPECT_FALSE(BufferAllocator::isValid(BufferAllocator::REALLOCATION_REQUIRED));
-    EXPECT_TRUE(BufferAllocator::isValid(100));
-    EXPECT_TRUE(BufferAllocator::isValid(999));
+    EXPECT_FALSE(FBufferAllocator::isValid(BufferAllocator::UNALLOCATED));
+    EXPECT_FALSE(FBufferAllocator::isValid(BufferAllocator::REALLOCATION_REQUIRED));
+    EXPECT_TRUE(FBufferAllocator::isValid(100));
+    EXPECT_TRUE(FBufferAllocator::isValid(999));
 }
 
 } // anonymous namespace

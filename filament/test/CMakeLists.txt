@@ -52,7 +52,9 @@ if (TNT_DEV)
             filament_rendering_test.cpp
             filament_bimap_test.cpp
             filament_framegraph_test.cpp
-            filament_test.cpp)
+            filament_test.cpp
+            test_FenceManager.cpp
+            MockDriver.h)
 
     target_link_libraries(test_${TARGET} PRIVATE filament gtest)
     target_compile_options(test_${TARGET} PRIVATE ${COMPILER_FLAGS})

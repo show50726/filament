@@ -23,8 +23,8 @@
 
 #include "ds/DescriptorSet.h"
 
-#include "details/BufferAllocator.h"
 #include "details/Engine.h"
+#include "details/FBufferAllocator.h"
 
 #include "private/backend/DriverApi.h"
 
@@ -57,15 +57,13 @@ class FTexture;
 class FMaterialInstance : public MaterialInstance {
 public:
     FMaterialInstance(FEngine& engine, FMaterial const* material,
-                      const char* name) noexcept;
-    // Use this constructor when you need to override the ubo batching flag for an individual MI.
-    FMaterialInstance(FEngine& engine, FMaterial const* material,
                       const char* name, bool useUboBatching) noexcept;
-    FMaterialInstance(FEngine& engine, FMaterialInstance const* other, const char* name);
+    FMaterialInstance(FEngine& engine, FMaterialInstance const* other, const char* name, bool useUboBatching);
     FMaterialInstance(const FMaterialInstance& rhs) = delete;
     FMaterialInstance& operator=(const FMaterialInstance& rhs) = delete;
 
-    static FMaterialInstance* duplicate(FMaterialInstance const* other, const char* name) noexcept;
+    static FMaterialInstance* duplicate(FMaterialInstance const* other, const char* name,
+            std::optional<bool> useUboBatching = std::nullopt) noexcept;
 
     ~FMaterialInstance() noexcept;
 
@@ -80,10 +78,10 @@ public:
     void use(FEngine::DriverApi& driver, Variant variant = {}) const;
 
     void assignUboAllocation(const backend::Handle<backend::HwBufferObject>& ubHandle,
-            BufferAllocator::AllocationId id,
-            BufferAllocator::allocation_size_t offset);
+            FBufferAllocator::AllocationId id,
+            FBufferAllocator::allocation_size_t offset);
 
-    BufferAllocator::AllocationId getAllocationId() const noexcept;
+    FBufferAllocator::AllocationId getAllocationId() const noexcept;
 
     FMaterial const* getMaterial() const noexcept { return mMaterial; }
 
@@ -286,7 +284,7 @@ private:
         backend::SamplerParams params;
     };
 
-    std::variant<BufferAllocator::AllocationId, backend::Handle<backend::HwBufferObject>> mUboData;
+    std::variant<FBufferAllocator::AllocationId, backend::Handle<backend::HwBufferObject>> mUboData;
     tsl::robin_map<backend::descriptor_binding_t, TextureParameter> mTextureParameters;
     mutable DescriptorSet mDescriptorSet;
     UniformBuffer mUniforms;

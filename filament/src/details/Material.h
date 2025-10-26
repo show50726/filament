@@ -111,6 +111,8 @@ public:
     // Create an instance of this material
     FMaterialInstance* createInstance(const char* name) const noexcept;
 
+    FMaterialInstance* createInstance(const char* name, bool useUboBatching) const noexcept;
+
     bool hasParameter(const char* name) const noexcept;
 
     bool isSampler(const char* name) const noexcept;
