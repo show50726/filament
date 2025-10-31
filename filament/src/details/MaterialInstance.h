@@ -284,7 +284,8 @@ private:
         backend::SamplerParams params;
     };
 
-    std::variant<FBufferAllocator::AllocationId, backend::Handle<backend::HwBufferObject>> mUboData;
+    std::variant<BufferAllocator::AllocationId, backend::Handle<backend::HwBufferObject>> mUboData;
+    BufferAllocator::allocation_size_t mUboOffset;
     tsl::robin_map<backend::descriptor_binding_t, TextureParameter> mTextureParameters;
     mutable DescriptorSet mDescriptorSet;
     UniformBuffer mUniforms;

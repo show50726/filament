@@ -426,6 +426,10 @@ void FMaterialInstance::use(FEngine::DriverApi& driver, Variant variant) const {
         return;
     }
 
+    if (mUseUboBatching && !FBufferAllocator::isValid(getAllocationId())) {
+        return;
+    }
+
     if (UTILS_UNLIKELY(mMissingSamplerDescriptors.any())) {
         std::call_once(mMissingSamplersFlag, [this] {
             auto const& list = mMaterial->getSamplerInterfaceBlock().getSamplerInfoList();
@@ -451,7 +455,13 @@ void FMaterialInstance::use(FEngine::DriverApi& driver, Variant variant) const {
         return;
     }
 
-    mDescriptorSet.bind(driver, DescriptorSetBindingPoints::PER_MATERIAL);
+
+    if (mUseUboBatching) {
+        std::cout<<getName() << " bind offset:" << mUboOffset << std::endl;
+        mDescriptorSet.bind(driver, DescriptorSetBindingPoints::PER_MATERIAL, {{ mUboOffset }, driver});
+    } else {
+        mDescriptorSet.bind(driver, DescriptorSetBindingPoints::PER_MATERIAL, {{0}, driver});
+    }
 }
 
 void FMaterialInstance::assignUboAllocation(
@@ -461,9 +471,10 @@ void FMaterialInstance::assignUboAllocation(
     assert_invariant(mUseUboBatching);
 
     mUboData = id;
-    std::cout<<"assign: "<< id<<std::endl;
+    mUboOffset = offset;
+    //std::cout<<"assign: "<< id<<std::endl;
     if (FBufferAllocator::isValid(id)) {
-        mDescriptorSet.setBuffer(mMaterial->getDescriptorSetLayout(), 0, ubHandle, offset,
+        mDescriptorSet.setBuffer(mMaterial->getDescriptorSetLayout(), 0, ubHandle, 0,
                 mUniforms.getSize());
     }
 }
