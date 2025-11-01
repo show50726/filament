@@ -131,7 +131,7 @@ DescriptorSetLayout getPerMaterialDescriptorSet(SamplerInterfaceBlock const& sib
 
     layout.bindings.push_back(DescriptorSetLayoutBinding { DescriptorType::UNIFORM_BUFFER,
             ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-            +PerMaterialBindingPoints::MATERIAL_PARAMS, DescriptorFlags::NONE, 0 });
+            +PerMaterialBindingPoints::MATERIAL_PARAMS, DescriptorFlags::DYNAMIC_OFFSET, 0 });
 
     for (auto const& sampler: samplers) {
         DescriptorSetLayoutBinding layoutBinding{
