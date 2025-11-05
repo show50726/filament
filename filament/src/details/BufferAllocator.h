@@ -22,6 +22,12 @@
 #include <map>
 #include <unordered_map>
 
+#if FILAMENT_ENABLE_BAVIEWER
+namespace filament::baviewer {
+struct BufferAllocatorInfo;
+} // namespace filament::baviewer
+#endif
+
 namespace filament {
 
 // This class is NOT thread-safe.
@@ -99,6 +105,10 @@ public:
     [[nodiscard]] allocation_size_t getAllocationSize(AllocationId id) const;
 
     [[nodiscard]] static bool isValid(AllocationId id);
+
+#if FILAMENT_ENABLE_BAVIEWER
+    [[nodiscard]] baviewer::BufferAllocatorInfo collectInfo() const;
+#endif
 
 private:
     [[nodiscard]] AllocationId calculateIdByOffset(allocation_size_t offset) const;

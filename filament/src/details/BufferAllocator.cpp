@@ -16,6 +16,10 @@
 
 #include "details/BufferAllocator.h"
 
+#if FILAMENT_ENABLE_BAVIEWER
+#include <baviewer/BufferAllocatorInfo.h>
+#endif
+
 #include <utils/Panic.h>
 #include <utils/debug.h>
 
@@ -244,5 +248,23 @@ BufferAllocator::allocation_size_t BufferAllocator::alignUp(
 
     return (size + mSlotSize - 1) & ~(mSlotSize - 1);
 }
+
+#if FILAMENT_ENABLE_BAVIEWER
+baviewer::BufferAllocatorInfo BufferAllocator::collectInfo() const {
+    baviewer::BufferAllocatorInfo info;
+    info.totalSize = mTotalSize;
+    info.slotSize = mSlotSize;
+    info.slots.reserve(mSlotPool.size());
+    for (const auto& node : mSlotPool) {
+        baviewer::SlotInfo slotInfo;
+        slotInfo.offset = node.slot.offset;
+        slotInfo.size = node.slot.slotSize;
+        slotInfo.isAllocated = node.slot.isAllocated;
+        slotInfo.gpuUseCount = node.slot.gpuUseCount;
+        info.slots.push_back(slotInfo);
+    }
+    return info;
+}
+#endif
 
 } // namespace filament

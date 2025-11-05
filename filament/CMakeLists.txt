@@ -689,6 +689,13 @@ else()
     add_definitions(-DFILAMENT_ENABLE_FGVIEWER=0)
 endif()
 
+if (FILAMENT_ENABLE_BAVIEWER)
+    target_link_libraries(${TARGET} PUBLIC baviewer)
+    add_definitions(-DFILAMENT_ENABLE_BAVIEWER=1)
+else()
+    add_definitions(-DFILAMENT_ENABLE_BAVIEWER=0)
+endif()
+
 if (FILAMENT_ENABLE_MATDBG)
     target_link_libraries(${TARGET} PUBLIC matdbg)
     add_definitions(-DFILAMENT_ENABLE_MATDBG=1)

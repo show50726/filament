@@ -23,6 +23,12 @@
 
 #include <utils/Logger.h>
 
+#if FILAMENT_ENABLE_BAVIEWER
+#include <baviewer/DebugServer.h>
+#include <memory>
+#include <cstdlib>
+#endif
+
 namespace filament {
 
 namespace {
@@ -37,6 +43,23 @@ UboManager::UboManager(DriverApi& driver, allocation_size_t defaultSlotSizeInByt
         allocation_size_t defaultTotalSizeInBytes)
         : mAllocator(defaultTotalSizeInBytes, defaultSlotSizeInBytes) {
     reallocate(driver, defaultTotalSizeInBytes);
+#if FILAMENT_ENABLE_BAVIEWER // NOLINT(*-include-cleaner)
+#ifdef __ANDROID__
+    const char* baviewerPortString = "8086";
+#else
+    const char* baviewerPortString = getenv("FILAMENT_BAVIEWER_PORT");
+#endif
+    if (baviewerPortString != nullptr) {
+        const int baviewerPort = atoi(baviewerPortString);
+        mDebugServer = std::make_unique<baviewer::DebugServer>(baviewerPort);
+
+        // Sometimes the server can fail to spin up (e.g. if the above port is already in use).
+        // When this occurs, carry onward, developers can look at civetweb.txt for details.
+        if (!mDebugServer->isReady()) {
+            mDebugServer.reset();
+        }
+    }
+#endif
 }
 
 void UboManager::beginFrame(DriverApi& driver,
@@ -46,6 +69,12 @@ void UboManager::beginFrame(DriverApi& driver,
 
     // Actually merge the slots.
     mAllocator.releaseFreeSlots();
+
+#if FILAMENT_ENABLE_BAVIEWER
+    if (mDebugServer && mDebugServer->isReady()) {
+        mDebugServer->update(mAllocator.collectInfo());
+    }
+#endif
 
     // Traverse all MIs and see which of them need slot allocation.
     AllocationResult allocationResult =
@@ -276,6 +305,12 @@ void UboManager::reallocate(DriverApi& driver, allocation_size_t requiredSize) {
     mUboSize = requiredSize;
     mUbHandle = driver.createBufferObject(requiredSize, BufferObjectBinding::UNIFORM,
             BufferUsage::DYNAMIC | BufferUsage::SHARED_WRITE_BIT);
+
+#if FILAMENT_ENABLE_BAVIEWER
+    if (mDebugServer && mDebugServer->isReady()) {
+        mDebugServer->update(mAllocator.collectInfo());
+    }
+#endif
 }
 
 allocation_size_t UboManager::calculateRequiredSize(

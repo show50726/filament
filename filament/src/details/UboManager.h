@@ -22,6 +22,10 @@
 
 #include "details/BufferAllocator.h"
 
+#if FILAMENT_ENABLE_BAVIEWER
+#include <baviewer/DebugServer.h>
+#endif
+
 #include <backend/Handle.h>
 #include <private/backend/DriverApi.h>
 
@@ -120,6 +124,9 @@ private:
     FenceAllocationList mFenceAllocationList;
 
     BufferAllocator mAllocator;
+#if FILAMENT_ENABLE_BAVIEWER
+    std::unique_ptr<baviewer::DebugServer> mDebugServer;
+#endif
 };
 
 } // namespace filament
