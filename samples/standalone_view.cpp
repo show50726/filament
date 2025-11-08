@@ -18,7 +18,6 @@
 #include <filament/Renderer.h>
 #include <filament/Scene.h>
 #include <filament/View.h>
-#include <filament/TransformManager.h>
 #include <filament/RenderableManager.h>
 #include <filament/Material.h>
 #include <filament/Texture.h>
@@ -31,6 +30,7 @@
 
 #include <utils/EntityManager.h>
 #include <utils/Path.h>
+#include <utils/Log.h>
 
 #include <filameshio/MeshReader.h>
 
@@ -44,6 +44,8 @@
 
 using namespace filament;
 using namespace filament::math;
+
+void renderAndReadback(Engine* engine, Renderer* renderer, RenderTarget* renderTarget, const char* filename);
 
 int main(int argc, char** argv) {
     Config config;
@@ -97,7 +99,7 @@ int main(int argc, char** argv) {
             .height(height)
             .levels(1)
             .usage(Texture::Usage::DEPTH_ATTACHMENT)
-            .format(Texture::InternalFormat::DEPTH24) // A common depth format
+            .format(Texture::InternalFormat::DEPTH24)
             .build(*engine);
 
     // Create the RenderTarget with both color and depth attachments
@@ -108,34 +110,27 @@ int main(int argc, char** argv) {
 
     view->setRenderTarget(renderTarget);
 
+    // --- First render ---
+    utils::slog.i << "--- Starting First Render ---" << utils::io::endl;
     renderer->renderStandaloneView(view);
+    renderAndReadback(engine, renderer, renderTarget, "standalone_view_output_1.png");
+    utils::slog.i << "--- Finished First Render ---" << utils::io::endl;
 
-    size_t size = width * height * 4;
-    void* buffer = malloc(size);
 
-    // To resolve the ambiguity of calling the constructor with nullptr,
-    // we explicitly cast nullptr to the callback function pointer type.
-    backend::PixelBufferDescriptor bufferDescriptor(buffer, size,
-            backend::PixelBufferDescriptor::PixelDataFormat::RGBA,
-            backend::PixelBufferDescriptor::PixelDataType::UBYTE,
-            static_cast<backend::BufferDescriptor::Callback>(nullptr),
-            nullptr);
+    // --- Second render ---
+    // This second call is crucial for testing.
+    materialInstance->setParameter("baseColor", sRGBColor(0.1f, 0.8f, 0.8f));
+    // The beginFrame() inside this call should reclaim the resources used by the first call.
+    utils::slog.i << "--- Starting Second Render ---" << utils::io::endl;
+    renderer->renderStandaloneView(view);
+    renderAndReadback(engine, renderer, renderTarget, "standalone_view_output_2.png");
+    utils::slog.i << "--- Finished Second Render ---" << utils::io::endl;
 
-    renderer->readPixels(renderTarget, 0, 0, width, height, std::move(bufferDescriptor));
-
-    // This blocks until the GPU has finished all commands, including the readPixels command.
-    // After this returns, 'buffer' is guaranteed to be filled with data.
-    engine->flushAndWait();
-
-    // Now that we are sure the data is in 'buffer', we can write it to a file.
-    // stbi_flip_vertically_on_write(true);
-    stbi_write_png("standalone_view_output.png", width, height, 4, buffer, width * 4);
-
-    // And now we can safely free the buffer.
-    free(buffer);
 
     // Cleanup
     engine->destroy(mesh.renderable);
+    engine->destroy(mesh.indexBuffer);
+    engine->destroy(mesh.vertexBuffer);
     engine->destroy(materialInstance);
     engine->destroy(material);
     engine->destroy(colorTexture);
@@ -149,4 +144,28 @@ int main(int argc, char** argv) {
     Engine::destroy(&engine);
 
     return 0;
+}
+
+// Helper function to encapsulate the readback and synchronization logic
+void renderAndReadback(Engine* engine, Renderer* renderer, RenderTarget* renderTarget, const char* filename) {
+    const uint32_t width = renderTarget->getTexture(RenderTarget::AttachmentPoint::COLOR)->getWidth();
+    const uint32_t height = renderTarget->getTexture(RenderTarget::AttachmentPoint::COLOR)->getHeight();
+
+    size_t size = width * height * 4;
+    void* buffer = malloc(size);
+
+    backend::PixelBufferDescriptor bufferDescriptor(buffer, size,
+            backend::PixelBufferDescriptor::PixelDataFormat::RGBA,
+            backend::PixelBufferDescriptor::PixelDataType::UBYTE,
+            static_cast<backend::BufferDescriptor::Callback>(nullptr),
+            nullptr);
+
+    renderer->readPixels(renderTarget, 0, 0, width, height, std::move(bufferDescriptor));
+
+    engine->flushAndWait();
+
+    stbi_flip_vertically_on_write(true);
+    stbi_write_png(filename, width, height, 4, buffer, width * 4);
+
+    free(buffer);
 }
