@@ -61,23 +61,8 @@ void main() {
         toTangentFrame(mesh_tangents, material.worldNormal, vertex_worldTangent.xyz);
 
         #if defined(VARIANT_HAS_SKINNING_OR_MORPHING)
-        if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_MORPHING_ENABLED_BIT) != 0) {
-            #if defined(LEGACY_MORPHING)
-            vec3 normal0, normal1, normal2, normal3;
-            toTangentFrame(mesh_custom4, normal0);
-            toTangentFrame(mesh_custom5, normal1);
-            toTangentFrame(mesh_custom6, normal2);
-            toTangentFrame(mesh_custom7, normal3);
-            vec3 baseNormal = material.worldNormal;
-            material.worldNormal += morphingUniforms.weights[0].xyz * (normal0 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[1].xyz * (normal1 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[2].xyz * (normal2 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[3].xyz * (normal3 - baseNormal);
-            #else
-            morphNormal(material.worldNormal);
-            material.worldNormal = normalize(material.worldNormal);
-            #endif
-        }
+        // Automatic morphing is no longer applied here.
+        // The user must now call morphNormal() manually in the material vertex shader.
 
         if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_SKINNING_ENABLED_BIT) != 0) {
             skinNormalTangent(material.worldNormal, vertex_worldTangent.xyz, mesh_bone_indices, mesh_bone_weights);
@@ -96,23 +81,8 @@ void main() {
         toTangentFrame(mesh_tangents, material.worldNormal);
 
         #if defined(VARIANT_HAS_SKINNING_OR_MORPHING)
-        if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_MORPHING_ENABLED_BIT) != 0) {
-            #if defined(LEGACY_MORPHING)
-            vec3 normal0, normal1, normal2, normal3;
-            toTangentFrame(mesh_custom4, normal0);
-            toTangentFrame(mesh_custom5, normal1);
-            toTangentFrame(mesh_custom6, normal2);
-            toTangentFrame(mesh_custom7, normal3);
-            vec3 baseNormal = material.worldNormal;
-            material.worldNormal += morphingUniforms.weights[0].xyz * (normal0 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[1].xyz * (normal1 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[2].xyz * (normal2 - baseNormal);
-            material.worldNormal += morphingUniforms.weights[3].xyz * (normal3 - baseNormal);
-            #else
-            morphNormal(material.worldNormal);
-            material.worldNormal = normalize(material.worldNormal);
-            #endif
-        }
+        // Automatic morphing is no longer applied here.
+        // The user must now call morphNormal() manually in the material vertex shader.
 
         if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_SKINNING_ENABLED_BIT) != 0) {
             skinNormal(material.worldNormal, mesh_bone_indices, mesh_bone_weights);

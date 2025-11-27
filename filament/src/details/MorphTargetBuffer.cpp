@@ -36,6 +36,8 @@ using namespace math;
 struct MorphTargetBuffer::BuilderDetails {
     size_t mVertexCount = 0;
     size_t mCount = 0;
+    bool mWithPositions = true;
+    bool mWithTangents = true;
 };
 
 using BuilderType = MorphTargetBuffer;
@@ -56,12 +58,14 @@ MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::count(size_t const count
     return *this;
 }
 
-MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::name(const char* name, size_t const len) noexcept {
-    return BuilderNameMixin::name(name, len);
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withPositions(bool enable) noexcept {
+    mImpl->mWithPositions = enable;
+    return *this;
 }
 
-MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::name(utils::StaticString const& name) noexcept {
-    return BuilderNameMixin::name(name);
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withTangents(bool enable) noexcept {
+    mImpl->mWithTangents = enable;
+    return *this;
 }
 
 MorphTargetBuffer* MorphTargetBuffer::Builder::build(Engine& engine) {
@@ -108,6 +112,8 @@ inline size_t getSize<TANGENTS>(size_t const vertexCount) noexcept {
 FMorphTargetBuffer::EmptyMorphTargetBuilder::EmptyMorphTargetBuilder() {
     mImpl->mVertexCount = 1;
     mImpl->mCount = 1;
+    mImpl->mWithPositions = true;
+    mImpl->mWithTangents = true;
 }
 
 FMorphTargetBuffer::FMorphTargetBuffer(FEngine& engine, const Builder& builder)
@@ -121,22 +127,25 @@ FMorphTargetBuffer::FMorphTargetBuffer(FEngine& engine, const Builder& builder)
 
     FEngine::DriverApi& driver = engine.getDriverApi();
 
-    // create buffer (here a texture) to store the morphing vertex data
-    mPbHandle = driver.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
-            TextureFormat::RGBA32F, 1,
-            getWidth(mVertexCount),
-            getHeight(mVertexCount),
-            mCount,
-            TextureUsage::DEFAULT,
-            utils::ImmutableCString{ builder.getName() });
+    if (builder->mWithPositions) {
+        mPbHandle = driver.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
+                TextureFormat::RGBA32F, 1,
+                getWidth(mVertexCount),
+                getHeight(mVertexCount),
+                mCount,
+                TextureUsage::DEFAULT,
+                utils::ImmutableCString{ builder.getName() });
+    }
 
-    mTbHandle = driver.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
-            TextureFormat::RGBA16I, 1,
-            getWidth(mVertexCount),
-            getHeight(mVertexCount),
-            mCount,
-            TextureUsage::DEFAULT,
-            utils::ImmutableCString{ builder.getName() });
+    if (builder->mWithTangents) {
+        mTbHandle = driver.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
+                TextureFormat::RGBA16I, 1,
+                getWidth(mVertexCount),
+                getHeight(mVertexCount),
+                mCount,
+                TextureUsage::DEFAULT,
+                utils::ImmutableCString{ builder.getName() });
+    }
 }
 
 void FMorphTargetBuffer::terminate(FEngine& engine) {
@@ -151,6 +160,9 @@ void FMorphTargetBuffer::terminate(FEngine& engine) {
 
 void FMorphTargetBuffer::setPositionsAt(FEngine& engine, size_t const targetIndex,
         float3 const* positions, size_t const count, size_t const offset) {
+    FILAMENT_CHECK_PRECONDITION(mPbHandle) << "setPositionsAt() called on a MorphTargetBuffer without a position buffer. Use withPositions(true) in the Builder.";
+    if (!mPbHandle) return;
+
     FILAMENT_CHECK_PRECONDITION(offset + count <= mVertexCount)
             << "MorphTargetBuffer (size=" << (unsigned)mVertexCount
             << ") overflow (count=" << (unsigned)count << ", offset=" << (unsigned)offset << ")";
@@ -174,6 +186,9 @@ void FMorphTargetBuffer::setPositionsAt(FEngine& engine, size_t const targetInde
 
 void FMorphTargetBuffer::setPositionsAt(FEngine& engine, size_t const targetIndex,
         float4 const* positions, size_t const count, size_t const offset) {
+    FILAMENT_CHECK_PRECONDITION(mPbHandle) << "setPositionsAt() called on a MorphTargetBuffer without a position buffer. Use withPositions(true) in the Builder.";
+    if (!mPbHandle) return;
+
     FILAMENT_CHECK_PRECONDITION(offset + count <= mVertexCount)
             << "MorphTargetBuffer (size=" << mVertexCount
             << ") overflow (count=" << (unsigned)count << ", offset=" << (unsigned)offset << ")";
@@ -196,6 +211,9 @@ void FMorphTargetBuffer::setPositionsAt(FEngine& engine, size_t const targetInde
 
 void FMorphTargetBuffer::setTangentsAt(FEngine& engine, size_t const targetIndex,
         short4 const* tangents, size_t const count, size_t const offset) {
+    FILAMENT_CHECK_PRECONDITION(mTbHandle) << "setTangentsAt() called on a MorphTargetBuffer without a tangent buffer. Use withTangents(true) in the Builder.";
+    if (!mTbHandle) return;
+
     FILAMENT_CHECK_PRECONDITION(offset + count <= mVertexCount)
             << "MorphTargetBuffer (size=" << mVertexCount
             << ") overflow (count=" << (unsigned)count << ", offset=" << (unsigned)offset << ")";
@@ -214,6 +232,14 @@ void FMorphTargetBuffer::setTangentsAt(FEngine& engine, size_t const targetIndex
             Texture::Format::RGBA_INTEGER, Texture::Type::SHORT,
             (char const*)out, sizeof(short4), targetIndex,
             count, offset);
+}
+
+bool FMorphTargetBuffer::hasPositions() const noexcept {
+    return bool(mPbHandle);
+}
+
+bool FMorphTargetBuffer::hasTangents() const noexcept {
+    return bool(mTbHandle);
 }
 
 UTILS_NOINLINE
@@ -278,4 +304,3 @@ void FMorphTargetBuffer::updateDataAt(DriverApi& driver,
 }
 
 } // namespace filament
-

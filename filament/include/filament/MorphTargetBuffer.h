@@ -31,10 +31,21 @@
 namespace filament {
 
 /**
- * MorphTargetBuffer is used to hold morphing data (positions and tangents).
+ * A container for vertex morphing data.
  *
- * Both positions and tangents are required.
+ * A MorphTargetBuffer is a container for a set of morph targets. Each target is a set of vertex
+ * attributes (e.g. positions, tangents). A MorphTargetBuffer is created using a builder, which
+ * allows specifying the number of vertices and the number of morph targets.
  *
+ * By default, a MorphTargetBuffer is an empty object. The builder can be used to enable built-in
+ * support for position and tangent/normal morphing, which provides an easy-to-use path for these
+ * common cases.
+ *
+ * For custom data morphing (e.g. texture coordinates), a MorphTargetBuffer can be created without
+ * enabling the built-in attributes. The user is then responsible for managing their own data
+ * textures and applying the morphing logic inside the material's vertex shader.
+ *
+ * @see RenderableManager
  */
 class UTILS_PUBLIC MorphTargetBuffer : public FilamentAPI {
     struct BuilderDetails;
@@ -51,45 +62,42 @@ public:
         Builder& operator=(Builder&& rhs) noexcept;
 
         /**
-         * Size of the morph targets in vertex counts.
-         * @param vertexCount Number of vertex counts the morph targets can hold.
+         * Sets the number of vertices in this morph target buffer.
+         * @param vertexCount Number of vertices.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& vertexCount(size_t vertexCount) noexcept;
 
         /**
-         * Size of the morph targets in targets.
-         * @param count Number of targets the morph targets can hold.
+         * Sets the number of morph targets in this buffer.
+         * @param count Number of targets.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& count(size_t count) noexcept;
 
         /**
-         * Associate an optional name with this MorphTargetBuffer for debugging purposes.
+         * Enables and allocates the built-in buffer for position morphing.
          *
-         * name will show in error messages and should be kept as short as possible. The name is
-         * truncated to a maximum of 128 characters.
+         * If enabled, `setPositionsAt` can be called to set the position data for each target.
+         * The morphing calculation can then be performed in the vertex shader by calling
+         * `morphPosition()`.
          *
-         * The name string is copied during this method so clients may free its memory after
-         * the function returns.
-         *
-         * @param name A string to identify this MorphTargetBuffer
-         * @param len Length of name, should be less than or equal to 128
-         * @return This Builder, for chaining calls.
-         * @deprecated Use name(utils::StaticString const&) instead.
+         * @param enable true to enable, false to disable. Default is false.
+         * @return A reference to this Builder for chaining calls.
          */
-        UTILS_DEPRECATED
-        Builder& name(const char* UTILS_NONNULL name, size_t len) noexcept;
+        Builder& withPositions(bool enable = true) noexcept;
 
         /**
-         * Associate an optional name with this MorphTargetBuffer for debugging purposes.
+         * Enables and allocates the built-in buffer for tangent/normal morphing.
          *
-         * name will show in error messages and should be kept as short as possible.
+         * If enabled, `setTangentsAt` can be called to set the tangent data for each target.
+         * The morphing calculation can then be performed in the vertex shader by calling
+         * `morphNormal()`.
          *
-         * @param name A string literal to identify this MorphTargetBuffer
-         * @return This Builder, for chaining calls.
+         * @param enable true to enable, false to disable. Default is false.
+         * @return A reference to this Builder for chaining calls.
          */
-        Builder& name(utils::StaticString const& name) noexcept;
+        Builder& withTangents(bool enable = true) noexcept;
 
         /**
          * Creates the MorphTargetBuffer object and returns a pointer to it.
@@ -110,16 +118,14 @@ public:
     /**
      * Updates positions for the given morph target.
      *
+     * This method can only be called if the MorphTargetBuffer was built with `withPositions(true)`.
      * This is equivalent to the float4 method, but uses 1.0 for the 4th component.
-     *
-     * Both positions and tangents must be provided.
      *
      * @param engine Reference to the filament::Engine associated with this MorphTargetBuffer.
      * @param targetIndex the index of morph target to be updated.
      * @param positions pointer to at least "count" positions
      * @param count number of float3 vectors in positions
-     * @param offset offset into the target buffer, expressed as a number of float4 vectors
-     * @see setTangentsAt
+     * @param offset offset into the target buffer, expressed as a number of float3 vectors
      */
     void setPositionsAt(Engine& engine, size_t targetIndex,
             math::float3 const* UTILS_NONNULL positions, size_t count, size_t offset = 0);
@@ -127,14 +133,13 @@ public:
     /**
      * Updates positions for the given morph target.
      *
-     * Both positions and tangents must be provided.
+     * This method can only be called if the MorphTargetBuffer was built with `withPositions(true)`.
      *
      * @param engine Reference to the filament::Engine associated with this MorphTargetBuffer.
      * @param targetIndex the index of morph target to be updated.
      * @param positions pointer to at least "count" positions
      * @param count number of float4 vectors in positions
      * @param offset offset into the target buffer, expressed as a number of float4 vectors
-     * @see setTangentsAt
      */
     void setPositionsAt(Engine& engine, size_t targetIndex,
             math::float4 const* UTILS_NONNULL positions, size_t count, size_t offset = 0);
@@ -142,15 +147,15 @@ public:
     /**
      * Updates tangents for the given morph target.
      *
+     * This method can only be called if the MorphTargetBuffer was built with `withTangents(true)`.
      * These quaternions must be represented as signed shorts, where real numbers in the [-1,+1]
-     * range multiplied by 32767.
+     * range are multiplied by 32767.
      *
      * @param engine Reference to the filament::Engine associated with this MorphTargetBuffer.
      * @param targetIndex the index of morph target to be updated.
      * @param tangents pointer to at least "count" tangents
      * @param count number of short4 quaternions in tangents
      * @param offset offset into the target buffer, expressed as a number of short4 vectors
-     * @see setPositionsAt
      */
     void setTangentsAt(Engine& engine, size_t targetIndex,
             math::short4 const* UTILS_NONNULL tangents, size_t count, size_t offset = 0);
@@ -166,6 +171,18 @@ public:
      * @return The number of targets the MorphTargetBuffer holds.
      */
     size_t getCount() const noexcept;
+
+    /**
+     * Returns true if this MorphTargetBuffer has a position buffer.
+     * @see Builder::withPositions
+     */
+    bool hasPositions() const noexcept;
+
+    /**
+     * Returns true if this MorphTargetBuffer has a tangent buffer.
+     * @see Builder::withTangents
+     */
+    bool hasTangents() const noexcept;
 
 protected:
     // prevent heap allocation

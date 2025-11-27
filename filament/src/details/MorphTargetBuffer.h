@@ -55,6 +55,8 @@ public:
 
     void setTangentsAt(FEngine& engine, size_t targetIndex,
             math::short4 const* tangents, size_t count, size_t offset);
+    bool hasPositions() const noexcept;
+    bool hasTangents() const noexcept;
 
     inline size_t getVertexCount() const noexcept { return mVertexCount; }
     inline size_t getCount() const noexcept { return mCount; }
