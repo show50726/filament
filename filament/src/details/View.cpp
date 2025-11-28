@@ -839,6 +839,7 @@ void FView::prepare(FEngine& engine, DriverApi& driver, RootArenaScope& rootAren
                                 +PerRenderableBindingPoints::MORPH_TARGET_POSITIONS,
                                 mtb->getPositionsHandle(), {});
                     }
+
                     if (mtb->hasTangents()) {
                         descriptorSet.setSampler(layout,
                                 +PerRenderableBindingPoints::MORPH_TARGET_TANGENTS,

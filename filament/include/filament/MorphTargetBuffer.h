@@ -31,19 +31,27 @@
 namespace filament {
 
 /**
- * A container for vertex morphing data.
+ * A container for vertex morphing data that supports both automatic and manual morphing.
  *
- * A MorphTargetBuffer is a container for a set of morph targets. Each target is a set of vertex
- * attributes (e.g. positions, tangents). A MorphTargetBuffer is created using a builder, which
- * allows specifying the number of vertices and the number of morph targets.
+ * MorphTargetBuffer operates in a hybrid model depending on the attribute being morphed:
  *
- * By default, a MorphTargetBuffer is an empty object. The builder can be used to enable built-in
- * support for position and tangent/normal morphing, which provides an easy-to-use path for these
- * common cases.
+ * 1.  Automatic for Built-ins (positions/tangents):
+ *     Enable via `withPositions(true)` or `withTangents(true)`. The MorphTargetBuffer will
+ *     allocate internal storage and hold the data for these attributes, which you upload
+ *     via `setPositionsAt()` or `setTangentsAt()`. The framework automatically applies
+ *     the morphing logic in the vertex shader.
  *
- * For custom data morphing (e.g. texture coordinates), a MorphTargetBuffer can be created without
- * enabling the built-in attributes. The user is then responsible for managing their own data
- * textures and applying the morphing logic inside the material's vertex shader.
+ * 2.  Manual for Custom Data (e.g., UVs, colors):
+ *     The MorphTargetBuffer does NOT hold data for custom targets. The user is responsible
+ *     for the full data pipeline:
+ *     - Create and manage a separate `Texture` to hold the morph target data (offsets).
+ *     - In the material, declare a `sampler2d_array` parameter.
+ *     - Bind the `Texture` to the material instance.
+ *     - In the vertex shader, manually call `morphData2`, `morphData3`, or `morphData4`
+ *       with the custom sampler to apply the morphing.
+ *
+ * A MorphTargetBuffer object must be associated with a Renderable via
+ * `RenderableManager::Builder::morphing()` to enable the morphing pipeline for all cases.
  *
  * @see RenderableManager
  */
@@ -62,15 +70,15 @@ public:
         Builder& operator=(Builder&& rhs) noexcept;
 
         /**
-         * Sets the number of vertices in this morph target buffer.
-         * @param vertexCount Number of vertices.
+         * Size of the morph targets in vertex counts.
+         * @param vertexCount Number of vertex counts the morph targets can hold.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& vertexCount(size_t vertexCount) noexcept;
 
         /**
-         * Sets the number of morph targets in this buffer.
-         * @param count Number of targets.
+         * Size of the morph targets in targets.
+         * @param count Number of targets the morph targets can hold.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& count(size_t count) noexcept;
@@ -79,10 +87,9 @@ public:
          * Enables and allocates the built-in buffer for position morphing.
          *
          * If enabled, `setPositionsAt` can be called to set the position data for each target.
-         * The morphing calculation can then be performed in the vertex shader by calling
-         * `morphPosition()`.
+         * The vertex position will be morphed automatically without any further actions.
          *
-         * @param enable true to enable, false to disable. Default is false.
+         * @param enable true to enable, false to disable. Default is true.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& withPositions(bool enable = true) noexcept;
@@ -91,10 +98,9 @@ public:
          * Enables and allocates the built-in buffer for tangent/normal morphing.
          *
          * If enabled, `setTangentsAt` can be called to set the tangent data for each target.
-         * The morphing calculation can then be performed in the vertex shader by calling
-         * `morphNormal()`.
+         * The vertex position will be morphed automatically without any further actions.
          *
-         * @param enable true to enable, false to disable. Default is false.
+         * @param enable true to enable, false to disable. Default is true.
          * @return A reference to this Builder for chaining calls.
          */
         Builder& withTangents(bool enable = true) noexcept;
@@ -149,7 +155,7 @@ public:
      *
      * This method can only be called if the MorphTargetBuffer was built with `withTangents(true)`.
      * These quaternions must be represented as signed shorts, where real numbers in the [-1,+1]
-     * range are multiplied by 32767.
+     * range multiplied by 32767.
      *
      * @param engine Reference to the filament::Engine associated with this MorphTargetBuffer.
      * @param targetIndex the index of morph target to be updated.

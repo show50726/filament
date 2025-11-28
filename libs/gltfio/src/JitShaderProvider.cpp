@@ -25,7 +25,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <utility>
 
 using namespace filamat;
 using namespace filament;
@@ -107,38 +106,27 @@ void JitShaderProvider::destroyMaterials() {
     mCache.clear();
 }
 
-std::pair<std::string, std::string> shaderFromKey(const MaterialKey& config) {
-    std::string vertexShader = R"SHADER(
-void materialVertex(inout MaterialVertexInputs material) {
-    #if defined(VARIANT_HAS_SKINNING_OR_MORPHING)
-        if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_MORPHING_ENABLED_BIT) != 0) {
-            morphPosition(material.worldPosition);
-            morphNormal(material.worldNormal);
-        }
-    #endif
-}
-)SHADER";
-
-    std::string fragmentShader = "void material(inout MaterialInputs material) {\n";
+std::string shaderFromKey(const MaterialKey& config) {
+    std::string shader = "void material(inout MaterialInputs material) {\n";
 
     if (config.hasNormalTexture && !config.unlit) {
-        fragmentShader += "highp float2 normalUV = ${normal};\n";
+        shader += "highp float2 normalUV = ${normal};\n";
         if (config.hasTextureTransforms) {
-            fragmentShader += "normalUV = (vec3(normalUV, 1.0) * materialParams.normalUvMatrix).xy;\n";
+            shader += "normalUV = (vec3(normalUV, 1.0) * materialParams.normalUvMatrix).xy;\n";
         }
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
             material.normal = texture(materialParams_normalMap, normalUV).xyz * 2.0 - 1.0;
             material.normal.xy *= materialParams.normalScale;
         )SHADER";
     }
 
     if (config.hasClearCoat && config.hasClearCoatNormalTexture && !config.unlit) {
-        fragmentShader += "highp float2 clearCoatNormalUV = ${clearCoatNormal};\n";
+        shader += "highp float2 clearCoatNormalUV = ${clearCoatNormal};\n";
         if (config.hasTextureTransforms) {
-            fragmentShader += "clearCoatNormalUV = (vec3(clearCoatNormalUV, 1.0) * "
+            shader += "clearCoatNormalUV = (vec3(clearCoatNormalUV, 1.0) * "
                     "materialParams.clearCoatNormalUvMatrix).xy;\n";
         }
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
             material.clearCoatNormal =
                 texture(materialParams_clearCoatNormalMap, clearCoatNormalUV).xyz * 2.0 - 1.0;
             material.clearCoatNormal.xy *= materialParams.clearCoatNormalScale;
@@ -146,31 +134,31 @@ void materialVertex(inout MaterialVertexInputs material) {
     }
 
     if (config.enableDiagnostics && !config.unlit) {
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
             if (materialParams.enableDiagnostics) {
                 material.normal = vec3(0, 0, 1);
             }
         )SHADER";
     }
 
-    fragmentShader += R"SHADER(
+    shader += R"SHADER(
         prepareMaterial(material);
         material.baseColor = materialParams.baseColorFactor;
     )SHADER";
 
     if (config.hasBaseColorTexture) {
-        fragmentShader += "highp float2 baseColorUV = ${color};\n";
+        shader += "highp float2 baseColorUV = ${color};\n";
         if (config.hasTextureTransforms) {
-            fragmentShader += "baseColorUV = (vec3(baseColorUV, 1.0) * "
+            shader += "baseColorUV = (vec3(baseColorUV, 1.0) * "
                     "materialParams.baseColorUvMatrix).xy;\n";
         }
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
             material.baseColor *= texture(materialParams_baseColorMap, baseColorUV);
         )SHADER";
     }
 
     if (config.enableDiagnostics) {
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
            #if defined(HAS_ATTRIBUTE_TANGENTS)
             if (materialParams.enableDiagnostics) {
                 material.baseColor.rgb = vertex_worldNormal * 0.5 + 0.5;
@@ -180,25 +168,25 @@ void materialVertex(inout MaterialVertexInputs material) {
     }
 
     if (config.alphaMode == AlphaMode::BLEND) {
-        fragmentShader += R"SHADER(
+        shader += R"SHADER(
             material.baseColor.rgb *= material.baseColor.a;
         )SHADER";
     }
 
     if (config.hasVertexColors) {
-        fragmentShader += "material.baseColor *= getColor();\n";
+        shader += "material.baseColor *= getColor();\n";
     }
 
     if (!config.unlit) {
         if (config.useSpecularGlossiness) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.glossiness = materialParams.glossinessFactor;
                 material.specularColor = materialParams.specularFactor;
                 material.emissive = vec4(materialParams.emissiveStrength *
                     materialParams.emissiveFactor.rgb, 0.0);
             )SHADER";
         } else {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.roughness = materialParams.roughnessFactor;
                 material.metallic = materialParams.metallicFactor;
                 material.emissive = vec4(materialParams.emissiveStrength *
@@ -206,19 +194,19 @@ void materialVertex(inout MaterialVertexInputs material) {
             )SHADER";
         }
         if (config.hasMetallicRoughnessTexture) {
-            fragmentShader += "highp float2 metallicRoughnessUV = ${metallic};\n";
+            shader += "highp float2 metallicRoughnessUV = ${metallic};\n";
             if (config.hasTextureTransforms) {
-                fragmentShader += "metallicRoughnessUV = (vec3(metallicRoughnessUV, 1.0) * "
+                shader += "metallicRoughnessUV = (vec3(metallicRoughnessUV, 1.0) * "
                         "materialParams.metallicRoughnessUvMatrix).xy;\n";
             }
             if (config.useSpecularGlossiness) {
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     vec4 sg = texture(materialParams_metallicRoughnessMap, metallicRoughnessUV);
                     material.specularColor *= sg.rgb;
                     material.glossiness *= sg.a;
                 )SHADER";
             } else {
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     vec4 mr = texture(materialParams_metallicRoughnessMap, metallicRoughnessUV);
                     material.roughness *= mr.g;
                     material.metallic *= mr.b;
@@ -226,100 +214,100 @@ void materialVertex(inout MaterialVertexInputs material) {
             }
         }
         if (config.hasOcclusionTexture) {
-            fragmentShader += "highp float2 aoUV = ${ao};\n";
+            shader += "highp float2 aoUV = ${ao};\n";
             if (config.hasTextureTransforms) {
-                fragmentShader += "aoUV = (vec3(aoUV, 1.0) * materialParams.occlusionUvMatrix).xy;\n";
+                shader += "aoUV = (vec3(aoUV, 1.0) * materialParams.occlusionUvMatrix).xy;\n";
             }
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 float occlusion = texture(materialParams_occlusionMap, aoUV).r;
                 material.ambientOcclusion = 1.0 + materialParams.aoStrength * (occlusion - 1.0);
             )SHADER";
         }
         if (config.hasEmissiveTexture) {
-            fragmentShader += "highp float2 emissiveUV = ${emissive};\n";
+            shader += "highp float2 emissiveUV = ${emissive};\n";
             if (config.hasTextureTransforms) {
-                fragmentShader += "emissiveUV = (vec3(emissiveUV, 1.0) * "
+                shader += "emissiveUV = (vec3(emissiveUV, 1.0) * "
                         "materialParams.emissiveUvMatrix).xy;\n";
             }
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.emissive.rgb *= texture(materialParams_emissiveMap, emissiveUV).rgb;
             )SHADER";
         }
         if (config.hasTransmission) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.transmission = materialParams.transmissionFactor;
             )SHADER";
             if (config.hasTransmissionTexture) {
-                fragmentShader += "highp float2 transmissionUV = ${transmission};\n";
+                shader += "highp float2 transmissionUV = ${transmission};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "transmissionUV = (vec3(transmissionUV, 1.0) * "
+                    shader += "transmissionUV = (vec3(transmissionUV, 1.0) * "
                             "materialParams.transmissionUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.transmission *= texture(materialParams_transmissionMap, transmissionUV).r;
                 )SHADER";
             }
         }
         if (config.hasClearCoat) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.clearCoat = materialParams.clearCoatFactor;
                 material.clearCoatRoughness = materialParams.clearCoatRoughnessFactor;
             )SHADER";
 
             if (config.hasClearCoatTexture) {
-                fragmentShader += "highp float2 clearCoatUV = ${clearCoat};\n";
+                shader += "highp float2 clearCoatUV = ${clearCoat};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "clearCoatUV = (vec3(clearCoatUV, 1.0) * "
+                    shader += "clearCoatUV = (vec3(clearCoatUV, 1.0) * "
                             "materialParams.clearCoatUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.clearCoat *= texture(materialParams_clearCoatMap, clearCoatUV).r;
                 )SHADER";
             }
 
             if (config.hasClearCoatRoughnessTexture) {
-                fragmentShader += "highp float2 clearCoatRoughnessUV = ${clearCoatRoughness};\n";
+                shader += "highp float2 clearCoatRoughnessUV = ${clearCoatRoughness};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "clearCoatRoughnessUV = (vec3(clearCoatRoughnessUV, 1.0) * "
+                    shader += "clearCoatRoughnessUV = (vec3(clearCoatRoughnessUV, 1.0) * "
                               "materialParams.clearCoatRoughnessUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.clearCoatRoughness *= texture(materialParams_clearCoatRoughnessMap, clearCoatRoughnessUV).g;
                 )SHADER";
             }
         }
 
         if (config.hasSheen) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.sheenColor = materialParams.sheenColorFactor;
                 material.sheenRoughness = materialParams.sheenRoughnessFactor;
             )SHADER";
 
             if (config.hasSheenColorTexture) {
-                fragmentShader += "highp float2 sheenColorUV = ${sheenColor};\n";
+                shader += "highp float2 sheenColorUV = ${sheenColor};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "sheenColorUV = (vec3(sheenColorUV, 1.0) * "
+                    shader += "sheenColorUV = (vec3(sheenColorUV, 1.0) * "
                               "materialParams.sheenColorUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.sheenColor *= texture(materialParams_sheenColorMap, sheenColorUV).rgb;
                 )SHADER";
             }
 
             if (config.hasSheenRoughnessTexture) {
-                fragmentShader += "highp float2 sheenRoughnessUV = ${sheenRoughness};\n";
+                shader += "highp float2 sheenRoughnessUV = ${sheenRoughness};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "sheenRoughnessUV = (vec3(sheenRoughnessUV, 1.0) * "
+                    shader += "sheenRoughnessUV = (vec3(sheenRoughnessUV, 1.0) * "
                               "materialParams.sheenRoughnessUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.sheenRoughness *= texture(materialParams_sheenRoughnessMap, sheenRoughnessUV).a;
                 )SHADER";
             }
         }
 
         if (config.hasVolume) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.absorption = materialParams.volumeAbsorption;
 
                 // TODO: Provided by Filament, but this should really be provided/computed by gltfio
@@ -329,19 +317,19 @@ void materialVertex(inout MaterialVertexInputs material) {
             )SHADER";
 
             if (config.hasVolumeThicknessTexture) {
-                fragmentShader += "highp float2 volumeThicknessUV = ${volumeThickness};\n";
+                shader += "highp float2 volumeThicknessUV = ${volumeThickness};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "volumeThicknessUV = (vec3(volumeThicknessUV, 1.0) * "
+                    shader += "volumeThicknessUV = (vec3(volumeThicknessUV, 1.0) * "
                               "materialParams.volumeThicknessUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.thickness *= texture(materialParams_volumeThicknessMap, volumeThicknessUV).g;
                 )SHADER";
             }
         }
 
         if (config.hasIOR) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.ior = materialParams.ior;
             )SHADER";
         }
@@ -353,51 +341,50 @@ void materialVertex(inout MaterialVertexInputs material) {
         }
 
         if (config.hasSpecular) {
-            fragmentShader += R"SHADER(
+            shader += R"SHADER(
                 material.specularFactor = materialParams.specularStrength;
                 material.specularColorFactor = materialParams.specularColorFactor;
             )SHADER";
 
             if (config.hasSpecularTexture) {
-                fragmentShader += "highp float2 specularUV = ${specular};\n";
+                shader += "highp float2 specularUV = ${specular};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "specularUV = (vec3(specularUV, 1.0) * "
+                    shader += "specularUV = (vec3(specularUV, 1.0) * "
                               "materialParams.specularUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.specularFactor *= texture(materialParams_specularMap, specularUV).a;
                 )SHADER";
             }
 
             if (config.hasSpecularColorTexture) {
-                fragmentShader += "highp float2 specularColorUV = ${specularColor};\n";
+                shader += "highp float2 specularColorUV = ${specularColor};\n";
                 if (config.hasTextureTransforms) {
-                    fragmentShader += "specularColorUV = (vec3(specularColorUV, 1.0) * "
+                    shader += "specularColorUV = (vec3(specularColorUV, 1.0) * "
                               "materialParams.specularColorUvMatrix).xy;\n";
                 }
-                fragmentShader += R"SHADER(
+                shader += R"SHADER(
                     material.specularColorFactor *= texture(materialParams_specularColorMap, specularColorUV).rgb;
                 )SHADER";
             }
         }
     }
 
-    fragmentShader += "}\n";
-    return {vertexShader, fragmentShader};
+    shader += "}\n";
+    return shader;
 }
 
 Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap& uvmap,
         const char* name, bool optimizeShaders, filament::UserVariantFilterMask variantFilter) {
-    auto shaders = shaderFromKey(config);
-    processShaderString(&shaders.first, uvmap, config);
-    processShaderString(&shaders.second, uvmap, config);
+    std::string shader = shaderFromKey(config);
+    processShaderString(&shader, uvmap, config);
     MaterialBuilder builder;
     builder.name(name)
             .flipUV(false)
             .specularAmbientOcclusion(MaterialBuilder::SpecularAmbientOcclusion::SIMPLE)
             .specularAntiAliasing(true)
             .clearCoatIorChange(false)
-            .material(shaders.second.c_str())
+            .material(shader.c_str())
             .doubleSided(config.doubleSided)
             .transparencyMode(config.doubleSided
                                       ? MaterialBuilder::TransparencyMode::TWO_PASSES_TWO_SIDES

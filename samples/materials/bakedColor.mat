@@ -8,16 +8,6 @@ material {
     featureLevel : 0
 }
 
-vertex {
-    void materialVertex(inout MaterialVertexInputs material) {
-        #if defined(VARIANT_HAS_SKINNING_OR_MORPHING)
-            if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_MORPHING_ENABLED_BIT) != 0) {
-                morphPosition(material.worldPosition);
-            }
-        #endif
-    }
-}
-
 fragment {
     void material(inout MaterialInputs material) {
         prepareMaterial(material);

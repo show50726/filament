@@ -81,6 +81,10 @@ static const float2 UV_DELTA[4] = {
     {1.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f}
 };
 
+static const float3 POS_DELTA[4] = {
+    {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}
+};
+
 int main(int argc, char** argv) {
     Config config;
     config.title = "hellouvmorphing";
@@ -147,7 +151,10 @@ int main(int argc, char** argv) {
         app.mtb = MorphTargetBuffer::Builder()
                 .vertexCount(4)
                 .count(1)
+                .withPositions(true)
                 .build(*engine);
+
+        app.mtb->setPositionsAt(*engine, 0, POS_DELTA, 4, 0);
 
         // Create the renderable
         app.renderable = EntityManager::get().create();
