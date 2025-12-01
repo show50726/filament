@@ -140,7 +140,15 @@ class Visualizer extends LitElement {
             .segment:hover {
                 filter: brightness(1.2);
                 z-index: 10;
-                outline: 2px solid #fff;
+            }
+            .segment.selected {
+                z-index: 11;
+                filter: brightness(1.2);
+                box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            }
+            .allocation-bar.has-selection .segment:not(.selected) {
+                opacity: 0.5;
+                filter: grayscale(0.5);
             }
             .segment-tooltip {
                 position: absolute;
@@ -285,12 +293,12 @@ class Visualizer extends LitElement {
         return html`
             <h2>Memory Allocation</h2>
             <div class="allocation-bar-container">
-                <div class="allocation-bar" style="transform: scaleX(${this.zoomLevel})">
+                <div class="allocation-bar ${this.selectedSegment ? 'has-selection' : ''}" style="transform: scaleX(${this.zoomLevel})">
                 ${this.info.slots.map(slot => {
             const widthPct = (slot.size / totalSize) * 100;
                     return html`
                         <div
-                            class="segment"
+                            class="segment ${this.selectedSegment === slot ? 'selected' : ''}"
                             style="width: ${widthPct}%; background-color: ${this._getSlotColor(slot)}"
                             @click="${() => this.selectedSegment = slot}"
                         >
