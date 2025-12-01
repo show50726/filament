@@ -464,6 +464,7 @@ class BufferAllocatorVisualizer extends LitElement {
                 display: flex;
                 flex-direction: column;
                 flex-grow: 1;
+                min-width: 0;
             }
         `;
     }
