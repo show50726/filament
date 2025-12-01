@@ -70,12 +70,6 @@ void UboManager::beginFrame(DriverApi& driver,
     // Actually merge the slots.
     mAllocator.releaseFreeSlots();
 
-#if FILAMENT_ENABLE_BAVIEWER
-    if (mDebugServer && mDebugServer->isReady()) {
-        mDebugServer->update(mAllocator.collectInfo());
-    }
-#endif
-
     // Traverse all MIs and see which of them need slot allocation.
     AllocationResult allocationResult =
             updateMaterialInstanceAllocations(materialInstances, ON_DEMAND);
@@ -143,6 +137,12 @@ void UboManager::endFrame(DriverApi& driver,
     }
 
     mFenceAllocationList.emplace_back( driver.createFence(), std::move(allocationIds) );
+
+#if FILAMENT_ENABLE_BAVIEWER
+    if (mDebugServer && mDebugServer->isReady()) {
+        mDebugServer->update(mAllocator.collectInfo());
+    }
+#endif
 }
 
 void UboManager::terminate(DriverApi& driver) {
@@ -255,7 +255,8 @@ UboManager::AllocationResult UboManager::tryAllocateMaterialInstanceSlot(FMateri
 
     const AllocationId id = mi->getAllocationId();
     auto allocateAndAssign = [&](AllocationId originalId) -> AllocationResult {
-        auto [newId, newOffset] = allocator.allocate(mi->getUniformBuffer().getSize());
+        auto [newId, newOffset] = allocator.allocate(mi->getUniformBuffer().getSize(),
+                reinterpret_cast<uint64_t>(mi));
         // Special handling for instances that were previously UNALLOCATED:
         // If the new allocation also fails, keep it UNALLOCATED to signal initial failure.
         if (originalId == BufferAllocator::UNALLOCATED &&

@@ -32,7 +32,7 @@
 
 // If set to 0, this serves HTML from a resgen resource. Use 1 only during local development, which
 // serves files directly from the source code tree.
-#define SERVE_FROM_SOURCE_TREE 0
+#define SERVE_FROM_SOURCE_TREE 1
 
 #if SERVE_FROM_SOURCE_TREE
 
@@ -153,24 +153,23 @@ DebugServer::~DebugServer() {
 }
 
 void DebugServer::update(BufferAllocatorInfo info) {
+    std::unique_lock<utils::Mutex> lock(mHistoryMutex);
+    info.frameId = mFrameCounter++;
     if (mPaused.load()) {
         return;
     }
-    std::unique_lock<utils::Mutex> lock(mHistoryMutex);
-    info.frameId = mFrameCounter++;
+
     if (!mHistory.empty()) {
         info.hasChanged = !(info == mHistory.back());
     } else {
         info.hasChanged = true;
     }
 
-    if (info.hasChanged) {
-        if (mHistory.size() >= mMaxHistorySize) {
-            mHistory.pop_front();
-        }
-        mHistory.push_back(std::move(info));
-        mApiHandler->notify();
+    if (mHistory.size() >= mMaxHistorySize) {
+        mHistory.pop_front();
     }
+    mHistory.push_back(std::move(info));
+    mApiHandler->notify();
 }
 
 void DebugServer::setPaused(bool paused) {

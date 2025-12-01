@@ -27,12 +27,11 @@ struct SlotInfo {
     uint32_t size;
     bool isAllocated;
     uint32_t gpuUseCount;
+    uint64_t materialId;
 
     bool operator==(const SlotInfo& other) const {
-        return offset == other.offset &&
-               size == other.size &&
-               isAllocated == other.isAllocated &&
-               gpuUseCount == other.gpuUseCount;
+        return offset == other.offset && size == other.size && isAllocated == other.isAllocated &&
+               gpuUseCount == other.gpuUseCount && materialId == other.materialId;
     }
 };
 
@@ -44,9 +43,15 @@ struct BufferAllocatorInfo {
     bool hasChanged = false;
 
     bool operator==(const BufferAllocatorInfo& other) const {
-        return totalSize == other.totalSize &&
-               slotSize == other.slotSize &&
-               slots == other.slots;
+        if (totalSize != other.totalSize || slotSize != other.slotSize) {
+            return false;
+        }
+        for (size_t i = 0; i < slots.size(); i++) {
+            if (slots[i] != other.slots[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 };
 

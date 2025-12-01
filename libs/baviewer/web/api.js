@@ -18,7 +18,13 @@
 
 async function _fetchJson(uri) {
     const response = await fetch(uri);
-    return await response.json();
+    try {
+        return await response.json();
+    } catch (e) {
+        const text = await response.text();
+        console.error(`Failed to parse JSON from ${uri}. Response: ${text}`);
+        throw e;
+    }
 }
 
 async function fetchBufferAllocatorInfo(frameId) {
@@ -53,7 +59,7 @@ async function statusLoop(isConnected, onStatus) {
         const response = await _fetchJson("api/status");
         if (response.status !== 'no_update') {
             onStatus(STATUS_INFO_UPDATED, response.status);
-        } 
+        }
         statusLoop(isConnected, onStatus);
     } catch {
         onStatus(STATUS_DISCONNECTED);

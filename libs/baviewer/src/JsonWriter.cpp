@@ -37,7 +37,8 @@ void writeSlots(std::ostream& os, const BufferAllocatorInfo& info) {
         os << "      \"offset\": " << slot.offset << ",\n";
         os << "      \"size\": " << slot.size << ",\n";
         os << "      \"isAllocated\": " << (slot.isAllocated ? "true" : "false") << ",\n";
-        os << "      \"gpuUseCount\": " << slot.gpuUseCount << "\n";
+        os << "      \"gpuUseCount\": " << slot.gpuUseCount << ",\n";
+        os << "      \"materialId\": " << slot.materialId << "\n";
         os << "    }";
         if (i + 1 < slots.size()) os << ",";
         os << "\n";

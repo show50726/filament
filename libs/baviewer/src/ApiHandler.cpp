@@ -102,6 +102,10 @@ bool ApiHandler::handleGetInfo(struct mg_connection* conn) {
                 break;
             }
         }
+        if (!infoToReturn && !mServer->mHistory.empty()) {
+            // If the requested frame is older than anything we have, return the oldest available.
+            infoToReturn = &mServer->mHistory.front();
+        }
     } else {
         infoToReturn = &mServer->mHistory.back();
     }

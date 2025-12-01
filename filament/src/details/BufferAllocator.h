@@ -52,6 +52,7 @@ public:
         bool isAllocated;                     // 1 byte
         char padding[3];                      // 3 bytes
         uint32_t gpuUseCount;                 // 4 bytes
+        uint64_t materialId;                  // 8 bytes
 
         [[nodiscard]] bool isFree() const noexcept {
             return !isAllocated && gpuUseCount == 0;
@@ -68,8 +69,8 @@ public:
 
     // Allocate a new slot and return its id and slot offset in the UBO.
     // If the returned id is not valid, that means there's no large enough slot for allocation.
-    [[nodiscard]] std::pair<AllocationId, allocation_size_t> allocate(
-            allocation_size_t size) noexcept;
+    [[nodiscard]] std::pair<AllocationId, allocation_size_t> allocate(allocation_size_t size,
+            uint64_t materialId = 0) noexcept;
 
     // Call it when MaterialInstance gives up the ownership of the allocation.
     // We don't release the slot immediately in this function even if it is not being used,

@@ -53,14 +53,11 @@ void BufferAllocator::reset(allocation_size_t newTotalSize) {
     mOffsetMap.clear();
 
     // Initialize the pool with a single large free slot.
-    mSlotPool.emplace_back(InternalSlotNode{
-        .slot = {
-            .offset = 0,
-            .slotSize = mTotalSize,
-            .isAllocated = false,
-            .gpuUseCount = 0
-        }
-    });
+    mSlotPool.emplace_back(InternalSlotNode{ .slot = { .offset = 0,
+                                                 .slotSize = mTotalSize,
+                                                 .isAllocated = false,
+                                                 .gpuUseCount = 0,
+                                                 .materialId = 0 } });
 
     InternalSlotNode* firstNode = &mSlotPool.front();
 
@@ -74,7 +71,7 @@ void BufferAllocator::reset(allocation_size_t newTotalSize) {
 }
 
 std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
-    BufferAllocator::allocate(allocation_size_t size) noexcept {
+        BufferAllocator::allocate(allocation_size_t size, uint64_t materialId) noexcept {
     if (size == 0) {
         return { UNALLOCATED, 0 };
     }
@@ -92,6 +89,7 @@ std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
     mFreeList.erase(bestFitIter);
     targetNode->freeListIterator = mFreeList.end();
     targetNode->slot.isAllocated = true;
+    targetNode->slot.materialId = materialId;
 
     // Split the slot if it is larger than what we need.
     if (originalSlotSize > alignedSize) {
@@ -104,14 +102,12 @@ std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
 
         // Create a new node for the remaining free space.
         auto insertPos = std::next(targetNode->slotPoolIterator);
-        auto newNodeIter = mSlotPool.emplace(insertPos, InternalSlotNode{
-            .slot = {
-                .offset = newSlotOffset,
-                .slotSize = remainingSize,
-                .isAllocated = false,
-                .gpuUseCount = 0
-            }
-        });
+        auto newNodeIter =
+                mSlotPool.emplace(insertPos, InternalSlotNode{ .slot = { .offset = newSlotOffset,
+                                                                   .slotSize = remainingSize,
+                                                                   .isAllocated = false,
+                                                                   .gpuUseCount = 0,
+                                                                   .materialId = 0 } });
         InternalSlotNode* newNode = &(*newNodeIter);
 
         // Add the new free slot to our tracking maps.
@@ -261,6 +257,7 @@ baviewer::BufferAllocatorInfo BufferAllocator::collectInfo() const {
         slotInfo.size = node.slot.slotSize;
         slotInfo.isAllocated = node.slot.isAllocated;
         slotInfo.gpuUseCount = node.slot.gpuUseCount;
+        slotInfo.materialId = node.slot.materialId;
         info.slots.push_back(slotInfo);
     }
     return info;
