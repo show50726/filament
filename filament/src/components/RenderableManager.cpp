@@ -77,13 +77,17 @@ static RenderableManager::Builder::MorphType morphTargetBufferToBuildType(
         return MorphType::NONE;
     }
 
-    uint8_t type = static_cast<uint8_t>(MorphType::CUSTOM);
+    auto type = static_cast<uint8_t>(MorphType::NONE);
     if (buffer->hasPositions()) {
         type |= static_cast<uint8_t>(MorphType::POSITION);
     }
 
     if (buffer->hasTangents()) {
         type |= static_cast<uint8_t>(MorphType::TANGENT);
+    }
+
+    if (buffer->isCustomMorphingEnabled()) {
+        type |= static_cast<uint8_t>(MorphType::CUSTOM);
     }
 
     return static_cast<MorphType>(type);

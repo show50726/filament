@@ -38,6 +38,7 @@ struct MorphTargetBuffer::BuilderDetails {
     size_t mCount = 0;
     bool mWithPositions = true;
     bool mWithTangents = true;
+    bool mWithCustom = false;
 };
 
 using BuilderType = MorphTargetBuffer;
@@ -65,6 +66,11 @@ MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withPositions(bool enabl
 
 MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withTangents(bool enable) noexcept {
     mImpl->mWithTangents = enable;
+    return *this;
+}
+
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withCustom(bool enable) noexcept {
+    mImpl->mWithCustom = enable;
     return *this;
 }
 
@@ -117,8 +123,12 @@ FMorphTargetBuffer::EmptyMorphTargetBuilder::EmptyMorphTargetBuilder() {
 }
 
 FMorphTargetBuffer::FMorphTargetBuffer(FEngine& engine, const Builder& builder)
-        : mVertexCount(builder->mVertexCount),
+        : mEnableCustomMorphing(builder->mWithCustom),
+          mVertexCount(builder->mVertexCount),
           mCount(builder->mCount) {
+    FILAMENT_CHECK_PRECONDITION(
+            builder->mWithCustom || builder->mWithPositions || builder->mWithTangents)
+            << "Requires enable at least one of the morphing type.";
 
     if (UTILS_UNLIKELY(engine.getSupportedFeatureLevel() <= FeatureLevel::FEATURE_LEVEL_0)) {
         // feature level 0 doesn't support morph target buffers

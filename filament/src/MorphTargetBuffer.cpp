@@ -51,4 +51,8 @@ bool MorphTargetBuffer::hasTangents() const noexcept {
     return downcast(this)->hasTangents();
 }
 
+bool MorphTargetBuffer::isCustomMorphingEnabled() const noexcept {
+    return downcast(this)->isCustomMorphingEnabled();
+}
+
 } // namespace filament

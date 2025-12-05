@@ -106,6 +106,17 @@ public:
         Builder& withTangents(bool enable = true) noexcept;
 
         /**
+         * Enables and allocates the built-in buffer for custom attributes morphing.
+         *
+         * If enabled, `morphData` will be available in the shader, and you can call it to
+         * morph desired vertex attributes based on the set weights.
+         *
+         * @param enable true to enable, false to disable. Default is false.
+         * @return A reference to this Builder for chaining calls.
+         */
+        Builder& withCustom(bool enable) noexcept;
+
+        /**
          * Creates the MorphTargetBuffer object and returns a pointer to it.
          *
          * @param engine Reference to the filament::Engine to associate this MorphTargetBuffer with.
@@ -189,6 +200,8 @@ public:
      * @see Builder::withTangents
      */
     bool hasTangents() const noexcept;
+    
+    bool isCustomMorphingEnabled() const noexcept;
 
 protected:
     // prevent heap allocation

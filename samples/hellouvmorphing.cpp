@@ -152,6 +152,7 @@ int main(int argc, char** argv) {
                 .vertexCount(4)
                 .count(1)
                 .withPositions(true)
+                .withCustom(true)
                 .build(*engine);
 
         app.mtb->setPositionsAt(*engine, 0, POS_DELTA, 4, 0);
