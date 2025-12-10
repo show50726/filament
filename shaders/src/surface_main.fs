@@ -124,4 +124,14 @@ void main() {
 #if __VERSION__ == 100
     gl_FragData[0] = fragColor;
 #endif
+
+    float a = min(1.0, fragColor.a) * 8.0 + 0.01;
+    float b = -gl_FragCoord.z * 0.95 + 1.0;
+    float weight = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
+#if defined(VARIANT_HAS_OIT)
+    fragColor.rgb = fragColor.rgb * fragColor.a;
+    fragColor = fragColor * weight;
+#elif defined(VARIANT_HAS_OIT_REVEAL)
+    fragColor = vec4(fragColor.a, fragColor.a, fragColor.a, fragColor.a);
+#endif
 }

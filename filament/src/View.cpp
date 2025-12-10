@@ -322,6 +322,10 @@ bool View::isStencilBufferEnabled() const noexcept {
     return downcast(this)->isStencilBufferEnabled();
 }
 
+void View::setOitEnabled(bool const enabled) noexcept { downcast(this)->setOitEnabled(enabled); }
+
+bool View::isOitEnabled() const noexcept { return downcast(this)->isOitEnabled(); }
+
 void View::setStereoscopicOptions(const StereoscopicOptions& options) noexcept {
     return downcast(this)->setStereoscopicOptions(options);
 }

@@ -841,6 +841,7 @@ void applySettings(Engine* engine, const ViewSettings& settings, View* dest) {
     dest->setBlendMode(static_cast<View::BlendMode>(settings.blendMode));
     dest->setStencilBufferEnabled(settings.stencilBufferEnabled);
     dest->setVisibleLayers(settings.visibleLayers, settings.visibleLayers);
+    dest->setOitEnabled(settings.oitEnabled);
 }
 
 template <typename T>
