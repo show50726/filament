@@ -775,6 +775,7 @@ void ViewerGui::updateUserInterface() {
 
     if (ImGui::CollapsingHeader("View")) {
         ImGui::Indent();
+        ImGui::Checkbox("OIT", &mSettings.view.oitEnabled);
 
         ImGui::Checkbox("Post-processing", &mSettings.view.postProcessingEnabled);
         ImGui::Indent();

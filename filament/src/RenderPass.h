@@ -137,11 +137,11 @@ public:
     static constexpr uint64_t BLEND_TWO_PASS_MASK           = 0x1llu;
     static constexpr unsigned BLEND_TWO_PASS_SHIFT          = 0;
 
-    static constexpr uint64_t MATERIAL_INSTANCE_ID_MASK     = 0x00000FFFllu;
+    static constexpr uint64_t MATERIAL_INSTANCE_ID_MASK = 0x000003FFllu;
     static constexpr unsigned MATERIAL_INSTANCE_ID_SHIFT    = 0;
 
-    static constexpr uint64_t MATERIAL_VARIANT_KEY_MASK     = 0x000FF000llu;
-    static constexpr unsigned MATERIAL_VARIANT_KEY_SHIFT    = 12;
+    static constexpr uint64_t MATERIAL_VARIANT_KEY_MASK = 0x000FFC00llu;
+    static constexpr unsigned MATERIAL_VARIANT_KEY_SHIFT = 10;
 
     static constexpr uint64_t MATERIAL_ID_MASK              = 0xFFF00000llu;
     static constexpr unsigned MATERIAL_ID_SHIFT             = 20;
@@ -178,7 +178,7 @@ public:
     static constexpr unsigned CUSTOM_INDEX_SHIFT            = 0;
 
     // we assume Variant fits in 8-bits.
-    static_assert(sizeof(Variant::type_t) == 1);
+    // static_assert(sizeof(Variant::type_t) == 1);
 
     enum class Pass : uint64_t {    // 6-bits max
         DEPTH    = uint64_t(0x00) << PASS_SHIFT,
@@ -205,6 +205,7 @@ public:
 
         // alpha-blended objects are not rendered in the depth buffer
         FILTER_TRANSLUCENT_OBJECTS = 0x10,
+        FILTER_OPAQUE_OBJECTS = 0x20,
 
         // generate commands for shadow map
         SHADOW = DEPTH | DEPTH_CONTAINS_SHADOW_CASTERS,
@@ -263,13 +264,13 @@ public:
         backend::RasterState rasterState;                   // 4 bytes
 
         uint16_t instanceCount;                             // 2 bytes [MSb: user]
-        Variant materialVariant;                            // 1 byte
+        Variant materialVariant;                            // 2 bytes
         backend::PrimitiveType type : 3;                    // 1 byte       3 bits
         bool hasSkinning : 1;                               //              1 bit
         bool hasMorphing : 1;                               //              1 bit
         bool hasHybridInstancing : 1;                       //              1 bit
 
-        uint32_t rfu[2];                                    // 8 bytes
+        uint8_t rfu[7]; // 7 bytes
     };
     static_assert(sizeof(PrimitiveInfo) == 56);
 
@@ -559,6 +560,8 @@ public:
         mVariant = variant;
         return *this;
     }
+
+    Variant variant() const noexcept { return mVariant; }
 
     // variant to use
     RenderPassBuilder& colorPassDescriptorSet(ColorPassDescriptorSet const* colorPassDescriptorSet) noexcept {

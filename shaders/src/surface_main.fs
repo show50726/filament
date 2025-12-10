@@ -4,6 +4,10 @@ vec4 fragColor;
 layout(location = 0) out vec4 fragColor;
 #endif
 
+#if defined(VARIANT_HAS_OIT)
+layout(location = 1) out vec4 fragReveal;
+#endif
+
 #if defined(MATERIAL_HAS_POST_LIGHTING_COLOR)
 void blendPostLightingColor(const MaterialInputs material, inout vec4 color) {
     vec4 blend = color;
@@ -123,5 +127,21 @@ void main() {
 
 #if __VERSION__ == 100
     gl_FragData[0] = fragColor;
+#endif
+
+#if defined(VARIANT_HAS_OIT)
+#if 1
+    float a = min(1.0, fragColor.a) * 8.0 + 0.01;
+    float b = -gl_FragCoord.z * 0.95 + 1.0;
+    float weight = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
+#else
+    float weight =
+          max(min(1.0, max(max(fragColor.r, fragColor.g), fragColor.b) * fragColor.a), fragColor.a) *
+          clamp(0.03 / (1e-5 + pow(gl_FragCoord.z / 200.0, 4.0)), 1e-2, 3e3);
+#endif
+
+    float oitAlpha = clamp(fragColor.a, 0.0, 0.9999);
+    fragReveal = vec4(log(1.0 - oitAlpha));
+    fragColor = fragColor * weight;
 #endif
 }

@@ -28,7 +28,7 @@ std::string formatVariantString(Variant variant, MaterialDomain domain) noexcept
     }
 
     if (domain == MaterialDomain::POST_PROCESS) {
-        switch (PostProcessVariant{variant.key}) {
+        switch (PostProcessVariant{ static_cast<uint8_t>(variant.key) }) {
             case PostProcessVariant::OPAQUE: return "OPA";
             case PostProcessVariant::TRANSLUCENT: return "TRN";
         }
@@ -54,6 +54,7 @@ std::string formatVariantString(Variant variant, MaterialDomain domain) noexcept
             if (variant.key & Variant::S2D) variantString += "S2D|";
         }
         if (variant.key & Variant::STE) variantString += "STE|";
+        if (variant.key & Variant::OIT) variantString += "OIT|";
         variantString = variantString.substr(0, variantString.length() - 1);
     }
 

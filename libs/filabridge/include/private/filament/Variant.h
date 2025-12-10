@@ -27,7 +27,7 @@
 #include <stddef.h>
 
 namespace filament {
-static constexpr size_t VARIANT_BITS = 8;
+static constexpr size_t VARIANT_BITS = 9;
 static constexpr size_t VARIANT_COUNT = 1 << VARIANT_BITS;
 
 using VariantList = utils::bitset<uint64_t, VARIANT_COUNT / 64>;
@@ -35,7 +35,7 @@ using VariantList = utils::bitset<uint64_t, VARIANT_COUNT / 64>;
 // IMPORTANT: update filterVariant() when adding more variants
 // Also be sure to update formatVariantString inside CommonWriter.cpp
 struct Variant {
-    using type_t = uint8_t;
+    using type_t = uint16_t;
 
     Variant() noexcept = default;
     Variant(Variant const& rhs) noexcept = default;
@@ -53,34 +53,33 @@ struct Variant {
     // MNT: Output depth moments (depth)
     // S2D: Sampler type for shadows (0: samplerShadowArray, 1: sampler2DArray) (standard)
     // STE: Instanced stereo rendering
+    // OIT: Order Independent Transparency
     //
     //   X: either 1 or 0
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    // Variant              | STE | S2D | FOG | DEP | SKN | SRE | DYN | DIR |   256
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    //                              MNT   PCK
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    // Variant              | OIT | STE | S2D | FOG | DEP | SKN | SRE | DYN | DIR |
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    //                                    MNT   PCK
     //
     // Standard variants:
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    //                      | STE | S2D | FOG |  0  | SKN | SRE | DYN | DIR |    128 - 44 = 84
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    //      Vertex shader      X     0     0     0     X     X     X     X
-    //    Fragment shader      0     X     X     0     0     X     X     X
-    //       Fragment SSR      0     1     0     0     0     1     0     0
-    //           Reserved      X     1     1     0     X     1     0     0      [ -4]
-    //           Reserved      X     0     X     0     X     1     0     0      [ -8]
-    //           Reserved      X     1     X     0     X     0     X     X      [-32]
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    //                      | OIT | STE | S2D | FOG |  0  | SKN | SRE | DYN | DIR |
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    //      Vertex shader     0     X     0     0     0     X     X     X     X
+    //    Fragment shader     X     0     X     X     0     0     X     X     X
+    //       Fragment SSR     0     0     1     0     0     0     1     0     0
+    //           Reserved     X     X     1     1     0     X     1     0     0
+    //           Reserved     X     X     0     X     0     X     1     0     0
+    //           Reserved     X     X     1     X     0     X     0     X     X
     //
     // Depth variants:
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    //                      | STE | MNT | PCK |  1  | SKN |  0  |  0  |  0  |   16 - 4 = 12
-    //                      +-----+-----+-----+-----+-----+-----+-----+-----+
-    //       Vertex depth      X     X     0     1     X     0     0     0
-    //     Fragment depth      0     0     X     1     0     0     0     0
-    //     Fragment depth      0     1     0     1     0     0     0     0
-    //           Reserved      X     1     1     1     X     0     0     0     [  -4]
-    //
-    // 96 variants used, 160 reserved (256 - 96)
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    //                      |  0  | STE | MNT | PCK |  1  | SKN |  0  |  0  |  0  |
+    //                      +-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    //       Vertex depth      0     X     X     0     1     X     0     0     0
+    //     Fragment depth      0     0     0     X     1     0     0     0     0
+    //     Fragment depth      0     0     1     0     1     0     0     0     0
+    //           Reserved      0     X     1     1     1     X     0     0     0
     //
     // note: a valid variant can be neither a valid vertex nor a valid fragment variant
     //       (e.g.: FOG|SKN variants), the proper bits are filtered appropriately,
@@ -90,16 +89,17 @@ struct Variant {
 
     // when adding more bits, update FRenderer::CommandKey::draw::materialVariant as needed
     // when adding more bits, update VARIANT_COUNT
-    static constexpr type_t DIR   = 0x01; // directional light present, per frame/world position
-    static constexpr type_t DYN   = 0x02; // point, spot or area present, per frame/world position
-    static constexpr type_t SRE   = 0x04; // receives shadows, per renderable
-    static constexpr type_t SKN   = 0x08; // GPU skinning and/or morphing
-    static constexpr type_t DEP   = 0x10; // depth only variants
-    static constexpr type_t FOG   = 0x20; // fog (standard)
-    static constexpr type_t PCK   = 0x20; // picking (depth)
-    static constexpr type_t S2D   = 0x40; // sampler type
-    static constexpr type_t MNT   = 0x40; // variance shadow maps
-    static constexpr type_t STE   = 0x80; // instanced stereo
+    static constexpr type_t DIR   = 0x001; // directional light present, per frame/world position
+    static constexpr type_t DYN   = 0x002; // point, spot or area present, per frame/world position
+    static constexpr type_t SRE   = 0x004; // receives shadows, per renderable
+    static constexpr type_t SKN   = 0x008; // GPU skinning and/or morphing
+    static constexpr type_t DEP   = 0x010; // depth only variants
+    static constexpr type_t FOG   = 0x020; // fog (standard)
+    static constexpr type_t PCK   = 0x020; // picking (depth)
+    static constexpr type_t S2D   = 0x040; // sampler type
+    static constexpr type_t MNT   = 0x040; // variance shadow maps
+    static constexpr type_t STE   = 0x080; // instanced stereo
+    static constexpr type_t OIT = 0x100; // order independent transparency
 
     static constexpr type_t NO_VARIANT         = 0u;
 
@@ -116,7 +116,7 @@ struct Variant {
     static constexpr type_t DEPTH_VARIANT      = DEP;
 
     // this mask filters out the lighting variants
-    static constexpr type_t UNLIT_MASK         = STE | SKN | FOG;
+    static constexpr type_t UNLIT_MASK = STE | SKN | FOG | OIT;
 
     // returns raw variant bits
     bool hasDirectionalLighting() const noexcept { return key & DIR; }
@@ -205,6 +205,10 @@ struct Variant {
         return (variant.key & STE) == STE;
     }
 
+    static constexpr bool isOITVariant(Variant variant) noexcept {
+        return (variant.key & OIT) == OIT;
+    }
+
     static constexpr Variant filterVariantVertex(Variant variant) noexcept {
         // Filter out vertex variants that are not needed. For e.g. fog doesn't affect the
         // vertex shader.
@@ -225,7 +229,7 @@ struct Variant {
         // filter out fragment variants that are not needed. For e.g. skinning doesn't
         // affect the fragment shader.
         if ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) {
-            return variant & (S2D | FOG | SRE | DYN | DIR);
+            return variant & (S2D | FOG | SRE | DYN | DIR| OIT);
         }
         if ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) {
             // Only VSM & PICKING affects the fragment shader's DEPTH variant

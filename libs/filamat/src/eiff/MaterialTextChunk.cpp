@@ -39,7 +39,7 @@ namespace filamat {
 void MaterialTextChunk::writeEntryAttributes(size_t const entryIndex, Flattener& f) const noexcept {
     const TextEntry& entry = mEntries[entryIndex];
     f.writeUint8(uint8_t(entry.shaderModel));
-    f.writeUint8(entry.variant.key);
+    f.writeUint16(entry.variant.key);
     f.writeUint8(uint8_t(entry.stage));
 }
 

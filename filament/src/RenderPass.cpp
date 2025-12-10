@@ -453,6 +453,13 @@ void RenderPass::setupColorCommand(Command& cmdDraw, Variant variant,
     cmdDraw.info.rasterState.depthClamp = hasDepthClamp;
     cmdDraw.info.materialVariant = variant;
     // we keep "RasterState::colorWrite" to the value set by material (could be disabled)
+
+    // if (Variant::isOITVariant(variant)) {
+    //     cmdDraw.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
+    //     cmdDraw.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
+    //     cmdDraw.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
+    //     cmdDraw.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
+    // }
 }
 
 /* static */
@@ -538,6 +545,8 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
 
     bool const filterTranslucentObjects =
             bool(extraFlags & CommandTypeFlags::FILTER_TRANSLUCENT_OBJECTS);
+
+    bool const filterOpaqueObjects = bool(extraFlags & CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
 
     bool const hasShadowing =
             renderFlags & HAS_SHADOWING;
@@ -705,6 +714,15 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
             if constexpr (isColorPass) {
                 setupColorCommand(cmd, renderableVariant, mi,
                         inverseFrontFaces, hasDepthClamp);
+
+                if (UTILS_UNLIKELY(Variant::isOITVariant(variant))) {
+                    cmd.info.rasterState.depthWrite = false;
+                    cmd.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
+                    cmd.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
+                    cmd.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
+                    cmd.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
+                }
+
                 const bool blendPass = Pass(cmd.key & PASS_MASK) == Pass::BLENDED;
                 if (blendPass) {
                     // TODO: at least for transparent objects, AABB should be per primitive
@@ -784,6 +802,14 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
                 *curr = cmd;
                 // cancel command if both front and back faces are culled
                 curr->key |= select(mi->getCullingMode() == CullingMode::FRONT_AND_BACK);
+                if (mi->getMaterial()->getBlendingMode() != BlendingMode::OPAQUE) {
+                    curr->key |= select(filterTranslucentObjects);
+                }
+
+                if (mi->getMaterial()->getBlendingMode() == BlendingMode::OPAQUE) {
+                    // cancel command if asked to filter opaque objects
+                    curr->key |= select(filterOpaqueObjects);
+                }
 
             } else if constexpr (isDepthPass) {
                 const CullingMode cullingMode = hasShadowing ? mi->getShadowCullingMode() : mi->getCullingMode();

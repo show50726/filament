@@ -302,6 +302,7 @@ set(MATERIAL_SRCS
         src/materials/ssao/sao.mat
         src/materials/ssao/saoBentNormals.mat
         src/materials/vsmMipmap.mat
+        src/materials/oitResolve.mat
 )
 
 if (NOT FILAMENT_DISABLE_GTAO)

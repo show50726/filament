@@ -79,6 +79,8 @@ void ShaderGenerator::generateSurfaceMaterialVariantDefines(io::sstream& out,
                     filament::Variant::isPickingVariant(variant));
             CodeGenerator::generateDefine(out, "VARIANT_HAS_SSR",
                     filament::Variant::isSSRVariant(variant));
+            CodeGenerator::generateDefine(out, "VARIANT_HAS_OIT",
+                    (variant.key & filament::Variant::OIT) != 0);
             break;
         case ShaderStage::COMPUTE:
             break;
