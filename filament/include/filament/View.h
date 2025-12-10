@@ -748,6 +748,19 @@ public:
     bool isStencilBufferEnabled() const noexcept;
 
     /**
+     * Enables or disables Order Independent Transparency (OIT). Disabled by default.
+     *
+     * @param enabled true enables OIT, false disables it.
+     */
+    void setOitEnabled(bool enabled) noexcept;
+
+    /**
+     * Returns true if OIT is enabled.
+     * See setOitEnabled() for more information.
+     */
+    bool isOitEnabled() const noexcept;
+
+    /**
      * Sets the stereoscopic rendering options for this view.
      *
      * Currently, only one type of stereoscopic rendering is supported: side-by-side.

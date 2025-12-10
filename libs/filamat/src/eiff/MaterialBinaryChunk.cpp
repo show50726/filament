@@ -26,7 +26,7 @@ void MaterialBinaryChunk::flatten(Flattener &f) {
     f.writeUint64(mEntries.size());
     for (const BinaryEntry& entry : mEntries) {
         f.writeUint8(uint8_t(entry.shaderModel));
-        f.writeUint8(entry.variant.key);
+        f.writeUint16(entry.variant.key);
         f.writeUint8(uint8_t(entry.stage));
         f.writeUint32(entry.dictionaryIndex);
     }

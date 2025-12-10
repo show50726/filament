@@ -27,17 +27,17 @@ static inline uint32_t makeKey(
         MaterialChunk::ShaderModel shaderModel,
         MaterialChunk::Variant variant,
         MaterialChunk::ShaderStage stage) noexcept {
-    static_assert(sizeof(variant.key) * 8 <= 8);
-    return (uint32_t(shaderModel) << 16) | (uint32_t(stage) << 8) | variant.key;
+    static_assert(sizeof(variant.key) * 8 <= 16);
+    return (uint32_t(shaderModel) << 24) | (uint32_t(stage) << 16) | variant.key;
 }
 
 void MaterialChunk::decodeKey(uint32_t key,
         MaterialChunk::ShaderModel* model,
         MaterialChunk::Variant* variant,
         MaterialChunk::ShaderStage* stage) {
-    variant->key = key & 0xff;
-    *model = MaterialChunk::ShaderModel((key >> 16) & 0xff);
-    *stage = MaterialChunk::ShaderStage((key >> 8) & 0xff);
+    variant->key = key & 0xffff;
+    *model = MaterialChunk::ShaderModel((key >> 24) & 0xff);
+    *stage = MaterialChunk::ShaderStage((key >> 16) & 0xff);
 }
 
 MaterialChunk::MaterialChunk(ChunkContainer const& container)

@@ -611,6 +611,7 @@ void applySettings(Engine* engine, const ViewSettings& settings, View* dest) {
     dest->setGuardBandOptions(settings.guardBand);
     dest->setStereoscopicOptions(settings.stereoscopicOptions);
     dest->setPostProcessingEnabled(settings.postProcessingEnabled);
+    dest->setOitEnabled(settings.oitEnabled);
 }
 
 template <typename T>

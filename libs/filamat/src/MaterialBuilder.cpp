@@ -1126,10 +1126,12 @@ bool MaterialBuilder::generateShaders(JobSystem& jobSystem, const std::vector<Va
 
     // Sort the variants.
     auto compare = [](const auto& a, const auto& b) {
-        static_assert(sizeof(decltype(a.variant.key)) == 1);
-        static_assert(sizeof(decltype(b.variant.key)) == 1);
-        const uint32_t akey = (uint32_t(a.shaderModel) << 16) | (uint32_t(a.variant.key) << 8) | uint32_t(a.stage);
-        const uint32_t bkey = (uint32_t(b.shaderModel) << 16) | (uint32_t(b.variant.key) << 8) | uint32_t(b.stage);
+        static_assert(sizeof(decltype(a.variant.key)) == 2);
+        static_assert(sizeof(decltype(b.variant.key)) == 2);
+        const uint32_t akey = (uint32_t(a.shaderModel) << 24) | (uint32_t(a.variant.key) << 8) |
+                              uint32_t(a.stage);
+        const uint32_t bkey = (uint32_t(b.shaderModel) << 24) | (uint32_t(b.variant.key) << 8) |
+                              uint32_t(b.stage);
         return akey < bkey;
     };
     std::sort(glslEntries.begin(), glslEntries.end(), compare);

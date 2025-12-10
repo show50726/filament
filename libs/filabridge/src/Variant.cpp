@@ -200,10 +200,10 @@ static auto const gUnlitVariants{ details::get_variants<false>() };
 static auto const gDepthVariants{ details::get_depth_variants() };
 
 static_assert(reserved_is_not_valid());
-static_assert(reserved_variant_count() == 160);
-static_assert(valid_variant_count() == 96);
-static_assert(vertex_variant_count() == 32 - (4 + 0) + 8 - 0);        // 36
-static_assert(fragment_variant_count() == 33 - (2 + 2 + 8) + 4 - 1);    // 24
+static_assert(reserved_variant_count() == 640);
+static_assert(valid_variant_count() == 384);
+static_assert(vertex_variant_count() == 36);   // 36
+static_assert(fragment_variant_count() == 87); // 42 * 2 + 3
 
 } // namespace details
 

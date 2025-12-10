@@ -238,6 +238,10 @@ public:
 
     bool isStencilBufferEnabled() const noexcept { return mStencilBufferEnabled; }
 
+    void setOitEnabled(bool const enabled) noexcept { mOitEnabled = enabled; }
+
+    bool isOitEnabled() const noexcept { return mOitEnabled; }
+
     void setStereoscopicOptions(StereoscopicOptions const& options) noexcept;
 
     utils::FixedCapacityVector<Camera const*> getDirectionalShadowCameras() const noexcept {
@@ -587,6 +591,7 @@ private:
     bool mScreenSpaceRefractionEnabled = true;
     bool mHasPostProcessPass = true;
     bool mStencilBufferEnabled = false;
+    bool mOitEnabled = false;
     AmbientOcclusionOptions mAmbientOcclusionOptions{};
     ShadowType mShadowType = ShadowType::PCF;
     VsmShadowOptions mVsmShadowOptions; // FIXME: this should probably be per-light
