@@ -832,10 +832,9 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
 
     // Conditions to meet to be able to use the sub-pass rendering path. This is regardless of
     // whether the backend supports subpasses (or if they are disabled in the debugRegistry).
-    const bool isSubpassPossible =
-             msaaSampleCount <= 1 &&
-             hasColorGrading &&
-             !bloomOptions.enabled && !dofOptions.enabled && !taaOptions.enabled;
+    const bool isSubpassPossible = msaaSampleCount <= 1 && hasColorGrading &&
+                                   !bloomOptions.enabled && !dofOptions.enabled &&
+                                   !taaOptions.enabled && !view.isOitEnabled();
 
     // whether we're scaled at all
     bool scaled = any(notEqual(scale, float2(1.0f)));
@@ -1337,7 +1336,13 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 });
     }
 
-    passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR);
+    RenderPass::CommandTypeFlags flags = RenderPass::CommandTypeFlags::COLOR;
+
+    if (view.isOitEnabled()) {
+        flags |= RenderPass::CommandTypeFlags::FILTER_TRANSLUCENT_OBJECTS;
+    }
+
+    passBuilder.commandTypeFlags(flags);
 
 
     // RenderPass::IS_INSTANCED_STEREOSCOPIC only applies to the color pass
@@ -1397,6 +1402,13 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 .structure = structure
             }, config, ssrConfig, colorGradingConfigForColor,
              pass, firstRefractionCommand);
+    }
+
+    if (view.isOitEnabled()) {
+        auto oitOutput =
+                ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width, svp.height, 1.0f);
+        colorPassOutput.linearColor =
+                ppm.oitResolve(fg, oitOutput, colorPassOutput.linearColor, colorPassOutput.depth);
     }
 
     if (colorGradingConfig.customResolve) {

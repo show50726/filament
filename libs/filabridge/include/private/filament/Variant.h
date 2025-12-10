@@ -27,7 +27,7 @@
 #include <stdint.h>
 
 namespace filament {
-static constexpr size_t VARIANT_BITS = 7;
+static constexpr size_t VARIANT_BITS = 9;
 static constexpr size_t VARIANT_COUNT = 1 << VARIANT_BITS;
 
 using VariantList = utils::bitset<uint64_t, VARIANT_COUNT / 64>;
@@ -35,7 +35,7 @@ using VariantList = utils::bitset<uint64_t, VARIANT_COUNT / 64>;
 // IMPORTANT: update filterVariant() when adding more variants
 // Also be sure to update formatVariantString inside CommonWriter.cpp
 struct Variant {
-    using type_t = uint8_t;
+    using type_t = uint16_t;
 
     Variant() noexcept = default;
     Variant(Variant const& rhs) noexcept = default;
@@ -52,6 +52,7 @@ struct Variant {
     // MNT: Output depth moments (depth)
     // S2D: Sampler type for shadows (0: samplerShadowArray, 1: sampler2DArray) (standard)
     // STE: Instanced stereo rendering
+    // OIT: Order Independent Transparency
     //
     //   X: either 1 or 0
     //                      +-----+-----+-----+-----+-----+-----+-----+
@@ -86,7 +87,9 @@ struct Variant {
     //       Fragment SSR      1     1     1     0     0     0     0     [  -1]
     //           Reserved      1     1     1     X     0     X     0     [  -3] (exclude SSR)
     //
-    // 61 variants used (48 standard + 1 SSR + 12 depth), 67 reserved
+    // Base layout: 61 variants (48 standard + 1 SSR + 12 depth).
+    // OIT uses bit 8, shares vertex shaders, and reserves stereo and depth combinations.
+    // Bit 7 is reserved. Total: 85 valid variants, 427 reserved.
     //
     // note: a valid variant can be neither a valid vertex nor a valid fragment variant
     //       (e.g.: FOG|SKN variants), the proper bits are filtered appropriately,
@@ -106,23 +109,26 @@ struct Variant {
     static constexpr type_t S2D   = 0x40; // sampler type
     static constexpr type_t MNT   = 0x40; // variance shadow maps
 
+    static constexpr type_t OIT = 0x100; // order independent transparency
+    static constexpr type_t UNUSED = 0x80; // reserved after moving stereo to bit 1
+
     static constexpr type_t NO_VARIANT         = 0u;
 
     // special variants (variants that use the reserved space)
     static constexpr type_t SPECIAL_SSR_VARIANT= MNT | PCK | DEP;
     static constexpr type_t SPECIAL_SSR_MASK =
-        STE | MNT | PCK | DEP | SKN | SRE | DIR;
+        OIT | UNUSED | STE | MNT | PCK | DEP | SKN | SRE | DIR;
 
     static constexpr type_t STANDARD_MASK      = DEP;
     static constexpr type_t STANDARD_VARIANT   = 0u;
 
     // the depth variant deactivates all variants that make no sense when writing the depth
     // only -- essentially, all fragment-only variants.
-    static constexpr type_t DEPTH_MASK         = DEP | SRE | DIR;
+    static constexpr type_t DEPTH_MASK         = OIT | UNUSED | DEP | SRE | DIR;
     static constexpr type_t DEPTH_VARIANT      = DEP;
 
     // this mask filters out the lighting variants
-    static constexpr type_t UNLIT_MASK         = STE | SKN | FOG;
+    static constexpr type_t UNLIT_MASK = STE | SKN | FOG | OIT;
 
     // returns raw variant bits
     bool hasDirectionalLighting() const noexcept { return key & DIR; }
@@ -158,7 +164,9 @@ struct Variant {
         constexpr type_t RESERVED_MASK = S2D | SRE;
         constexpr type_t RESERVED_VALUE = S2D;
 
-        return ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) &&
+        return !(variant.key & UNUSED) &&
+               !((variant.key & OIT) && (variant.key & STE)) &&
+               ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) &&
                ((variant.key & RESERVED_MASK) != RESERVED_VALUE);
     }
 
@@ -210,6 +218,10 @@ struct Variant {
         return (variant.key & STE) == STE;
     }
 
+    static constexpr bool isOITVariant(Variant variant) noexcept {
+        return (variant.key & OIT) == OIT;
+    }
+
     static constexpr Variant filterVariantVertex(Variant variant) noexcept {
         // Filter out vertex variants that are not needed. For e.g. fog doesn't affect the
         // vertex shader.
@@ -233,7 +245,7 @@ struct Variant {
             return variant;
         }
         if ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) {
-            return variant & (S2D | FOG | SRE | DIR);
+            return variant & (OIT | S2D | FOG | SRE | DIR);
         }
         if ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) {
             // Only VSM & PICKING affects the fragment shader's DEPTH variant
@@ -292,6 +304,7 @@ struct Variant {
             out << name;
             first = false;
         };
+        if (variant.key & OIT) print("OIT");
         if (variant.key & STE) print("STE");
         if (variant.key & DEP) {
             if (variant.key & MNT) print("MNT");
