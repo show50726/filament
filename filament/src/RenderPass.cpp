@@ -721,12 +721,6 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
                     cmd.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
                     cmd.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
                     cmd.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
-                } else if (UTILS_UNLIKELY((variant.key & Variant::OIT_REVEAL)==Variant::OIT_REVEAL)) {
-                    cmd.info.rasterState.depthWrite = false;
-                    cmd.info.rasterState.blendFunctionSrcRGB = BlendFunction::ZERO;
-                    cmd.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ZERO;
-                    cmd.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE_MINUS_SRC_COLOR;
-                    cmd.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE_MINUS_SRC_COLOR;
                 }
 
                 const bool blendPass = Pass(cmd.key & PASS_MASK) == Pass::BLENDED;

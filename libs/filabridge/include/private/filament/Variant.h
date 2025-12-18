@@ -27,7 +27,7 @@
 #include <stddef.h>
 
 namespace filament {
-static constexpr size_t VARIANT_BITS = 10;
+static constexpr size_t VARIANT_BITS = 9;
 static constexpr size_t VARIANT_COUNT = 1 << VARIANT_BITS;
 
 using VariantList = utils::bitset<uint64_t, VARIANT_COUNT / 64>;
@@ -101,7 +101,6 @@ struct Variant {
     static constexpr type_t MNT   = 0x040; // variance shadow maps
     static constexpr type_t STE   = 0x080; // instanced stereo
     static constexpr type_t OIT = 0x100; // order independent transparency
-    static constexpr type_t OIT_REVEAL = 0x200; // OIT revealage pass
 
     static constexpr type_t NO_VARIANT         = 0u;
 
@@ -118,7 +117,7 @@ struct Variant {
     static constexpr type_t DEPTH_VARIANT      = DEP;
 
     // this mask filters out the lighting variants
-    static constexpr type_t UNLIT_MASK = STE | SKN | FOG | OIT | OIT_REVEAL;
+    static constexpr type_t UNLIT_MASK = STE | SKN | FOG | OIT;
 
     // returns raw variant bits
     bool hasDirectionalLighting() const noexcept { return key & DIR; }
@@ -231,8 +230,7 @@ struct Variant {
         // filter out fragment variants that are not needed. For e.g. skinning doesn't
         // affect the fragment shader.
         if ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) {
-            return variant & (S2D | FOG | SRE | DYN | DIR
-        | OIT | OIT_REVEAL);
+            return variant & (S2D | FOG | SRE | DYN | DIR| OIT);
         }
         if ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) {
             // Only VSM & PICKING affects the fragment shader's DEPTH variant
