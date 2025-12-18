@@ -727,24 +727,31 @@ PostProcessManager::OitPassOutput PostProcessManager::oitPass(FrameGraph& fg,
     width = std::max(1u, uint32_t(std::ceil(float(width) * scale)));
     height = std::max(1u, uint32_t(std::ceil(float(height) * scale)));
 
-    struct OitAccumData {
+    struct OitData {
         FrameGraphId<FrameGraphTexture> accumulation;
+        FrameGraphId<FrameGraphTexture> revealage;
         FrameGraphId<FrameGraphTexture> depth;
     };
 
-    auto& oitAccumPass = fg.addPass<OitAccumData>(
-            "OIT Accumulation Pass",
+    auto& oitPass = fg.addPass<OitData>(
+            "OIT Pass",
             [&](FrameGraph::Builder& builder, auto& data) {
                 data.accumulation = builder.createTexture("OIT Accumulation",
                         { .width = width, .height = height, .format = TextureFormat::RGBA16F });
+                data.revealage = builder.createTexture("OIT Revealage",
+                        { .width = width, .height = height, .format = TextureFormat::RGBA16F });
+
                 data.accumulation = builder.write(data.accumulation,
                         FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                data.revealage =
+                        builder.write(data.revealage, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
                 data.depth = builder.read(depth, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
 
-                builder.declareRenderPass("OIT Accumulation Target",
-                        { .attachments = { .color = { data.accumulation }, .depth = data.depth },
-                            .clearColor = { 0.0f, 0.0f, 0.0f, 0.0f },
-                            .clearFlags = TargetBufferFlags::COLOR0 });
+                builder.declareRenderPass("OIT Target",
+                        { .attachments = { .color = { data.accumulation, data.revealage },
+                              .depth = data.depth },
+                            .clearColor = { 0.0f, 0.0f, 0.0f, 0.0f }, // Accumulation clear
+                            .clearFlags = TargetBufferFlags::COLOR0 | TargetBufferFlags::COLOR1 });
             },
             [=, this, passBuilder = passBuilder](FrameGraphResources const& resources, auto const&,
                     DriverApi& driver) mutable {
@@ -766,49 +773,10 @@ PostProcessManager::OitPassOutput PostProcessManager::oitPass(FrameGraph& fg,
                 unbindAllDescriptorSets(driver);
             });
 
-    struct OitRevealData {
-        FrameGraphId<FrameGraphTexture> revealage;
-        FrameGraphId<FrameGraphTexture> depth;
-    };
+    fg.getBlackboard()["oit accum"] = oitPass->accumulation;
+    fg.getBlackboard()["oit revealAge"] = oitPass->revealage;
 
-    auto& oitRevealPass = fg.addPass<OitRevealData>(
-            "OIT Revealage Pass",
-            [&](FrameGraph::Builder& builder, auto& data) {
-                data.revealage = builder.createTexture("OIT Revealage",
-                        { .width = width, .height = height, .format = TextureFormat::RGBA16F });
-                data.revealage =
-                        builder.write(data.revealage, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
-                data.depth = builder.read(depth, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
-
-                builder.declareRenderPass("OIT Revealage Target",
-                        { .attachments = { .color = { data.revealage }, .depth = data.depth },
-                            .clearColor = { 1.0f, 0.0f, 0.0f, 0.0f },
-                            .clearFlags = TargetBufferFlags::COLOR0 });
-            },
-            [=, this, passBuilder = passBuilder](FrameGraphResources const& resources, auto const&,
-                    DriverApi& driver) mutable {
-                Variant oitVariant(Variant::OIT_REVEAL);
-
-                getStructureDescriptorSet().bind(driver);
-
-                auto [target, params] = resources.getRenderPassInfo();
-
-                passBuilder.variant(Variant(passBuilder.variant().key | oitVariant.key));
-                passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR |
-                                             RenderPass::CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
-
-                RenderPass const pass{ passBuilder.build(mEngine, driver) };
-
-                driver.beginRenderPass(target, params);
-                pass.getExecutor().execute(mEngine, driver);
-                driver.endRenderPass();
-                unbindAllDescriptorSets(driver);
-            });
-
-    fg.getBlackboard()["oit accum"] = oitAccumPass->accumulation;
-    fg.getBlackboard()["oit revealAge"] = oitRevealPass->revealage;
-
-    return { oitAccumPass->accumulation, oitRevealPass->revealage };
+    return { oitPass->accumulation, oitPass->revealage };
 }
 
 FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
