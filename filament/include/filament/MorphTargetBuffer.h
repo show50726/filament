@@ -232,7 +232,11 @@ public:
      * @see Builder::withTangents
      */
     bool hasTangents() const noexcept;
-    
+
+    /**
+     * Returns true if custom morphing is enabled
+     * @see Builder::enableCustomMorphing
+     */
     bool isCustomMorphingEnabled() const noexcept;
 
 protected:
