@@ -133,10 +133,15 @@ public:
         Builder& withTangents(bool enable = true) noexcept;
 
         /**
-         * Enables and allocates the built-in buffer for custom attributes morphing.
+         * Enables the custom morphing pipeline.
          *
-         * If enabled, `morphData` will be available in the shader, and you can call it to
-         * morph desired vertex attributes based on the set weights.
+         * When enabled, the `morphData2`, `morphData3`, and `morphData4` helper functions are
+         * available in the vertex shader. You must provide a 2D array texture containing the morph
+         * deltas, bind it to a `sampler2DArray` uniform, and call the appropriate `morphData`
+         * function to apply the morphing to your custom attributes.
+         *
+         * Note: Unlike `withPositions` or `withTangents`, this does NOT allocate any internal
+         * storage. You are responsible for managing the morph data texture.
          *
          * @param enable true to enable, false to disable. Default is false.
          * @return A reference to this Builder for chaining calls.
