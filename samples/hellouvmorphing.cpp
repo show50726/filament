@@ -261,7 +261,7 @@ int main(int argc, char** argv) {
                           .vertexCount(app.vertices.size())
                           .count(1)
                           .withPositions(true)
-                          .withCustom(true)
+                          .enableCustomMorphing(true)
                           .build(*engine);
 
         app.renderable = EntityManager::get().create();

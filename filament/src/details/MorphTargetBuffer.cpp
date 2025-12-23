@@ -38,7 +38,7 @@ struct MorphTargetBuffer::BuilderDetails {
     size_t mCount = 0;
     bool mWithPositions = true;
     bool mWithTangents = true;
-    bool mWithCustom = false;
+    bool mEnableCustomMorphing = false;
 };
 
 using BuilderType = MorphTargetBuffer;
@@ -69,8 +69,8 @@ MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withTangents(bool enable
     return *this;
 }
 
-MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withCustom(bool enable) noexcept {
-    mImpl->mWithCustom = enable;
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::enableCustomMorphing(bool enable) noexcept {
+    mImpl->mEnableCustomMorphing = enable;
     return *this;
 }
 
@@ -131,11 +131,11 @@ FMorphTargetBuffer::EmptyMorphTargetBuilder::EmptyMorphTargetBuilder() {
 }
 
 FMorphTargetBuffer::FMorphTargetBuffer(FEngine& engine, const Builder& builder)
-        : mEnableCustomMorphing(builder->mWithCustom),
+        : mEnableCustomMorphing(builder->mEnableCustomMorphing),
           mVertexCount(builder->mVertexCount),
           mCount(builder->mCount) {
     FILAMENT_CHECK_PRECONDITION(
-            builder->mWithCustom || builder->mWithPositions || builder->mWithTangents)
+            builder->mEnableCustomMorphing || builder->mWithPositions || builder->mWithTangents)
             << "Requires enable at least one of the morphing type.";
 
     if (UTILS_UNLIKELY(engine.getSupportedFeatureLevel() <= FeatureLevel::FEATURE_LEVEL_0)) {
