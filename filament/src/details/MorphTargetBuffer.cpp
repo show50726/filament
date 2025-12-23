@@ -74,6 +74,14 @@ MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::withCustom(bool enable) 
     return *this;
 }
 
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::name(const char* name, size_t const len) noexcept {
+    return BuilderNameMixin::name(name, len);
+}
+
+MorphTargetBuffer::Builder& MorphTargetBuffer::Builder::name(utils::StaticString const& name) noexcept {
+    return BuilderNameMixin::name(name);
+}
+
 MorphTargetBuffer* MorphTargetBuffer::Builder::build(Engine& engine) {
     return downcast(engine).createMorphTargetBuffer(*this);
 }
