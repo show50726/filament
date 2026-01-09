@@ -242,6 +242,9 @@ public:
 
     bool isOitEnabled() const noexcept { return mOitEnabled; }
 
+    void setOitType(OitType type) noexcept { mOitType = type; }
+    OitType getOitType() const noexcept { return mOitType; }
+
     void setStereoscopicOptions(StereoscopicOptions const& options) noexcept;
 
     utils::FixedCapacityVector<Camera const*> getDirectionalShadowCameras() const noexcept {
@@ -601,6 +604,9 @@ private:
     bool mHasPostProcessPass = true;
     bool mStencilBufferEnabled = false;
     bool mOitEnabled = false;
+    OitType mOitType = OitType::WEIGHTED_BLENDED;
+
+
     AmbientOcclusionOptions mAmbientOcclusionOptions{};
     ShadowType mShadowType = ShadowType::PCF;
     VsmShadowOptions mVsmShadowOptions; // FIXME: this should probably be per-light

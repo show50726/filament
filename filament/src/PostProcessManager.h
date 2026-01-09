@@ -124,6 +124,18 @@ public:
     FrameGraphId<FrameGraphTexture> oitResolve(FrameGraph& fg, OitPassOutput const& oit,
             FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth) noexcept;
 
+    struct MboitPassOutput {
+        FrameGraphId<FrameGraphTexture> moments;
+        FrameGraphId<FrameGraphTexture> color;
+    };
+
+    MboitPassOutput mboitPass(FrameGraph& fg, RenderPassBuilder const& passBuilder,
+            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height,
+            float scale) noexcept;
+
+    FrameGraphId<FrameGraphTexture> mboitResolve(FrameGraph& fg, MboitPassOutput const& mboit,
+            FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth) noexcept;
+
     // reflections pass
     FrameGraphId<FrameGraphTexture> ssr(FrameGraph& fg,
             RenderPassBuilder const& passBuilder,

@@ -1316,10 +1316,17 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     }
 
     if (view.isOitEnabled()) {
-        auto oitOutput =
-                ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width, svp.height, 1.0f);
-        colorPassOutput.linearColor =
-                ppm.oitResolve(fg, oitOutput, colorPassOutput.linearColor, colorPassOutput.depth);
+        if (view.getOitType() == View::OitType::MOMENT_BASED) {
+            auto mboitOutput = ppm.mboitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
+                    svp.height, 1.0f);
+            colorPassOutput.linearColor = ppm.mboitResolve(fg, mboitOutput,
+                    colorPassOutput.linearColor, colorPassOutput.depth);
+        } else {
+            auto oitOutput = ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
+                    svp.height, 1.0f);
+            colorPassOutput.linearColor = ppm.oitResolve(fg, oitOutput, colorPassOutput.linearColor,
+                    colorPassOutput.depth);
+        }
     }
 
     if (colorGradingConfig.customResolve) {

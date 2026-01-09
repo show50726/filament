@@ -53,6 +53,7 @@ struct App {
     Config config;
     utils::Entity light;
     bool oitEnabled = true;
+    bool useMBOIT = false;
 
     Material* transparentMaterial = nullptr;
     VertexBuffer* vb = nullptr;
@@ -323,11 +324,17 @@ int main(int argc, char** argv) {
         if (app.oitEnabled != view->isOitEnabled()) {
             view->setOitEnabled(app.oitEnabled);
         }
+        View::OitType desiredType =
+                app.useMBOIT ? View::OitType::MOMENT_BASED : View::OitType::WEIGHTED_BLENDED;
+        if (desiredType != view->getOitType()) {
+            view->setOitType(desiredType);
+        }
     });
 
     auto gui = [&app](Engine* engine, View* view) {
         ImGui::Begin("Controls");
         ImGui::Checkbox("Enable OIT", &app.oitEnabled);
+        ImGui::Checkbox("Use MBOIT", &app.useMBOIT);
         ImGui::End();
     };
 

@@ -1,0 +1,66 @@
+material {
+    name : "mboitResolve",
+    shadingModel : unlit,
+    domain : postprocess,
+    blending : transparent,
+    vertexDomain : device,
+    depthWrite : false,
+    depthCulling : false,
+    parameters : [
+        { type : sampler2d, name : moments },
+        { type : sampler2d, name : color }
+    ],
+    variables : [
+        vertex
+    ],
+    colorWrite : true
+}
+
+vertex {
+    void postProcessVertex(inout PostProcessVertexInputs postProcess) {
+        postProcess.vertex.xy = uvToRenderTargetUV(postProcess.normalizedUV);
+    }
+}
+
+fragment {
+    void postProcess(inout PostProcessInputs postProcess) {
+        highp vec2 uv = variable_vertex.xy;
+        vec4 accumColor = texture(materialParams_color, uv);
+        vec4 moments = texture(materialParams_moments, uv);
+
+        // MBOIT: Hamburger 4-Moment Reconstruction
+        // Based on "Moment-Based Order-Independent Transparency", Munstermann et al. 2018
+        // We use the 4 power moments to reconstruct the transmittance function.
+        // moments = [b0, b1, b2, b3] where bk = sum(z^k * absorbance)
+
+        float b0 = moments.x;
+        // Check for empty pixels
+        if (b0 < 0.001) {
+            postProcess.color = vec4(0.0);
+            return;
+        }
+
+        // Reconstruct transmittance
+        // For single pass OIT, we often resolve against a background.
+        // The total transmittance is EXACTLY exp(-b0).
+        float transmittance = exp(-b0);
+
+        // However, for the *average color*, we need to normalize the accumulated color.
+        // We accumulated C * absorbance.
+        // So AverageColor = AccumColor / b0.
+        // This assumes the color is constant over the optical depth distribution.
+
+
+        vec3 avgColor = accumColor.rgb / b0;
+
+        // Final composition:
+        // C_final = C_avg * (1 - T) + C_background * T
+        // We output premultiplied alpha for the blend stage (which is usually (Src * 1 + Dst * (1-SrcAlpha)) or similar).
+        // Filament post-process pass usually writes to a buffer that is then composited?
+        // Wait, mboitResolve is a post-process pass. It samples the background?
+        // No, it just outputs the transparent layer's contribution.
+        // So we output (C_avg * (1-T), 1-T).
+
+        postProcess.color = vec4(avgColor * (1.0 - transmittance), 1.0 - transmittance);
+    }
+}

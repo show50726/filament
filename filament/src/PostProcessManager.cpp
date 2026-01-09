@@ -278,30 +278,31 @@ static const PostProcessManager::StaticMaterialInfo sMaterialListFeatureLevel0[]
 };
 
 static const PostProcessManager::StaticMaterialInfo sMaterialList[] = {
-    { "blitArray",                  MATERIAL(MATERIALS, BLITARRAY) },
-        { "blitDepth",                  MATERIAL(MATERIALS, BLITDEPTH) },
-        { "clearDepth",                 MATERIAL(MATERIALS, CLEARDEPTH) },
-        { "separableGaussianBlur1",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", false}, {"componentCount", 1} } },
-        { "separableGaussianBlur1L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", true }, {"componentCount", 1} } },
-        { "separableGaussianBlur2",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", false}, {"componentCount", 2} } },
-        { "separableGaussianBlur2L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", true }, {"componentCount", 2} } },
-        { "separableGaussianBlur3",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", false}, {"componentCount", 3} } },
-        { "separableGaussianBlur3L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", true }, {"componentCount", 3} } },
-        { "separableGaussianBlur4",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", false}, {"componentCount", 4} } },
-        { "separableGaussianBlur4L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-                { {"arraySampler", true }, {"componentCount", 4} } },
-        { "oitResolve", MATERIAL(MATERIALS, OITRESOLVE) },
-        { "vsmMipmap",                  MATERIAL(MATERIALS, VSMMIPMAP) },
-        { "debugShadowCascades",        MATERIAL(MATERIALS, DEBUGSHADOWCASCADES) },
-        { "resolveDepth",               MATERIAL(MATERIALS, RESOLVEDEPTH) },
-        { "shadowmap",                  MATERIAL(MATERIALS, SHADOWMAP) },
+    { "blitArray", MATERIAL(MATERIALS, BLITARRAY) },
+    { "blitDepth", MATERIAL(MATERIALS, BLITDEPTH) },
+    { "clearDepth", MATERIAL(MATERIALS, CLEARDEPTH) },
+    { "separableGaussianBlur1", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", false }, { "componentCount", 1 } } },
+    { "separableGaussianBlur1L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", true }, { "componentCount", 1 } } },
+    { "separableGaussianBlur2", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", false }, { "componentCount", 2 } } },
+    { "separableGaussianBlur2L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", true }, { "componentCount", 2 } } },
+    { "separableGaussianBlur3", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", false }, { "componentCount", 3 } } },
+    { "separableGaussianBlur3L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", true }, { "componentCount", 3 } } },
+    { "separableGaussianBlur4", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", false }, { "componentCount", 4 } } },
+    { "separableGaussianBlur4L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+        { { "arraySampler", true }, { "componentCount", 4 } } },
+    { "oitResolve", MATERIAL(MATERIALS, OITRESOLVE) },
+    { "mboitResolve", MATERIAL(MATERIALS, MBOITRESOLVE) },
+    { "vsmMipmap", MATERIAL(MATERIALS, VSMMIPMAP) },
+    { "debugShadowCascades", MATERIAL(MATERIALS, DEBUGSHADOWCASCADES) },
+    { "resolveDepth", MATERIAL(MATERIALS, RESOLVEDEPTH) },
+    { "shadowmap", MATERIAL(MATERIALS, SHADOWMAP) },
 };
 
 void PostProcessManager::init() noexcept {
@@ -818,6 +819,106 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
             });
 
     return oitResolvePass->color;
+}
+
+PostProcessManager::MboitPassOutput PostProcessManager::mboitPass(FrameGraph& fg,
+        RenderPassBuilder const& passBuilder, FrameGraphId<FrameGraphTexture> depth, uint32_t width,
+        uint32_t height, float const scale) noexcept {
+
+    width = std::max(1u, uint32_t(std::ceil(float(width) * scale)));
+    height = std::max(1u, uint32_t(std::ceil(float(height) * scale)));
+
+    struct MboitData {
+        FrameGraphId<FrameGraphTexture> moments;
+        FrameGraphId<FrameGraphTexture> color;
+        FrameGraphId<FrameGraphTexture> depth;
+    };
+
+    auto& mboitPass = fg.addPass<MboitData>(
+            "MBOIT Pass",
+            [&](FrameGraph::Builder& builder, auto& data) {
+                data.color = builder.createTexture("MBOIT Color",
+                        { .width = width, .height = height, .format = TextureFormat::RGBA16F });
+                data.moments = builder.createTexture("MBOIT Moments",
+                        { .width = width, .height = height, .format = TextureFormat::RGBA32F });
+
+                data.color = builder.write(data.color, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                data.moments =
+                        builder.write(data.moments, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                data.depth = builder.read(depth, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
+
+                builder.declareRenderPass("MBOIT Target",
+                        { .attachments = { .color = { data.color, data.moments },
+                              .depth = data.depth },
+                            .clearColor = { 0.0f, 0.0f, 0.0f, 0.0f }, // Clear color and moments
+                            .clearFlags = TargetBufferFlags::COLOR0 | TargetBufferFlags::COLOR1 });
+            },
+            [=, this, passBuilder = passBuilder](FrameGraphResources const& resources, auto const&,
+                    DriverApi& driver) mutable {
+                Variant oitVariant(Variant::OIT);
+
+                getStructureDescriptorSet().bind(driver);
+
+                auto [target, params] = resources.getRenderPassInfo();
+
+                passBuilder.variant(Variant(passBuilder.variant().key | oitVariant.key));
+                passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR |
+                                             RenderPass::CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
+
+                RenderPass const pass{ passBuilder.build(mEngine, driver) };
+
+                driver.beginRenderPass(target, params);
+                pass.getExecutor().execute(mEngine, driver);
+                driver.endRenderPass();
+                unbindAllDescriptorSets(driver);
+            });
+
+    fg.getBlackboard()["mboit color"] = mboitPass->color;
+    fg.getBlackboard()["mboit moments"] = mboitPass->moments;
+
+    return { mboitPass->moments, mboitPass->color };
+}
+
+FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
+        MboitPassOutput const& mboit, FrameGraphId<FrameGraphTexture> color,
+        FrameGraphId<FrameGraphTexture> depth) noexcept {
+
+    struct MboitResolveData {
+        FrameGraphId<FrameGraphTexture> moments;
+        FrameGraphId<FrameGraphTexture> color;
+        FrameGraphId<FrameGraphTexture> outColor;
+    };
+
+    auto& mboitResolvePass = fg.addPass<MboitResolveData>(
+            "MBOIT Resolve",
+            [&](FrameGraph::Builder& builder, auto& data) {
+                data.moments = builder.sample(mboit.moments);
+                data.color = builder.sample(mboit.color);
+                data.outColor = builder.read(color); // Read existing color
+
+                // We write to color (load/store)
+                data.outColor =
+                        builder.write(data.outColor, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+
+                builder.declareRenderPass("MBOIT Resolve Target",
+                        { .attachments = { .color = { data.outColor } },
+                            .clearFlags = TargetBufferFlags::NONE });
+            },
+            [=, this](FrameGraphResources const& resources, auto const& data,
+                    DriverApi& driver) mutable {
+                auto moments = resources.getTexture(data.moments);
+                auto colorTex = resources.getTexture(data.color);
+
+                auto const& material = getPostProcessMaterial("mboitResolve");
+                FMaterialInstance* mi = getMaterialInstance(mEngine, material);
+
+                mi->setParameter("moments", moments, {});
+                mi->setParameter("color", colorTex, {});
+
+                commitAndRenderFullScreenQuad(driver, resources.getRenderPassInfo(), mi);
+            });
+
+    return mboitResolvePass->outColor;
 }
 
 // ------------------------------------------------------------------------------------------------

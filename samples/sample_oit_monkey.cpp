@@ -62,6 +62,7 @@ struct App {
     Config config;
     utils::Entity light;
     bool oitEnabled = true;
+    bool useMBOIT = false;
 
     Material* transparentMaterial = nullptr;
     Material* opaqueMaterial = nullptr;
@@ -107,12 +108,10 @@ static void printUsage(char* name) {
 }
 
 static int handleCommandLineArguments(int argc, char* argv[], App* app) {
-    static constexpr const char* OPTSTR = "ha:";
-    static const struct option OPTIONS[] = {
-            { "help", no_argument,       nullptr, 'h' },
-            { "api",  required_argument, nullptr, 'a' },
-            { nullptr, 0,                nullptr, 0 }
-    };
+    static constexpr const char* OPTSTR = "ha:m";
+    static const struct option OPTIONS[] = { { "help", no_argument, nullptr, 'h' },
+        { "api", required_argument, nullptr, 'a' }, { "mboit", no_argument, nullptr, 'm' },
+        { nullptr, 0, nullptr, 0 } };
     int opt;
     int option_index = 0;
     while ((opt = getopt_long(argc, argv, OPTSTR, OPTIONS, &option_index)) >= 0) {
@@ -124,6 +123,9 @@ static int handleCommandLineArguments(int argc, char* argv[], App* app) {
                 exit(0);
             case 'a':
                 app->config.backend = samples::parseArgumentsForBackend(arg);
+                break;
+            case 'm':
+                app->useMBOIT = true;
                 break;
         }
     }
@@ -248,6 +250,8 @@ int main(int argc, char** argv) {
         if (app.oitEnabled != view->isOitEnabled()) {
             view->setOitEnabled(app.oitEnabled);
         }
+        view->setOitType(
+                app.useMBOIT ? View::OitType::MOMENT_BASED : View::OitType::WEIGHTED_BLENDED);
 
         // Update transparent monkeys based on GUI controls
         for (int i = 0; i < 2; ++i) {
@@ -274,6 +278,7 @@ int main(int argc, char** argv) {
     auto gui = [&app](Engine* engine, View* view) {
         ImGui::Begin("Controls");
         ImGui::Checkbox("Enable OIT", &app.oitEnabled);
+        ImGui::Checkbox("Use MBOIT", &app.useMBOIT);
         ImGui::Separator();
 
         if (ImGui::CollapsingHeader("Left Monkey")) {

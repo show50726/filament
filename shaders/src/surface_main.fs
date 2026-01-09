@@ -134,8 +134,20 @@ void main() {
     float weight = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
 #if defined(VARIANT_HAS_OIT)
     float oitAlpha = clamp(fragColor.a, 0.0, 0.9999);
-    fragReveal = vec4(log(1.0 - oitAlpha));
-    fragColor.rgb = fragColor.rgb * fragColor.a;
-    fragColor = fragColor * weight;
+    if (frameUniforms.oitType == 1u) {
+        float absorbance = -log(1.0 - oitAlpha);
+        float z = gl_FragCoord.z;
+        fragReveal = vec4(1.0, z, z * z, z * z * z) * absorbance;
+        // MBOIT: Accumulate color weighted by absorbance (optical depth)
+        // We assume the input fragColor.rgb is NOT pre-multiplied by alpha yet, or we un-multiply if it is.
+        // Standard Filament surface shader output usually has fragColor as (RGB, A).
+        // We want (RGB * Absorbance, Absorbance).
+        fragColor.rgb = fragColor.rgb * absorbance;
+        fragColor.a = absorbance;
+    } else {
+        fragReveal = vec4(log(1.0 - oitAlpha));
+        fragColor.rgb = fragColor.rgb * fragColor.a;
+        fragColor = fragColor * weight;
+    }
 #endif
 }

@@ -93,6 +93,16 @@ public:
     using StereoscopicOptions = filament::StereoscopicOptions;
 
     /**
+     * OIT Type
+     *
+     * @see setOitType
+     */
+    enum class OitType : uint8_t {
+        WEIGHTED_BLENDED, //!< Weighted Blended Order-Independent Transparency
+        MOMENT_BASED      //!< Moment Based Order-Independent Transparency
+    };
+
+    /**
      * Sets the View's name. Only useful for debugging.
      * @param name Pointer to the View's name. The string is copied.
      */
@@ -713,7 +723,7 @@ public:
      * @param enabled true enables transparent picking, false disables it.
      *
      * @note Transparent picking will create an extra pass for rendering depth
-     *       from both transparent and opaque renderables. 
+     *       from both transparent and opaque renderables.
      */
     void setTransparentPickingEnabled(bool enabled) noexcept;
 
@@ -763,6 +773,20 @@ public:
      * See setOitEnabled() for more information.
      */
     bool isOitEnabled() const noexcept;
+
+    /**
+     * Sets the OIT Type.
+     * Default is OitType::WEIGHTED_BLENDED
+     *
+     * @param type OIT Type
+     */
+    void setOitType(OitType type) noexcept;
+
+    /**
+     * Returns the OIT Type
+     * @return OIT Type
+     */
+    OitType getOitType() const noexcept;
 
     /**
      * Sets the stereoscopic rendering options for this view.

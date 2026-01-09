@@ -106,6 +106,7 @@ public:
     void prepareSSAO(TextureHandle ssao, AmbientOcclusionOptions const& options) noexcept;
     void prepareBlending(bool needsAlphaChannel) noexcept;
     void prepareMaterialGlobals(std::array<math::float4, 4> const& materialGlobals) noexcept;
+    void prepareOit(uint32_t oitType) noexcept;
 
     // screen-space reflection and/or refraction (SSR)
     void prepareScreenSpaceRefraction(TextureHandle ssr) noexcept;

@@ -454,12 +454,12 @@ void RenderPass::setupColorCommand(Command& cmdDraw, Variant variant,
     cmdDraw.info.materialVariant = variant;
     // we keep "RasterState::colorWrite" to the value set by material (could be disabled)
 
-    // if (Variant::isOITVariant(variant)) {
-    //     cmdDraw.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
-    // }
+    if (Variant::isOITVariant(variant)) {
+        cmdDraw.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
+        cmdDraw.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
+        cmdDraw.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
+        cmdDraw.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
+    }
 }
 
 /* static */

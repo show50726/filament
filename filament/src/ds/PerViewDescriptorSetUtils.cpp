@@ -108,4 +108,8 @@ void PerViewDescriptorSetUtils::prepareMaterialGlobals(PerViewUib& s,
     s.custom[3] = materialGlobals[3];
 }
 
+void PerViewDescriptorSetUtils::prepareOit(PerViewUib& s, uint32_t oitType) noexcept {
+    s.oitType = oitType;
+}
+
 } // namespace filament

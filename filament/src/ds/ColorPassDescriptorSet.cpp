@@ -292,6 +292,10 @@ void ColorPassDescriptorSet::prepareMaterialGlobals(
     PerViewDescriptorSetUtils::prepareMaterialGlobals(mUniforms.edit(), materialGlobals);
 }
 
+void ColorPassDescriptorSet::prepareOit(uint32_t oitType) noexcept {
+    PerViewDescriptorSetUtils::prepareOit(mUniforms.edit(), oitType);
+}
+
 void ColorPassDescriptorSet::prepareScreenSpaceRefraction(Handle<HwTexture> ssr) noexcept {
     setSampler(+PerViewBindingPoints::SSR, ssr, SamplerParams{
         .filterMag = SamplerMagFilter::LINEAR,

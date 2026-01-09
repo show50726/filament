@@ -48,6 +48,8 @@ public:
 
     static void prepareMaterialGlobals(PerViewUib& uniforms,
             std::array<math::float4, 4> const& materialGlobals) noexcept;
+
+    static void prepareOit(PerViewUib& uniforms, uint32_t oitType) noexcept;
 };
 
 } //namespace filament

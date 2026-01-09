@@ -880,6 +880,7 @@ void FView::prepare(FEngine& engine, DriverApi& driver, RootArenaScope& rootAren
 
     auto& colorPassDescriptorSet = getColorPassDescriptorSet();
     colorPassDescriptorSet.prepareCamera(engine, cameraInfo);
+    colorPassDescriptorSet.prepareOit(uint32_t(mOitType));
     colorPassDescriptorSet.prepareTime(engine, userTime);
     colorPassDescriptorSet.prepareFog(engine, cameraInfo, fogTransform, mFogOptions,
             scene->getIndirectLight());

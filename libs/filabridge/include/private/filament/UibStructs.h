@@ -216,6 +216,12 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     float es2Reserved1;
     float es2Reserved2;
 
+    // --------------------------------------------------------------------------------------------
+    // OIT
+    // --------------------------------------------------------------------------------------------
+    uint32_t oitType;
+    uint32_t oitReserved[3];
+
     // bring PerViewUib to 2 KiB
     math::float4 reserved[21];
 };
