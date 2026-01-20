@@ -56,6 +56,7 @@ struct App {
     bool useMBOIT = false;
     float momentBias = 0.000001f;
     float overestimation = 0.1f;
+    bool stressTest = false;
 
     Material* transparentMaterial = nullptr;
     VertexBuffer* vb = nullptr;
@@ -138,12 +139,10 @@ static void printUsage(char* name) {
 }
 
 static int handleCommandLineArguments(int argc, char* argv[], App* app) {
-    static constexpr const char* OPTSTR = "ha:";
-    static const struct option OPTIONS[] = {
-            { "help", no_argument,       nullptr, 'h' },
-            { "api",  required_argument, nullptr, 'a' },
-            { nullptr, 0,                nullptr, 0 }
-    };
+    static constexpr const char* OPTSTR = "ha:s";
+    static const struct option OPTIONS[] = { { "help", no_argument, nullptr, 'h' },
+        { "api", required_argument, nullptr, 'a' }, { "stress", no_argument, nullptr, 's' },
+        { nullptr, 0, nullptr, 0 } };
     int opt;
     int option_index = 0;
     while ((opt = getopt_long(argc, argv, OPTSTR, OPTIONS, &option_index)) >= 0) {
@@ -155,6 +154,9 @@ static int handleCommandLineArguments(int argc, char* argv[], App* app) {
                 exit(0);
             case 'a':
                 app->config.backend = samples::parseArgumentsForBackend(arg);
+                break;
+            case 's':
+                app->stressTest = true;
                 break;
         }
     }
@@ -252,23 +254,18 @@ int main(int argc, char** argv) {
             { 0.5f, 0.5f, 0.5f }, // Gray
         };
 
-        for (int z = 0; z < GRID_Z; ++z) {
-            for (int x = 0; x < GRID_X; ++x) {
+        if (app.stressTest) {
+            // Stack of Plates (Stress Test)
+            const int PLATES = 32;
+            const float SIZE = 4.0f;
+            for (int i = 0; i < PLATES; ++i) {
                 auto mi = app.transparentMaterial->createInstance();
-
-                float alpha = (float) (x) / (GRID_X - 1); // 0 to 1
-                float3 color = COLORS[z % 10];
-
+                float3 color = COLORS[i % 10];
                 mi->setParameter("baseColor", color);
-                mi->setParameter("alpha", alpha);
+                mi->setParameter("alpha", 0.5f); // Semi-transparent
                 mi->setParameter("metallic", 0.0f);
                 mi->setParameter("roughness", 0.2f);
                 mi->setParameter("reflectance", 0.5f);
-
-                // Set stencil needed for some OIT modes?
-                // The original sample set StencilWrite=true for "transparent monkeys".
-                // We should keep it for safety if using weighting that relies on it or depth
-                // peeling? Standard OIT usually handles this, but let's keep it consistent.
                 mi->setStencilWrite(true);
                 mi->setStencilOpDepthStencilPass(MaterialInstance::StencilOperation::INCR);
 
@@ -281,16 +278,58 @@ int main(int argc, char** argv) {
                         .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb, app.ib)
                         .culling(false)
                         .castShadows(false)
-                        .receiveShadows(false) // Translucent shadows are hard
+                        .receiveShadows(false)
                         .build(*engine, renderable);
 
                 app.renderables.push_back(renderable);
                 scene->addEntity(renderable);
 
                 auto ti = tcm.getInstance(renderable);
-                float3 pos = { START_X + x * SPACING, 0.0f, START_Z + z * SPACING };
-                tcm.setTransform(ti,
-                        mat4f::translation(pos) * mat4f::scaling(float3{ 0.8f, 0.8f, 0.8f }));
+                // Stack them along Z with very small spacing to cause Momement OIT issues
+                float zPos = (i - PLATES / 2.0f) * 0.2f;
+                tcm.setTransform(ti, mat4f::translation(float3{ 0, 0, zPos }) *
+                                             mat4f::scaling(float3{ SIZE, SIZE, 0.05f }));
+            }
+        } else {
+            // Grid of Cubes
+            for (int z = 0; z < GRID_Z; ++z) {
+                for (int x = 0; x < GRID_X; ++x) {
+                    auto mi = app.transparentMaterial->createInstance();
+
+                    float alpha = (float) (x) / (GRID_X - 1); // 0 to 1
+                    float3 color = COLORS[z % 10];
+
+                    mi->setParameter("baseColor", color);
+                    mi->setParameter("alpha", alpha);
+                    mi->setParameter("metallic", 0.0f);
+                    mi->setParameter("roughness", 0.2f);
+                    mi->setParameter("reflectance", 0.5f);
+
+                    // Set stencil needed for some OIT modes?
+                    mi->setStencilWrite(true);
+                    mi->setStencilOpDepthStencilPass(MaterialInstance::StencilOperation::INCR);
+
+                    app.materialInstances.push_back(mi);
+
+                    auto renderable = em.create();
+                    RenderableManager::Builder(1)
+                            .boundingBox({ { -0.5f, -0.5f, -0.5f }, { 0.5f, 0.5f, 0.5f } })
+                            .material(0, mi)
+                            .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, app.vb,
+                                    app.ib)
+                            .culling(false)
+                            .castShadows(false)
+                            .receiveShadows(false) // Translucent shadows are hard
+                            .build(*engine, renderable);
+
+                    app.renderables.push_back(renderable);
+                    scene->addEntity(renderable);
+
+                    auto ti = tcm.getInstance(renderable);
+                    float3 pos = { START_X + x * SPACING, 0.0f, START_Z + z * SPACING };
+                    tcm.setTransform(ti,
+                            mat4f::translation(pos) * mat4f::scaling(float3{ 0.8f, 0.8f, 0.8f }));
+                }
             }
         }
 
