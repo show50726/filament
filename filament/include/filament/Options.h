@@ -766,6 +766,11 @@ struct SoftShadowOptions {
     float penumbraRatioScale = 1.0f;
 };
 
+struct OitOptions {
+    float momentBias = 0.000001f;
+    float overestimation = 0.1f;
+};
+
 /**
  * Options for stereoscopic (multi-eye) rendering.
  */

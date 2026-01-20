@@ -20,6 +20,7 @@ set(SHADERS
         src/surface_lighting.fs
         src/surface_material.fs
         src/common_math.glsl
+        src/moment_oit_math.glsl
         src/common_shading.fs
         src/surface_shadowing.glsl
         src/surface_types.glsl

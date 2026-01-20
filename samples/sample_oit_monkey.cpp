@@ -63,6 +63,8 @@ struct App {
     utils::Entity light;
     bool oitEnabled = true;
     bool useMBOIT = false;
+    float momentBias = 0.000001f;
+    float overestimation = 0.1f;
 
     Material* transparentMaterial = nullptr;
     Material* opaqueMaterial = nullptr;
@@ -252,6 +254,10 @@ int main(int argc, char** argv) {
         }
         view->setOitType(
                 app.useMBOIT ? View::OitType::MOMENT_BASED : View::OitType::WEIGHTED_BLENDED);
+        OitOptions options = view->getOitOptions();
+        options.momentBias = app.momentBias;
+        options.overestimation = app.overestimation;
+        view->setOitOptions(options);
 
         // Update transparent monkeys based on GUI controls
         for (int i = 0; i < 2; ++i) {
@@ -279,6 +285,10 @@ int main(int argc, char** argv) {
         ImGui::Begin("Controls");
         ImGui::Checkbox("Enable OIT", &app.oitEnabled);
         ImGui::Checkbox("Use MBOIT", &app.useMBOIT);
+        if (app.useMBOIT) {
+            ImGui::SliderFloat("Moment Bias", &app.momentBias, 0.0f, 0.01f, "%.8f");
+            ImGui::SliderFloat("Overestimation", &app.overestimation, 0.0f, 1.0f);
+        }
         ImGui::Separator();
 
         if (ImGui::CollapsingHeader("Left Monkey")) {

@@ -1320,7 +1320,7 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
             auto mboitOutput = ppm.mboitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
                     svp.height, 1.0f);
             colorPassOutput.linearColor = ppm.mboitResolve(fg, mboitOutput,
-                    colorPassOutput.linearColor, colorPassOutput.depth);
+                    colorPassOutput.linearColor, colorPassOutput.depth, view.getOitOptions());
         } else {
             auto oitOutput = ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
                     svp.height, 1.0f);

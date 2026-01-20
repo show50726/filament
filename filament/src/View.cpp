@@ -330,6 +330,10 @@ void View::setOitType(OitType type) noexcept { downcast(this)->setOitType(type);
 
 View::OitType View::getOitType() const noexcept { return downcast(this)->getOitType(); }
 
+void View::setOitOptions(OitOptions options) noexcept { downcast(this)->setOitOptions(options); }
+
+OitOptions View::getOitOptions() const noexcept { return downcast(this)->getOitOptions(); }
+
 void View::setStereoscopicOptions(const StereoscopicOptions& options) noexcept {
     return downcast(this)->setStereoscopicOptions(options);
 }

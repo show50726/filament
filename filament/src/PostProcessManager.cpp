@@ -881,11 +881,12 @@ PostProcessManager::MboitPassOutput PostProcessManager::mboitPass(FrameGraph& fg
 
 FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
         MboitPassOutput const& mboit, FrameGraphId<FrameGraphTexture> color,
-        FrameGraphId<FrameGraphTexture> depth) noexcept {
+        FrameGraphId<FrameGraphTexture> depth, OitOptions oitOptions) noexcept {
 
     struct MboitResolveData {
         FrameGraphId<FrameGraphTexture> moments;
         FrameGraphId<FrameGraphTexture> color;
+        FrameGraphId<FrameGraphTexture> depth;
         FrameGraphId<FrameGraphTexture> outColor;
     };
 
@@ -894,6 +895,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
             [&](FrameGraph::Builder& builder, auto& data) {
                 data.moments = builder.sample(mboit.moments);
                 data.color = builder.sample(mboit.color);
+                data.depth = builder.sample(depth);
                 data.outColor = builder.read(color); // Read existing color
 
                 // We write to color (load/store)
@@ -908,12 +910,16 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
                     DriverApi& driver) mutable {
                 auto moments = resources.getTexture(data.moments);
                 auto colorTex = resources.getTexture(data.color);
+                auto depthTex = resources.getTexture(data.depth);
 
                 auto const& material = getPostProcessMaterial("mboitResolve");
                 FMaterialInstance* mi = getMaterialInstance(mEngine, material);
 
                 mi->setParameter("moments", moments, {});
                 mi->setParameter("color", colorTex, {});
+                mi->setParameter("depth", depthTex, {});
+                mi->setParameter("momentBias", oitOptions.momentBias);
+                mi->setParameter("overestimation", oitOptions.overestimation);
 
                 commitAndRenderFullScreenQuad(driver, resources.getRenderPassInfo(), mi);
             });

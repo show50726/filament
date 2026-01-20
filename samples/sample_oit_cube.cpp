@@ -54,6 +54,8 @@ struct App {
     utils::Entity light;
     bool oitEnabled = true;
     bool useMBOIT = false;
+    float momentBias = 0.000001f;
+    float overestimation = 0.1f;
 
     Material* transparentMaterial = nullptr;
     VertexBuffer* vb = nullptr;
@@ -329,12 +331,20 @@ int main(int argc, char** argv) {
         if (desiredType != view->getOitType()) {
             view->setOitType(desiredType);
         }
+        OitOptions options = view->getOitOptions();
+        options.momentBias = app.momentBias;
+        options.overestimation = app.overestimation;
+        view->setOitOptions(options);
     });
 
     auto gui = [&app](Engine* engine, View* view) {
         ImGui::Begin("Controls");
         ImGui::Checkbox("Enable OIT", &app.oitEnabled);
         ImGui::Checkbox("Use MBOIT", &app.useMBOIT);
+        if (app.useMBOIT) {
+            ImGui::SliderFloat("Moment Bias", &app.momentBias, 0.0f, 0.01f, "%.8f");
+            ImGui::SliderFloat("Overestimation", &app.overestimation, 0.0f, 1.0f);
+        }
         ImGui::End();
     };
 

@@ -245,6 +245,9 @@ public:
     void setOitType(OitType type) noexcept { mOitType = type; }
     OitType getOitType() const noexcept { return mOitType; }
 
+    void setOitOptions(OitOptions options) noexcept { mOitOptions = options; }
+    OitOptions getOitOptions() const noexcept { return mOitOptions; }
+
     void setStereoscopicOptions(StereoscopicOptions const& options) noexcept;
 
     utils::FixedCapacityVector<Camera const*> getDirectionalShadowCameras() const noexcept {
@@ -605,6 +608,7 @@ private:
     bool mStencilBufferEnabled = false;
     bool mOitEnabled = false;
     OitType mOitType = OitType::WEIGHTED_BLENDED;
+    OitOptions mOitOptions;
 
 
     AmbientOcclusionOptions mAmbientOcclusionOptions{};

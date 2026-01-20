@@ -134,7 +134,8 @@ public:
             float scale) noexcept;
 
     FrameGraphId<FrameGraphTexture> mboitResolve(FrameGraph& fg, MboitPassOutput const& mboit,
-            FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth) noexcept;
+            FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth,
+            OitOptions oitOptions) noexcept;
 
     // reflections pass
     FrameGraphId<FrameGraphTexture> ssr(FrameGraph& fg,

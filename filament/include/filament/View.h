@@ -789,6 +789,19 @@ public:
     OitType getOitType() const noexcept;
 
     /**
+     * Sets the OIT options for this view.
+     *
+     * @param options OIT options
+     */
+    void setOitOptions(OitOptions options) noexcept;
+
+    /**
+     * Returns the OIT options associated with this view.
+     * @return value set by setOitOptions().
+     */
+    OitOptions getOitOptions() const noexcept;
+
+    /**
      * Sets the stereoscopic rendering options for this view.
      *
      * Currently, only one type of stereoscopic rendering is supported: side-by-side.

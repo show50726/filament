@@ -1068,6 +1068,7 @@ io::sstream& CodeGenerator::generateQualityDefine(io::sstream& out, ShaderQualit
 
 io::sstream& CodeGenerator::generateSurfaceCommon(io::sstream& out, ShaderStage stage) {
     out << SHADERS_COMMON_MATH_GLSL_DATA;
+    out << SHADERS_MOMENT_OIT_MATH_GLSL_DATA;
     switch (stage) {
         case ShaderStage::VERTEX:
             out << SHADERS_SURFACE_INSTANCING_GLSL_DATA;
@@ -1090,6 +1091,7 @@ io::sstream& CodeGenerator::generateSurfaceCommon(io::sstream& out, ShaderStage 
 
 io::sstream& CodeGenerator::generatePostProcessCommon(io::sstream& out, ShaderStage stage) {
     out << SHADERS_COMMON_MATH_GLSL_DATA;
+    out << SHADERS_MOMENT_OIT_MATH_GLSL_DATA;
     if (stage == ShaderStage::VERTEX) {
     } else if (stage == ShaderStage::FRAGMENT) {
         out << SHADERS_COMMON_SHADING_FS_DATA;
