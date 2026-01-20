@@ -144,10 +144,8 @@ void main() {
         float z2 = z * z;
         float z3 = z2 * z;
         float z4 = z2 * z2;
-        // MBOIT: Accumulate b1, b2, b3, b4 in fragReveal
         fragReveal = vec4(z, z2, z3, z4) * absorbance;
-        // MBOIT: Accumulate color weighted by absorbance and b0 in alpha
-        float weight = absorbance / max(1e-5, frameUniforms.oitType == 1u ? fragColor.a : 1.0);
+        float weight = absorbance / max(1e-5, fragColor.a);
         fragColor.rgb = fragColor.rgb * weight;
         fragColor.a = absorbance;
     } else {
