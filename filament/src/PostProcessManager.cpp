@@ -766,7 +766,8 @@ PostProcessManager::OitPassOutput PostProcessManager::oitPass(FrameGraph& fg,
                 passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR |
                                              RenderPass::CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
 
-                RenderPass const pass{ passBuilder.build(mEngine, driver) };
+                RenderPass pass{ passBuilder.build(mEngine, driver) };
+                pass.finalize(mEngine, driver);
 
                 driver.beginRenderPass(target, params);
                 pass.getExecutor().execute(mEngine, driver);
@@ -809,8 +810,9 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
                 auto accumulation = resources.getTexture(data.accumulation);
                 auto revealage = resources.getTexture(data.revealage);
 
-                auto const& material = getPostProcessMaterial("oitResolve");
-                FMaterialInstance* mi = getMaterialInstance(mEngine, material);
+                auto& material = getPostProcessMaterial("oitResolve");
+                auto ma = material.getMaterial(mEngine, driver);
+                FMaterialInstance* mi = getMaterialInstance(ma);
 
                 mi->setParameter("accumulation", accumulation, {});
                 mi->setParameter("revealage", revealage, {});
@@ -865,7 +867,8 @@ PostProcessManager::MboitPassOutput PostProcessManager::mboitPass(FrameGraph& fg
                 passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR |
                                              RenderPass::CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
 
-                RenderPass const pass{ passBuilder.build(mEngine, driver) };
+                RenderPass pass{ passBuilder.build(mEngine, driver) };
+                pass.finalize(mEngine, driver);
 
                 driver.beginRenderPass(target, params);
                 pass.getExecutor().execute(mEngine, driver);
@@ -912,8 +915,9 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
                 auto colorTex = resources.getTexture(data.color);
                 auto depthTex = resources.getTexture(data.depth);
 
-                auto const& material = getPostProcessMaterial("mboitResolve");
-                FMaterialInstance* mi = getMaterialInstance(mEngine, material);
+                auto& material = getPostProcessMaterial("mboitResolve");
+                auto ma = material.getMaterial(mEngine, driver);
+                FMaterialInstance* mi = getMaterialInstance(ma);
 
                 mi->setParameter("moments", moments, {});
                 mi->setParameter("color", colorTex, {});

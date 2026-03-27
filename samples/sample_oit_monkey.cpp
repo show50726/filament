@@ -36,7 +36,7 @@
 #include <filamentapp/Config.h>
 #include <filamentapp/FilamentApp.h>
 
-#include <getopt/getopt.h>
+#include <utils/getopt.h>
 
 #include <iostream>
 #include <vector>
@@ -111,8 +111,8 @@ static void printUsage(char* name) {
 
 static int handleCommandLineArguments(int argc, char* argv[], App* app) {
     static constexpr const char* OPTSTR = "ha:m";
-    static const struct option OPTIONS[] = { { "help", no_argument, nullptr, 'h' },
-        { "api", required_argument, nullptr, 'a' }, { "mboit", no_argument, nullptr, 'm' },
+    static const struct option OPTIONS[] = { { "help", getopt::no_argument, nullptr, 'h' },
+        { "api", getopt::required_argument, nullptr, 'a' }, { "mboit", getopt::no_argument, nullptr, 'm' },
         { nullptr, 0, nullptr, 0 } };
     int opt;
     int option_index = 0;
