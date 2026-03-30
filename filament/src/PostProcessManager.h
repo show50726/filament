@@ -118,8 +118,7 @@ public:
         FrameGraphId<FrameGraphTexture> revealage;
     };
     OitPassOutput oitPass(FrameGraph& fg, RenderPassBuilder const& passBuilder,
-            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height,
-            float scale) noexcept;
+            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height) noexcept;
 
     FrameGraphId<FrameGraphTexture> oitResolve(FrameGraph& fg, OitPassOutput const& oit,
             FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth) noexcept;
@@ -130,8 +129,7 @@ public:
     };
 
     MboitPassOutput mboitPass(FrameGraph& fg, RenderPassBuilder const& passBuilder,
-            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height,
-            float scale) noexcept;
+            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height) noexcept;
 
     FrameGraphId<FrameGraphTexture> mboitResolve(FrameGraph& fg, MboitPassOutput const& mboit,
             FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth,

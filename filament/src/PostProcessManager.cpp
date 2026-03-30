@@ -278,31 +278,31 @@ static const PostProcessManager::StaticMaterialInfo sMaterialListFeatureLevel0[]
 };
 
 static const PostProcessManager::StaticMaterialInfo sMaterialList[] = {
-    { "blitArray", MATERIAL(MATERIALS, BLITARRAY) },
-    { "blitDepth", MATERIAL(MATERIALS, BLITDEPTH) },
-    { "clearDepth", MATERIAL(MATERIALS, CLEARDEPTH) },
-    { "separableGaussianBlur1", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", false }, { "componentCount", 1 } } },
-    { "separableGaussianBlur1L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", true }, { "componentCount", 1 } } },
-    { "separableGaussianBlur2", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", false }, { "componentCount", 2 } } },
-    { "separableGaussianBlur2L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", true }, { "componentCount", 2 } } },
-    { "separableGaussianBlur3", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", false }, { "componentCount", 3 } } },
-    { "separableGaussianBlur3L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", true }, { "componentCount", 3 } } },
-    { "separableGaussianBlur4", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", false }, { "componentCount", 4 } } },
-    { "separableGaussianBlur4L", MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
-        { { "arraySampler", true }, { "componentCount", 4 } } },
-    { "oitResolve", MATERIAL(MATERIALS, OITRESOLVE) },
-    { "mboitResolve", MATERIAL(MATERIALS, MBOITRESOLVE) },
-    { "vsmMipmap", MATERIAL(MATERIALS, VSMMIPMAP) },
-    { "debugShadowCascades", MATERIAL(MATERIALS, DEBUGSHADOWCASCADES) },
-    { "resolveDepth", MATERIAL(MATERIALS, RESOLVEDEPTH) },
-    { "shadowmap", MATERIAL(MATERIALS, SHADOWMAP) },
+        { "blitArray",                  MATERIAL(MATERIALS, BLITARRAY) },
+        { "blitDepth",                  MATERIAL(MATERIALS, BLITDEPTH) },
+        { "clearDepth",                 MATERIAL(MATERIALS, CLEARDEPTH) },
+        { "separableGaussianBlur1",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", false}, {"componentCount", 1} } },
+        { "separableGaussianBlur1L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", true }, {"componentCount", 1} } },
+        { "separableGaussianBlur2",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", false}, {"componentCount", 2} } },
+        { "separableGaussianBlur2L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", true }, {"componentCount", 2} } },
+        { "separableGaussianBlur3",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", false}, {"componentCount", 3} } },
+        { "separableGaussianBlur3L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", true }, {"componentCount", 3} } },
+        { "separableGaussianBlur4",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", false}, {"componentCount", 4} } },
+        { "separableGaussianBlur4L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
+                { {"arraySampler", true }, {"componentCount", 4} } },
+        { "vsmMipmap",                  MATERIAL(MATERIALS, VSMMIPMAP) },
+        { "debugShadowCascades",        MATERIAL(MATERIALS, DEBUGSHADOWCASCADES) },
+        { "resolveDepth",               MATERIAL(MATERIALS, RESOLVEDEPTH) },
+        { "shadowmap",                  MATERIAL(MATERIALS, SHADOWMAP) },
+        { "oitResolve", MATERIAL(MATERIALS, OITRESOLVE) },
+        { "mboitResolve", MATERIAL(MATERIALS, MBOITRESOLVE) },
 };
 
 void PostProcessManager::init() noexcept {
@@ -723,11 +723,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::transparentPicking(FrameGrap
 
 PostProcessManager::OitPassOutput PostProcessManager::oitPass(FrameGraph& fg,
         RenderPassBuilder const& passBuilder, FrameGraphId<FrameGraphTexture> depth, uint32_t width,
-        uint32_t height, float const scale) noexcept {
-
-    width = std::max(1u, uint32_t(std::ceil(float(width) * scale)));
-    height = std::max(1u, uint32_t(std::ceil(float(height) * scale)));
-
+        uint32_t height) noexcept {
     struct OitData {
         FrameGraphId<FrameGraphTexture> accumulation;
         FrameGraphId<FrameGraphTexture> revealage;
@@ -796,9 +792,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
             [&](FrameGraph::Builder& builder, auto& data) {
                 data.accumulation = builder.sample(oit.accumulation);
                 data.revealage = builder.sample(oit.revealage);
-                data.color = builder.read(color); // Read existing color
-
-                // We write to color (load/store)
+                data.color = builder.read(color);
                 data.color = builder.write(data.color, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
 
                 builder.declareRenderPass("OIT Resolve Target",
@@ -825,11 +819,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
 
 PostProcessManager::MboitPassOutput PostProcessManager::mboitPass(FrameGraph& fg,
         RenderPassBuilder const& passBuilder, FrameGraphId<FrameGraphTexture> depth, uint32_t width,
-        uint32_t height, float const scale) noexcept {
-
-    width = std::max(1u, uint32_t(std::ceil(float(width) * scale)));
-    height = std::max(1u, uint32_t(std::ceil(float(height) * scale)));
-
+        uint32_t height) noexcept {
     struct MboitData {
         FrameGraphId<FrameGraphTexture> moments;
         FrameGraphId<FrameGraphTexture> color;
@@ -899,9 +889,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::mboitResolve(FrameGraph& fg,
                 data.moments = builder.sample(mboit.moments);
                 data.color = builder.sample(mboit.color);
                 data.depth = builder.sample(depth);
-                data.outColor = builder.read(color); // Read existing color
-
-                // We write to color (load/store)
+                data.outColor = builder.read(color);
                 data.outColor =
                         builder.write(data.outColor, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
 

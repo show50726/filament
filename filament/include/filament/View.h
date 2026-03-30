@@ -94,12 +94,10 @@ public:
 
     /**
      * OIT Type
-     *
-     * @see setOitType
      */
     enum class OitType : uint8_t {
-        WEIGHTED_BLENDED, //!< Weighted Blended Order-Independent Transparency
-        MOMENT_BASED      //!< Moment Based Order-Independent Transparency
+        WEIGHTED_BLENDED,
+        MOMENT_BASED
     };
 
     /**

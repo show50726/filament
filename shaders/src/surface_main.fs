@@ -5,6 +5,7 @@ layout(location = 0) out vec4 fragColor;
 #endif
 
 #if defined(VARIANT_HAS_OIT)
+// Use vec4 here so wboit and mboit are both compatible
 layout(location = 1) out vec4 fragReveal;
 #endif
 
@@ -129,9 +130,6 @@ void main() {
     gl_FragData[0] = fragColor;
 #endif
 
-    float a = min(1.0, fragColor.a) * 8.0 + 0.01;
-    float b = -gl_FragCoord.z * 0.95 + 1.0;
-    float weight = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
 #if defined(VARIANT_HAS_OIT)
     float oitAlpha = clamp(fragColor.a, 0.0, 0.9999);
     if (frameUniforms.oitType == 1u) {
@@ -149,6 +147,16 @@ void main() {
         fragColor.rgb = fragColor.rgb * weight;
         fragColor.a = absorbance;
     } else {
+#if 1
+        float a = min(1.0, fragColor.a) * 8.0 + 0.01;
+        float b = -gl_FragCoord.z * 0.95 + 1.0;
+        float weight = clamp(a * a * a * 1e8 * b * b * b, 1e-2, 3e2);
+#else
+        float weight =
+              max(min(1.0, max(max(fragColor.r, fragColor.g), fragColor.b) * fragColor.a), fragColor.a) *
+              clamp(0.03 / (1e-5 + pow(gl_FragCoord.z / 200.0, 4.0)), 1e-2, 3e3);
+#endif
+        // We use log(1-alpha) here to use ONE ONE blend func
         fragReveal = vec4(log(1.0 - oitAlpha));
         fragColor.rgb = fragColor.rgb * fragColor.a;
         fragColor = fragColor * weight;

@@ -1249,6 +1249,7 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
 
     RenderPass::CommandTypeFlags flags = RenderPass::CommandTypeFlags::COLOR;
 
+    // If OIT is enabled, we filter out all translucent objects in the color pass.
     if (view.isOitEnabled()) {
         flags |= RenderPass::CommandTypeFlags::FILTER_TRANSLUCENT_OBJECTS;
     }
@@ -1318,12 +1319,12 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     if (view.isOitEnabled()) {
         if (view.getOitType() == View::OitType::MOMENT_BASED) {
             auto mboitOutput = ppm.mboitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
-                    svp.height, 1.0f);
+                    svp.height);
             colorPassOutput.linearColor = ppm.mboitResolve(fg, mboitOutput,
                     colorPassOutput.linearColor, colorPassOutput.depth, view.getOitOptions());
         } else {
             auto oitOutput = ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width,
-                    svp.height, 1.0f);
+                    svp.height);
             colorPassOutput.linearColor = ppm.oitResolve(fg, oitOutput, colorPassOutput.linearColor,
                     colorPassOutput.depth);
         }
@@ -1555,8 +1556,8 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
         }
     }
 
-    if (true) {
-        auto shadowmap = blackboard.get<FrameGraphTexture>("oit revealAge");
+    if (UTILS_UNLIKELY(engine.debug.shadowmap.display_shadow_texture)) {
+        auto shadowmap = blackboard.get<FrameGraphTexture>("shadowmap");
         input = ppm.debugDisplayShadowTexture(fg, input, shadowmap,
                 engine.debug.shadowmap.display_shadow_texture_scale,
                 engine.debug.shadowmap.display_shadow_texture_layer,

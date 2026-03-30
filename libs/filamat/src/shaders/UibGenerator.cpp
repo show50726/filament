@@ -224,11 +224,12 @@ BufferInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             { "es2Reserved1",            0, Type::FLOAT                  },
             { "es2Reserved2",            0, Type::FLOAT                  },
 
+            // --------------------------------------------------------------------------------------------
+            // OIT
+            // --------------------------------------------------------------------------------------------
+            { "oitType", 0, Type::UINT },
+            { "oitReserved", 3, Type::UINT },
 
-                // --------------------------------------------------------------------------------------------
-                            // OIT
-                            // --------------------------------------------------------------------------------------------
-                            { "oitType", 0, Type::UINT }, { "oitReserved", 3, Type::UINT },
             // bring PerViewUib to 2 KiB
             { "reserved", sizeof(PerViewUib::reserved)/16, Type::FLOAT4 }
             })
