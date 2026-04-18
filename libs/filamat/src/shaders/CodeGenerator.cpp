@@ -321,6 +321,10 @@ utils::io::sstream& CodeGenerator::generateCommonProlog(utils::io::sstream& out,
                 +ReservedSpecializationConstants::CONFIG_FROXEL_RECORD_BUFFER_HEIGHT, 16384);
     }
 
+    bool const litVariants = material.isLit || material.hasShadowMultiplier;
+    generateSpecializationConstant(out, "CONFIG_HAS_DIR",
+            CONFIG_MAX_RESERVED_SPEC_CONSTANTS + +DynamicSpecializationConstants::CONFIG_HAS_DIR, litVariants);
+
     // directional shadowmap visualization
     generateSpecializationConstant(out, "CONFIG_DEBUG_DIRECTIONAL_SHADOWMAP",
             +ReservedSpecializationConstants::CONFIG_DEBUG_DIRECTIONAL_SHADOWMAP, false);
@@ -1192,9 +1196,7 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage sta
         out << SHADERS_SURFACE_AMBIENT_OCCLUSION_FS_DATA;
         out << SHADERS_SURFACE_LIGHT_INDIRECT_FS_DATA;
 
-        if (variant.hasDirectionalLighting()) {
-            out << SHADERS_SURFACE_LIGHT_DIRECTIONAL_FS_DATA;
-        }
+        out << SHADERS_SURFACE_LIGHT_DIRECTIONAL_FS_DATA;
         if (variant.hasDynamicLighting()) {
             out << SHADERS_SURFACE_LIGHT_PUNCTUAL_FS_DATA;
         }

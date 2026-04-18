@@ -18,6 +18,7 @@
 #define TNT_FILAMENT_LOCALPROGRAMCACHE_H
 
 #include "MaterialDefinition.h"
+#include "ProgramSpecialization.h"
 
 #include <backend/Handle.h>
 
@@ -61,25 +62,35 @@ public:
 
     bool isInitialized() const noexcept { return mMaterial != nullptr; }
 
+    static uint16_t mapCacheEntryKey(Variant const variant, DynamicSpecConstKey const specKey) noexcept {
+        return (variant.key << DynamicSpecConstKey::USED_BITS) | (specKey.key & ((1 << DynamicSpecConstKey::USED_BITS) - 1));
+    }
+
     // prepareProgram creates the program for the material's given variant at the backend level.
     // Must be called outside of backend render pass.
     // Must be called before getProgram() below.
-    backend::Handle<backend::HwProgram> prepareProgram(backend::DriverApi& driver,
-            Variant const variant,
-            backend::CompilerPriorityQueue const priorityQueue) const noexcept {
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[variant.key];
+    backend::Handle<backend::HwProgram> prepareProgram(
+        backend::DriverApi &driver, Variant const variant,
+        DynamicSpecConstKey const specKey,
+        backend::CompilerPriorityQueue const priorityQueue) const noexcept {
+        uint16_t mappedKey = mapCacheEntryKey(variant, specKey);
+        backend::Handle<backend::HwProgram> program =
+            mCachedPrograms[mappedKey];
         if (UTILS_LIKELY(program)) {
             return program;
         }
-        return prepareProgramSlow(driver, variant, priorityQueue);
+        return prepareProgramSlow(driver, variant, specKey, priorityQueue);
     }
 
     // getProgram returns the backend program for the material's given variant.
     // Must be called after prepareProgram().
-    [[nodiscard]]
-    backend::Handle<backend::HwProgram> getProgram(Variant variant) const noexcept {
+    [[nodiscard]] backend::Handle<backend::HwProgram>
+    getProgram(Variant variant,
+               DynamicSpecConstKey const specKey) const noexcept {
         variant = filterVariantForGetProgram(variant);
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[variant.key];
+        uint16_t mappedKey = mapCacheEntryKey(variant, specKey);
+        backend::Handle<backend::HwProgram> program =
+            mCachedPrograms[mappedKey];
         assert_invariant(program);
         return program;
     }
@@ -127,9 +138,10 @@ private:
     // Apply any pending specialization constants. Invalidates programs as necessary.
     void flushConstants() const;
 
-    backend::Handle<backend::HwProgram> prepareProgramSlow(backend::DriverApi& driver,
-            Variant const variant,
-            backend::CompilerPriorityQueue const priorityQueue) const noexcept;
+    backend::Handle<backend::HwProgram> prepareProgramSlow(
+        backend::DriverApi &driver, Variant const variant,
+        DynamicSpecConstKey const specKey,
+        backend::CompilerPriorityQueue const priorityQueue) const noexcept;
 
     ProgramSpecialization getProgramSpecialization(Variant variant) const noexcept;
 

@@ -88,6 +88,10 @@ enum class ReservedSpecializationConstants : uint8_t {
     // check CONFIG_NEXT_RESERVED_SPEC_CONSTANT and CONFIG_MAX_RESERVED_SPEC_CONSTANTS below
 };
 
+enum class DynamicSpecializationConstants : uint8_t {
+    CONFIG_HAS_DIR = 0,
+};
+
 enum class PushConstantIds : uint8_t  {
     MORPHING_BUFFER_OFFSET = 0,
 };
@@ -102,10 +106,21 @@ constexpr size_t CONFIG_RENDERPASS_CHANNEL_COUNT = 8;
 constexpr size_t CONFIG_MAX_LIGHT_COUNT = 255;
 constexpr size_t CONFIG_MAX_LIGHT_INDEX = CONFIG_MAX_LIGHT_COUNT - 1;
 
-// The number of specialization constants that Filament reserves for its own use. These are always
-// the first constants (from 0 to CONFIG_MAX_RESERVED_SPEC_CONSTANTS - 1).
-// Updating this value necessitates a material version bump.
+// The number of specialization constants that Filament reserves for its own
+// use. It includes the static (ReservedSpecializationConstants) and dynamic
+// (DynamicSpecializationConstants) ones.
+// They are always the first constants (from 0 to
+// CONFIG_MAX_RESERVED_SPEC_CONSTANTS - 1). Updating this value necessitates a
+// material version bump.
+constexpr size_t CONFIG_MAX_INTERNAL_SPEC_CONSTANTS = 32;
 constexpr size_t CONFIG_MAX_RESERVED_SPEC_CONSTANTS = 16;
+constexpr size_t CONFIG_MAX_DYNAMIC_SPEC_CONSTANTS = 16;
+static_assert(CONFIG_MAX_DYNAMIC_SPEC_CONSTANTS + CONFIG_MAX_RESERVED_SPEC_CONSTANTS ==
+       CONFIG_MAX_INTERNAL_SPEC_CONSTANTS, "Inconsistent specialization constant counts");
+
+constexpr size_t CONFIG_NEXT_DYNAMIC_SPEC_CONSTANT =
+    CONFIG_MAX_DYNAMIC_SPEC_CONSTANTS + 1;
+
 // The number of the next unassigned reserved spec constant.
 constexpr size_t CONFIG_NEXT_RESERVED_SPEC_CONSTANT = 12;
 
@@ -171,6 +186,8 @@ struct utils::EnableIntegerOperators<filament::PerMaterialBindingPoints> : publi
 
 template<>
 struct utils::EnableIntegerOperators<filament::ReservedSpecializationConstants> : public std::true_type {};
+template<>
+struct utils::EnableIntegerOperators<filament::DynamicSpecializationConstants> : public std::true_type {};
 template<>
 struct utils::EnableIntegerOperators<filament::PushConstantIds> : public std::true_type {};
 template<>

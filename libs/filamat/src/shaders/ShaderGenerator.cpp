@@ -52,9 +52,7 @@ void ShaderGenerator::generateSurfaceMaterialVariantDefines(io::sstream& out,
         MaterialInfo const& material, filament::Variant const variant) noexcept {
 
     bool const litVariants = material.isLit || material.hasShadowMultiplier;
-
-    CodeGenerator::generateDefine(out, "VARIANT_HAS_DIRECTIONAL_LIGHTING",
-            litVariants && variant.hasDirectionalLighting());
+    
     CodeGenerator::generateDefine(out, "VARIANT_HAS_DYNAMIC_LIGHTING",
             litVariants && variant.hasDynamicLighting());
     CodeGenerator::generateDefine(out, "VARIANT_HAS_SHADOWING",
@@ -289,7 +287,7 @@ void ShaderGenerator::appendShader(io::sstream& ss,
 void ShaderGenerator::generateUserSpecConstants(
         const CodeGenerator& cg, io::sstream& fs, MaterialBuilder::ConstantList const& constants) {
     // Constants 0 to CONFIG_MAX_RESERVED_SPEC_CONSTANTS - 1 are reserved by Filament.
-    size_t index = CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
+    size_t index = CONFIG_MAX_INTERNAL_SPEC_CONSTANTS;
     for (const auto& constant : constants) {
         std::string const fullName = std::string("materialConstants_") + constant.name.c_str();
         switch (constant.type) {

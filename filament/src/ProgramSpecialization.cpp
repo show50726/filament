@@ -16,6 +16,7 @@
 #include "ProgramSpecialization.h"
 
 #include <utils/Hash.h>
+#include <private/filament/EngineEnums.h>
 
 namespace filament {
 
@@ -23,7 +24,16 @@ size_t ProgramSpecialization::hash() const noexcept {
     size_t seed = 0;
     utils::hash::combine_fast(seed, materialCrc32);
     utils::hash::combine_fast(seed, variant.key);
-    utils::hash::combine_fast(seed, specializationConstants.hash());
+    utils::hash::combine_fast(seed, dynamicSpecConstKey.key);
+
+    for (size_t i = 0; i < specializationConstants.size(); ++i) {
+        if (i >= CONFIG_MAX_RESERVED_SPEC_CONSTANTS && i < CONFIG_MAX_RESERVED_SPEC_CONSTANTS + CONFIG_MAX_DYNAMIC_SPEC_CONSTANTS) {
+            continue;
+        }
+        std::visit([&seed](auto&& arg) {
+            utils::hash::combine_fast(seed, arg);
+        }, specializationConstants[i]);
+    }
     return seed;
 }
 
@@ -31,8 +41,22 @@ bool ProgramSpecialization::operator==(ProgramSpecialization const& rhs) const n
     if (this == &rhs) {
         return true;
     }
-    return materialCrc32 == rhs.materialCrc32 && variant == rhs.variant &&
-            specializationConstants == rhs.specializationConstants;
+    if (materialCrc32 != rhs.materialCrc32 || variant != rhs.variant ||
+        dynamicSpecConstKey != rhs.dynamicSpecConstKey) {
+        return false;
+    }
+    if (specializationConstants.size() != rhs.specializationConstants.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < specializationConstants.size(); ++i) {
+        if (i >= CONFIG_MAX_RESERVED_SPEC_CONSTANTS && i < CONFIG_MAX_RESERVED_SPEC_CONSTANTS + CONFIG_MAX_DYNAMIC_SPEC_CONSTANTS) {
+            continue;
+        }
+        if (specializationConstants[i] != rhs.specializationConstants[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace filament

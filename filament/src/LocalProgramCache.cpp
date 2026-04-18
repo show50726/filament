@@ -70,10 +70,10 @@ void LocalProgramCache::initializeForMaterial(FEngine& engine, FMaterial const& 
     size_t cachedProgramsSize;
     switch (material.getMaterialDomain()) {
         case filament::MaterialDomain::SURFACE:
-            cachedProgramsSize = 1 << VARIANT_BITS;
+            cachedProgramsSize = 1 << (VARIANT_BITS + DynamicSpecConstKey::USED_BITS);
             break;
         case filament::MaterialDomain::POST_PROCESS:
-            cachedProgramsSize = 1 << POST_PROCESS_VARIANT_BITS;
+            cachedProgramsSize = 1 << (POST_PROCESS_VARIANT_BITS + DynamicSpecConstKey::USED_BITS);
             break;
         case filament::MaterialDomain::COMPUTE:
             cachedProgramsSize = 1;
@@ -102,23 +102,30 @@ void LocalProgramCache::initializeForMaterialInstance(FEngine& engine, FMaterial
 }
 
 Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Variant const variant,
+        DynamicSpecConstKey const specKey,
         CompilerPriorityQueue const priorityQueue) const noexcept {
     assert_invariant(mMaterial != nullptr);
 
     FEngine& engine = mMaterial->getEngine();
+    uint16_t mappedKey = mapCacheEntryKey(variant, specKey);
+
     if (mMaterial->isSharedVariant(variant)) {
         FMaterial const* defaultMaterial = engine.getDefaultMaterial();
         assert_invariant(defaultMaterial);
         LocalProgramCache const& defaultPrograms = defaultMaterial->getPrograms();
-        Handle<HwProgram> program = defaultPrograms.mCachedPrograms[variant.key];
+        Handle<HwProgram> program = defaultPrograms.mCachedPrograms[mappedKey];
         if (program) {
-            return mCachedPrograms[variant.key] = program;
+            return mCachedPrograms[mappedKey] = program;
         }
-        return mCachedPrograms[variant.key] =
-                defaultPrograms.prepareProgram(driver, variant, priorityQueue);
+        return mCachedPrograms[mappedKey] =
+                defaultPrograms.prepareProgram(driver, variant, specKey, priorityQueue);
     }
-    return mCachedPrograms[variant.key] = mMaterial->getDefinition().prepareProgram(engine, driver,
-                   mMaterial->getMaterialParser(), getProgramSpecialization(variant), priorityQueue);
+
+    ProgramSpecialization specialization = getProgramSpecialization(variant);
+    specialization.dynamicSpecConstKey = specKey;
+
+    return mCachedPrograms[mappedKey] = mMaterial->getDefinition().prepareProgram(engine, driver,
+                   mMaterial->getMaterialParser(), specialization, priorityQueue);
 }
 
 ProgramSpecialization LocalProgramCache::getProgramSpecialization(Variant variant) const noexcept {
@@ -180,7 +187,7 @@ Program::SpecializationConstant LocalProgramCache::getConstantImpl(
     auto it = constants.find(name);
     FILAMENT_CHECK_PRECONDITION(it != constants.end()) << "Constant " << name << " does not exist";
 
-    return getConstantImpl(it->second + CONFIG_MAX_RESERVED_SPEC_CONSTANTS);
+    return getConstantImpl(it->second + CONFIG_MAX_INTERNAL_SPEC_CONSTANTS);
 }
 
 void LocalProgramCache::setConstants(
@@ -217,7 +224,7 @@ void LocalProgramCache::setConstants(
         MaterialDefinition const& definition = mMaterial->getDefinition();
         auto it = definition.specializationConstantsNameToIndex.find(name);
         if (it != definition.specializationConstantsNameToIndex.cend()) {
-            uint32_t id = it->second + CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
+            uint32_t id = it->second + CONFIG_MAX_INTERNAL_SPEC_CONSTANTS;
             if (newSpecializationConstants[id] != value) {
                 newSpecializationConstants[id] = value;
                 hasChanged = true;

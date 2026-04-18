@@ -19,12 +19,60 @@
 #include <backend/Program.h>
 
 #include <private/filament/Variant.h>
+#include <private/filament/EngineEnums.h>
+#include <array>
 
 #include <utils/FixedCapacityVector.h>
 
 #include <cstdint>
 
 namespace filament {
+
+struct DynamicSpecConstKey {
+    using type_t = uint16_t;
+
+    static constexpr size_t USED_BITS = CONFIG_NEXT_DYNAMIC_SPEC_CONSTANT - CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
+    static constexpr size_t COMBINATION_COUNT = 1 << USED_BITS;
+
+    static auto getKeys() noexcept {
+        std::array<DynamicSpecConstKey, COMBINATION_COUNT> keys;
+        for (size_t i = 0; i < COMBINATION_COUNT; ++i) {
+            keys[i] = DynamicSpecConstKey{uint16_t(i)};
+        }
+        return keys;
+    }
+
+    DynamicSpecConstKey() noexcept = default;
+    DynamicSpecConstKey(DynamicSpecConstKey const& rhs) noexcept = default;
+    DynamicSpecConstKey& operator=(DynamicSpecConstKey const& rhs) noexcept = default;
+    constexpr explicit DynamicSpecConstKey(type_t key) noexcept : key(key) { }
+
+    constexpr bool operator==(DynamicSpecConstKey rhs) const noexcept {
+        return key == rhs.key;
+    }
+
+    constexpr bool operator!=(DynamicSpecConstKey rhs) const noexcept {
+        return key != rhs.key;
+    }
+
+    constexpr DynamicSpecConstKey operator & (type_t rhs) const noexcept {
+        return DynamicSpecConstKey(key & rhs);
+    }
+
+    constexpr DynamicSpecConstKey operator | (type_t rhs) const noexcept {
+        return DynamicSpecConstKey(key | rhs);
+    }
+
+    constexpr DynamicSpecConstKey operator ~ () const noexcept {
+        return DynamicSpecConstKey(~key);
+    }
+
+    constexpr bool hasDirectionalLight() const noexcept {
+        return (key & 0x1) != 0;
+    }
+
+    type_t key = 0u;
+};
 
 // A program specialization is a collection of all properties which could yield a different compiled
 // program object.
@@ -40,6 +88,7 @@ struct ProgramSpecialization {
     // with identical shader programs.
     uint32_t materialCrc32;
     Variant variant;
+    DynamicSpecConstKey dynamicSpecConstKey;
     utils::Slice<const backend::Program::SpecializationConstant> specializationConstants;
 
     size_t hash() const noexcept;
