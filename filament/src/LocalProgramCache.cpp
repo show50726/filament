@@ -19,6 +19,7 @@
 
 #include "details/Engine.h"
 #include "details/Material.h"
+#include "private/filament/EngineEnums.h"
 
 #include <backend/DriverApiForward.h>
 
@@ -106,19 +107,25 @@ Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Varia
     assert_invariant(mMaterial != nullptr);
 
     FEngine& engine = mMaterial->getEngine();
+    Handle<HwProgram> program;
+
     if (mMaterial->isSharedVariant(variant)) {
         FMaterial const* defaultMaterial = engine.getDefaultMaterial();
         assert_invariant(defaultMaterial);
         LocalProgramCache const& defaultPrograms = defaultMaterial->getPrograms();
-        Handle<HwProgram> program = defaultPrograms.mCachedPrograms[variant.key];
-        if (program) {
-            return mCachedPrograms[variant.key] = program;
+        program = defaultPrograms.mCachedPrograms[variant.key];
+        if (!program) {
+            program = defaultPrograms.prepareProgram(driver, variant, priorityQueue);
         }
-        return mCachedPrograms[variant.key] =
-                defaultPrograms.prepareProgram(driver, variant, priorityQueue);
+    } else {
+        ProgramSpecialization specialization = getProgramSpecialization(variant);
+
+        program = mMaterial->getDefinition().prepareProgram(engine, driver,
+                mMaterial->getMaterialParser(), specialization, priorityQueue);
     }
-    return mCachedPrograms[variant.key] = mMaterial->getDefinition().prepareProgram(engine, driver,
-                   mMaterial->getMaterialParser(), getProgramSpecialization(variant), priorityQueue);
+
+    mCachedPrograms[variant.key] = program;
+    return program;
 }
 
 ProgramSpecialization LocalProgramCache::getProgramSpecialization(Variant variant) const noexcept {

@@ -130,9 +130,11 @@ void releaseProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> progra
             Handle<HwProgram>& program = programCache[variant.key];
             if constexpr (useCache) {
                 specialization.variant = variant;
-                globalProgramCache.release(specialization, [&engine](Handle<HwProgram> p) {
-                    engine.getDriverApi().destroyProgram(p);
-                });
+                if (globalProgramCache.contains(specialization)) {
+                    globalProgramCache.release(specialization, [&engine](Handle<HwProgram> p) {
+                        engine.getDriverApi().destroyProgram(p);
+                    });
+                }
             } else if (program) {
                 engine.getDriverApi().destroyProgram(program);
             }
@@ -149,9 +151,11 @@ void releaseProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> progra
             Handle<HwProgram>& program = programCache[variant.key];
             if constexpr (useCache) {
                 specialization.variant = variant;
-                globalProgramCache.release(specialization, [&engine](Handle<HwProgram> p) {
-                    engine.getDriverApi().destroyProgram(p);
-                });
+                if (globalProgramCache.contains(specialization)) {
+                    globalProgramCache.release(specialization, [&engine](Handle<HwProgram> p) {
+                        engine.getDriverApi().destroyProgram(p);
+                    });
+                }
             } else if (destroySharedVariants && program) {
                 engine.getDriverApi().destroyProgram(program);
             }
@@ -525,6 +529,10 @@ void MaterialDefinition::processSpecializationConstants(FEngine& engine) {
     specializationConstants[+ReservedSpecializationConstants::CONFIG_FROXEL_RECORD_BUFFER_HEIGHT] =
             int(Froxelizer::getFroxelRecordBufferByteCount(driver) / 16u);
 
+
+    specializationConstants[CONFIG_DYNAMIC_SPEC_CONSTANTS_START + +DynamicSpecializationConstants::CONFIG_HAS_DIR] =
+            isVariantLit || hasShadowMultiplier;
+
     // Initialize the rest of the reserved constants with a dummy value.
     for (size_t i = CONFIG_NEXT_RESERVED_SPEC_CONSTANT; i < CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
             i++) {
@@ -786,8 +794,9 @@ Program MaterialDefinition::getProgramWithVariants(FEngine const& engine,
             programDescriptorBindings[+DescriptorSetBindingPoints::PER_RENDERABLE]);
     program.descriptorBindings(+DescriptorSetBindingPoints::PER_MATERIAL,
             programDescriptorBindings[+DescriptorSetBindingPoints::PER_MATERIAL]);
-    program.specializationConstants(
-            utils::FixedCapacityVector(specialization.specializationConstants));
+    auto constants = utils::FixedCapacityVector<Program::SpecializationConstant>(specialization.specializationConstants);
+    constants[CONFIG_DYNAMIC_SPEC_CONSTANTS_START + +DynamicSpecializationConstants::CONFIG_HAS_DIR] = specialization.variant.hasDirectionalLighting();
+    program.specializationConstants(std::move(constants));
 
     program.pushConstants(ShaderStage::VERTEX, pushConstants[uint8_t(ShaderStage::VERTEX)]);
     program.pushConstants(ShaderStage::FRAGMENT, pushConstants[uint8_t(ShaderStage::FRAGMENT)]);

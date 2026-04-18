@@ -52,9 +52,7 @@ void ShaderGenerator::generateSurfaceMaterialVariantDefines(io::sstream& out,
         MaterialInfo const& material, filament::Variant const variant) noexcept {
 
     bool const litVariants = material.isLit || material.hasShadowMultiplier;
-
-    CodeGenerator::generateDefine(out, "VARIANT_HAS_DIRECTIONAL_LIGHTING",
-            litVariants && variant.hasDirectionalLighting());
+    
     CodeGenerator::generateDefine(out, "VARIANT_HAS_DYNAMIC_LIGHTING",
             litVariants && variant.hasDynamicLighting());
     CodeGenerator::generateDefine(out, "VARIANT_HAS_SHADOWING",

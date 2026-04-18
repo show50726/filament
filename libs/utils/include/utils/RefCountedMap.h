@@ -225,6 +225,10 @@ public:
         return &deref(it.value().value);
     }
 
+    bool contains(KeyRef key, size_t hash) const { return mMap.find(key, hash) != mMap.end(); }
+
+    bool contains(KeyRef key) const { return contains(key, Hash{}(key)); }
+
     template<typename F>
     inline TValue* UTILS_NULLABLE get(KeyRef key, F factory) noexcept {
         return get(key, Hash{}(key), std::move(factory));
