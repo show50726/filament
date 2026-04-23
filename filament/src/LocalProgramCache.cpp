@@ -102,29 +102,39 @@ void LocalProgramCache::initializeForMaterialInstance(FEngine& engine, FMaterial
             FixedCapacityVector<Handle<HwProgram>>(material.getPrograms().mCachedPrograms.size());
 }
 
-Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Variant const variant,
+Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Variant variant, uint32_t subKey,
         CompilerPriorityQueue const priorityQueue) const noexcept {
     assert_invariant(mMaterial != nullptr);
 
     FEngine& engine = mMaterial->getEngine();
     Handle<HwProgram> program;
 
+    Variant mappedVariant = variant;
+    if (subKey & 1u) {
+        mappedVariant.key |= 0x01; // Add DIR bit back!
+    }
+
     if (mMaterial->isSharedVariant(variant)) {
         FMaterial const* defaultMaterial = engine.getDefaultMaterial();
         assert_invariant(defaultMaterial);
         LocalProgramCache const& defaultPrograms = defaultMaterial->getPrograms();
-        program = defaultPrograms.mCachedPrograms[variant.key];
+        
+        Variant sharedVariant = variant;
+        sharedVariant.key &= ~0x01; // Clear DIR bit just in case!
+        
+        program = defaultPrograms.mCachedPrograms[sharedVariant.key];
         if (!program) {
-            program = defaultPrograms.prepareProgram(driver, variant, priorityQueue);
+            program = defaultPrograms.prepareProgram(driver, sharedVariant, 0, priorityQueue);
         }
     } else {
         ProgramSpecialization specialization = getProgramSpecialization(variant);
+        specialization.dynamicSubKey = subKey; // Use passed subKey!
 
         program = mMaterial->getDefinition().prepareProgram(engine, driver,
                 mMaterial->getMaterialParser(), specialization, priorityQueue);
     }
 
-    mCachedPrograms[variant.key] = program;
+    mCachedPrograms[mappedVariant.key] = program; // Store at mapped key!
     return program;
 }
 

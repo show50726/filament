@@ -90,6 +90,7 @@ enum class ReservedSpecializationConstants : uint8_t {
 
 enum class DynamicSpecializationConstants : uint8_t {
     CONFIG_HAS_DIR = 0,
+    COUNT
 };
 
 enum class PushConstantIds : uint8_t  {

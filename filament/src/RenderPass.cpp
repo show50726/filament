@@ -108,7 +108,8 @@ void RenderPass::DescriptorSetHandleDeleter::operator()(DescriptorSetHandle hand
 RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
         RenderPassBuilder const& builder) noexcept
         : mRenderableSoa(*builder.mRenderableSoa),
-          mColorPassDescriptorSet(builder.mColorPassDescriptorSet) {
+          mColorPassDescriptorSet(builder.mColorPassDescriptorSet),
+          mDynamicSubKey(builder.mDynamicSubKey) {
 
     // compute the number of commands we need
     updateSummedPrimitiveCounts(
@@ -217,12 +218,13 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
 
     auto work = [commandTypeFlags, curr, &soa,
                  variant, renderFlags, visibilityMask,
-                 cameraPosition, cameraForwardVector, stereoscopicEyeCount]
+                 cameraPosition, cameraForwardVector, stereoscopicEyeCount,
+                 subKey = mDynamicSubKey]
             (uint32_t const startIndex, uint32_t const indexCount) {
         generateCommands(commandTypeFlags, curr,
                 soa, { startIndex, startIndex + indexCount },
                 variant, renderFlags, visibilityMask,
-                cameraPosition, cameraForwardVector, stereoscopicEyeCount);
+                cameraPosition, cameraForwardVector, stereoscopicEyeCount, subKey);
     };
 
     if (visibleRenderables.size() <= JOBS_PARALLEL_FOR_COMMANDS_COUNT) {
@@ -243,7 +245,7 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
     // This must be done from the main thread.
     for (Command const* first = curr, *last = curr + commandCount ; first != last ; ++first) {
         if (UTILS_LIKELY((first->key & CUSTOM_MASK) == uint64_t(CustomCommand::PASS))) {
-            first->info.mi->prepareProgram(driver, first->info.materialVariant,
+            first->info.mi->prepareProgram(driver, first->info.materialVariant, first->info.dynamicSpecConstInfo,
                     CompilerPriorityQueue::CRITICAL);
         }
     }
@@ -460,7 +462,7 @@ void RenderPass::generateCommands(CommandTypeFlags commandTypeFlags, Command* co
         Variant const variant, RenderFlags const renderFlags,
         FScene::VisibleMaskType const visibilityMask,
         float3 const cameraPosition, float3 const cameraForward,
-        uint8_t instancedStereoEyeCount) noexcept {
+        uint8_t instancedStereoEyeCount, uint32_t subKey) noexcept {
 
     FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
 
@@ -493,13 +495,13 @@ void RenderPass::generateCommands(CommandTypeFlags commandTypeFlags, Command* co
             curr = generateCommandsImpl<CommandTypeFlags::COLOR>(commandTypeFlags, curr,
                     soa, range,
                     variant, renderFlags, visibilityMask, cameraPosition, cameraForward,
-                    instancedStereoEyeCount);
+                    instancedStereoEyeCount, subKey);
             break;
         case CommandTypeFlags::DEPTH:
             curr = generateCommandsImpl<CommandTypeFlags::DEPTH>(commandTypeFlags, curr,
                     soa, range,
                     variant, renderFlags, visibilityMask, cameraPosition, cameraForward,
-                    instancedStereoEyeCount);
+                    instancedStereoEyeCount, subKey);
             break;
         default:
             // we should never end-up here
@@ -522,7 +524,7 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
         Command* UTILS_RESTRICT curr,
         FScene::RenderableSoa const& UTILS_RESTRICT soa, Range<uint32_t> range,
         Variant const variant, RenderFlags renderFlags, FScene::VisibleMaskType visibilityMask,
-        float3 cameraPosition, float3 cameraForward, uint8_t instancedStereoEyeCount) noexcept {
+        float3 cameraPosition, float3 cameraForward, uint8_t instancedStereoEyeCount, uint32_t subKey) noexcept {
 
     constexpr bool isColorPass  = bool(commandTypeFlags & CommandTypeFlags::COLOR);
     constexpr bool isDepthPass  = bool(commandTypeFlags & CommandTypeFlags::DEPTH);
@@ -648,6 +650,7 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
         cmd.info.instanceCount = soaInstanceInfo[i].count;
         cmd.info.hasMorphing = bool(morphing.handle);
         cmd.info.hasSkinning = bool(skinning.handle);
+        cmd.info.dynamicSpecConstInfo = static_cast<uint8_t>(subKey);
 
         // soaInstanceInfo[i].count is the number of instances the user has requested, either for
         // manual or hybrid instancing. Instanced stereo multiplies the number of instances by the
@@ -1088,7 +1091,7 @@ void RenderPass::Executor::execute(FEngine const& engine, DriverApi& driver,
                     mi->use(driver, info.materialVariant);
                 }
 
-                pipeline.program = mi->getProgram(info.materialVariant);
+                pipeline.program = mi->getProgram(info.materialVariant, info.dynamicSpecConstInfo);
 
                 if (UTILS_UNLIKELY(memcmp(&pipeline, &currentPipeline, sizeof(PipelineState)) != 0)) {
                     currentPipeline = pipeline;

@@ -40,6 +40,7 @@ struct ProgramSpecialization {
     // with identical shader programs.
     uint32_t materialCrc32;
     Variant variant;
+    uint32_t dynamicSubKey = 0;
     utils::Slice<const backend::Program::SpecializationConstant> specializationConstants;
 
     size_t hash() const noexcept;

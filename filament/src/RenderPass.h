@@ -269,7 +269,9 @@ public:
         bool hasMorphing : 1;                               //              1 bit
         bool hasHybridInstancing : 1;                       //              1 bit
 
-        uint32_t rfu[2];                                    // 8 bytes
+        uint8_t dynamicSpecConstInfo;                       // 1 byte
+        uint8_t rfu_padding[3];                             // 3 bytes
+        uint32_t rfu[1];                                    // 4 bytes
     };
     static_assert(sizeof(PrimitiveInfo) == 56);
 
@@ -458,14 +460,14 @@ private:
             Variant variant, RenderFlags renderFlags,
             FScene::VisibleMaskType visibilityMask,
             math::float3 cameraPosition, math::float3 cameraForward,
-            uint8_t instancedStereoEyeCount) noexcept;
+            uint8_t instancedStereoEyeCount, uint32_t subKey) noexcept;
 
     template<CommandTypeFlags commandTypeFlags>
     static Command* generateCommandsImpl(CommandTypeFlags extraFlags,
             Command* curr, FScene::RenderableSoa const& soa, utils::Range<uint32_t> range,
             Variant variant, RenderFlags renderFlags, FScene::VisibleMaskType visibilityMask,
             math::float3 cameraPosition, math::float3 cameraForward,
-            uint8_t instancedStereoEyeCount) noexcept;
+            uint8_t instancedStereoEyeCount, uint32_t subKey) noexcept;
 
     static void setupColorCommand(Command& cmdDraw, Variant variant,
             FMaterialInstance const* mi, bool inverseFrontFaces, bool hasDepthClamp) noexcept;
@@ -483,6 +485,7 @@ private:
     BufferObjectSharedHandle mInstancedUboHandle; // ubo for instanced primitives
     DescriptorSetSharedHandle mInstancedDescriptorSetHandle; // a descriptor-set to hold the ubo
     bool mFinalized = false;
+    uint32_t mDynamicSubKey = 0;
 
     // a vector for our custom commands
     using CustomCommandVector = utils::FixedCapacityVector<Executor::CustomCommandFn>;
@@ -502,6 +505,7 @@ class RenderPassBuilder {
     Variant mVariant{};
     ColorPassDescriptorSet const* mColorPassDescriptorSet = nullptr;
     FScene::VisibleMaskType mVisibilityMask = std::numeric_limits<FScene::VisibleMaskType>::max();
+    uint32_t mDynamicSubKey = 0;
 
     using CustomCommandRecord = std::tuple<
             uint8_t,
@@ -542,6 +546,11 @@ public:
     //  flags controlling how commands are generated
     RenderPassBuilder& renderFlags(RenderPass::RenderFlags const flags) noexcept {
         mFlags = flags;
+        return *this;
+    }
+
+    RenderPassBuilder& dynamicSubKey(uint32_t subKey) noexcept {
+        mDynamicSubKey = subKey;
         return *this;
     }
 

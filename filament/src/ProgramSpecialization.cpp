@@ -23,6 +23,7 @@ size_t ProgramSpecialization::hash() const noexcept {
     size_t seed = 0;
     utils::hash::combine_fast(seed, materialCrc32);
     utils::hash::combine_fast(seed, variant.key);
+    utils::hash::combine_fast(seed, dynamicSubKey);
     utils::hash::combine_fast(seed, specializationConstants.hash());
     return seed;
 }
@@ -32,6 +33,7 @@ bool ProgramSpecialization::operator==(ProgramSpecialization const& rhs) const n
         return true;
     }
     return materialCrc32 == rhs.materialCrc32 && variant == rhs.variant &&
+            dynamicSubKey == rhs.dynamicSubKey &&
             specializationConstants == rhs.specializationConstants;
 }
 

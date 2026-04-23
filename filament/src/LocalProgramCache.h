@@ -61,25 +61,36 @@ public:
 
     bool isInitialized() const noexcept { return mMaterial != nullptr; }
 
+    static constexpr uint32_t NUM_DYNAMIC_COMBINATIONS = 1u << uint32_t(DynamicSpecializationConstants::COUNT);
+
     // prepareProgram creates the program for the material's given variant at the backend level.
     // Must be called outside of backend render pass.
     // Must be called before getProgram() below.
     backend::Handle<backend::HwProgram> prepareProgram(backend::DriverApi& driver,
-            Variant const variant,
+            Variant variant, uint32_t subKey,
             backend::CompilerPriorityQueue const priorityQueue) const noexcept {
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[variant.key];
+        variant = filterVariantForGetProgram(variant);
+        Variant mappedVariant = variant;
+        // if (subKey & 1u) {
+        //     mappedVariant.key |= 0x01; // Add DIR bit back!
+        // }
+        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedVariant.key];
         if (UTILS_LIKELY(program)) {
             return program;
         }
-        return prepareProgramSlow(driver, variant, priorityQueue);
+        return prepareProgramSlow(driver, variant, subKey, priorityQueue);
     }
 
     // getProgram returns the backend program for the material's given variant.
     // Must be called after prepareProgram().
     [[nodiscard]]
-    backend::Handle<backend::HwProgram> getProgram(Variant variant) const noexcept {
+    backend::Handle<backend::HwProgram> getProgram(Variant variant, uint32_t subKey) const noexcept {
         variant = filterVariantForGetProgram(variant);
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[variant.key];
+        Variant mappedVariant = variant;
+        // if (subKey & 1u) {
+        //     mappedVariant.key |= 0x01; // Add DIR bit back!
+        // }
+        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedVariant.key];
         assert_invariant(program);
         return program;
     }
@@ -128,7 +139,7 @@ private:
     void flushConstants() const;
 
     backend::Handle<backend::HwProgram> prepareProgramSlow(backend::DriverApi& driver,
-            Variant const variant,
+            Variant variant, uint32_t subKey,
             backend::CompilerPriorityQueue const priorityQueue) const noexcept;
 
     ProgramSpecialization getProgramSpecialization(Variant variant) const noexcept;
