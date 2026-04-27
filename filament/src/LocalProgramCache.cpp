@@ -109,22 +109,14 @@ Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Varia
     FEngine& engine = mMaterial->getEngine();
     Handle<HwProgram> program;
 
-    Variant mappedVariant = variant;
-    if (subKey & 1u) {
-        mappedVariant.key |= 0x01; // Add DIR bit back!
-    }
-
     if (mMaterial->isSharedVariant(variant)) {
         FMaterial const* defaultMaterial = engine.getDefaultMaterial();
         assert_invariant(defaultMaterial);
         LocalProgramCache const& defaultPrograms = defaultMaterial->getPrograms();
-        
-        Variant sharedVariant = variant;
-        sharedVariant.key &= ~0x01; // Clear DIR bit just in case!
-        
-        program = defaultPrograms.mCachedPrograms[sharedVariant.key];
+
+        program = defaultPrograms.mCachedPrograms[variant.key];
         if (!program) {
-            program = defaultPrograms.prepareProgram(driver, sharedVariant, 0, priorityQueue);
+            program = defaultPrograms.prepareProgram(driver, variant, 0, priorityQueue);
         }
     } else {
         ProgramSpecialization specialization = getProgramSpecialization(variant);
@@ -134,7 +126,7 @@ Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Varia
                 mMaterial->getMaterialParser(), specialization, priorityQueue);
     }
 
-    mCachedPrograms[mappedVariant.key] = program; // Store at mapped key!
+    mCachedPrograms[variant.key] = program; // Store at mapped key!
     return program;
 }
 

@@ -90,7 +90,7 @@ struct Variant {
 
     // when adding more bits, update FRenderer::CommandKey::draw::materialVariant as needed
     // when adding more bits, update VARIANT_COUNT
-    static constexpr type_t DIR   = 0x01; // directional light present, per frame/world position
+    //static constexpr type_t DIR   = 0x01; // directional light present, per frame/world position
     static constexpr type_t DYN   = 0x02; // point, spot or area present, per frame/world position
     static constexpr type_t SRE   = 0x04; // receives shadows, per renderable
     static constexpr type_t SKN   = 0x08; // GPU skinning and/or morphing
@@ -105,26 +105,24 @@ struct Variant {
 
     // special variants (variants that use the reserved space)
     static constexpr type_t SPECIAL_SSR_VARIANT=       S2D |       SRE            ;
-    static constexpr type_t SPECIAL_SSR_MASK   = STE | S2D | DEP | SRE | DYN | DIR;
+    static constexpr type_t SPECIAL_SSR_MASK   = STE | S2D | DEP | SRE | DYN;
 
     static constexpr type_t STANDARD_MASK      = DEP;
     static constexpr type_t STANDARD_VARIANT   = 0u;
 
     // the depth variant deactivates all variants that make no sense when writing the depth
     // only -- essentially, all fragment-only variants.
-    static constexpr type_t DEPTH_MASK         = DEP | SRE | DYN | DIR;
+    static constexpr type_t DEPTH_MASK         = DEP | SRE | DYN;
     static constexpr type_t DEPTH_VARIANT      = DEP;
 
     // this mask filters out the lighting variants
     static constexpr type_t UNLIT_MASK         = STE | SKN | FOG;
 
     // returns raw variant bits
-    bool hasDirectionalLighting() const noexcept { return key & DIR; }
     bool hasDynamicLighting() const noexcept     { return key & DYN; }
     bool hasSkinningOrMorphing() const noexcept  { return key & SKN; }
     bool hasStereo() const noexcept              { return key & STE; }
 
-    void setDirectionalLighting(bool v) noexcept { set(v, DIR); }
     void setDynamicLighting(bool v) noexcept     { set(v, DYN); }
     void setShadowReceiver(bool v) noexcept      { set(v, SRE); }
     void setSkinning(bool v) noexcept            { set(v, SKN); }
@@ -136,7 +134,7 @@ struct Variant {
 
     static constexpr bool isValidDepthVariant(Variant variant) noexcept {
         // Can't have VSM and PICKING together with DEPTH variants
-        constexpr type_t RESERVED_MASK  = MNT | PCK | DEP | SRE | DYN | DIR;
+        constexpr type_t RESERVED_MASK  = MNT | PCK | DEP | SRE | DYN;
         constexpr type_t RESERVED_VALUE = MNT | PCK | DEP;
         return ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) &&
                ((variant.key & RESERVED_MASK) != RESERVED_VALUE);
@@ -144,18 +142,19 @@ struct Variant {
 
     static constexpr bool isValidStandardVariant(Variant variant) noexcept {
         // can't have shadow receiver if we don't have any lighting
-        constexpr type_t RESERVED0_MASK  = S2D | FOG | SRE | DYN | DIR;
+        constexpr type_t RESERVED0_MASK  = S2D | FOG | SRE | DYN;
         constexpr type_t RESERVED0_VALUE = S2D | FOG | SRE;
 
         // can't have shadow receiver if we don't have any lighting
-        constexpr type_t RESERVED1_MASK  = S2D | SRE | DYN | DIR;
+        constexpr type_t RESERVED1_MASK  = S2D | SRE | DYN;
         constexpr type_t RESERVED1_VALUE = SRE;
 
         // can't have VSM without shadow receiver
         constexpr type_t RESERVED2_MASK  = S2D | SRE;
         constexpr type_t RESERVED2_VALUE = S2D;
 
-        return ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) &&
+        return !(variant.key & 0x01) &&
+                ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) &&
                ((variant.key & RESERVED0_MASK) != RESERVED0_VALUE) &&
                ((variant.key & RESERVED1_MASK) != RESERVED1_VALUE) &&
                ((variant.key & RESERVED2_MASK) != RESERVED2_VALUE);
@@ -212,7 +211,7 @@ struct Variant {
             if (isSSRVariant(variant)) {
                 variant.key &= ~SPECIAL_SSR_VARIANT;
             }
-            return variant & (STE | SKN | SRE | DYN | DIR);
+            return variant & (STE | SKN | SRE | DYN);
         }
         if ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) {
             // Only MNT, skinning, and stereo affect the vertex shader's DEPTH variant
@@ -225,7 +224,7 @@ struct Variant {
         // filter out fragment variants that are not needed. For e.g. skinning doesn't
         // affect the fragment shader.
         if ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) {
-            return variant & (S2D | FOG | SRE | DYN | DIR);
+            return variant & (S2D | FOG | SRE | DYN);
         }
         if ((variant.key & DEPTH_MASK) == DEPTH_VARIANT) {
             // Only VSM & PICKING affects the fragment shader's DEPTH variant

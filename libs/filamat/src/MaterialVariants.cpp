@@ -36,6 +36,10 @@ std::vector<Variant> determineSurfaceVariants(
             continue;
         }
 
+        if (variant.key & 0x01) {
+            continue;
+        }
+
         filament::Variant filteredVariant =
                 filament::Variant::filterUserVariant(variant, userVariantFilter);
 
@@ -61,6 +65,9 @@ std::vector<Variant> determinePostProcessVariants() {
     // TODO: add a way to filter out post-process variants (e.g., the transparent variant if only
     // opaque is needed)
     for (filament::Variant::type_t k = 0; k < filament::POST_PROCESS_VARIANT_COUNT; k++) {
+        if (k & 0x01) {
+            continue;
+        }
         filament::Variant const variant(k);
         variants.emplace_back(variant, filament::backend::ShaderStage::VERTEX);
         variants.emplace_back(variant, filament::backend::ShaderStage::FRAGMENT);

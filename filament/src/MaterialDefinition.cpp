@@ -47,6 +47,10 @@ using namespace utils;
 
 namespace {
 
+static uint16_t mapCacheEntryKey(uint8_t const variantKey, uint8_t const subKey) noexcept {
+    return variantKey & subKey;
+}
+
 template<bool useCache>
 void acquireProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> programCache,
         MaterialDefinition const& definition, MaterialParser const& parser,
@@ -67,10 +71,15 @@ void acquireProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> progra
     if constexpr (useCache) {
         for (auto variant: definition.getVariants()) {
             if (UTILS_LIKELY(definition.hasVariant(variant, shaderModel, isStereoSupported))) {
-                specialization.variant = variant;
-                Handle<HwProgram> const* program = globalProgramCache.acquire(specialization);
-                if (program) {
-                    programCache[variant.key] = *program;
+                for(int i = 0; i < 2; i++){
+                    // Filter unsupported varaiant + spec const combination
+                    specialization.variant = variant;
+                    specialization.dynamicSubKey = i;
+                    uint16_t mappedKey = mapCacheEntryKey(variant.key, i);
+                    Handle<HwProgram> const* program = globalProgramCache.acquire(specialization);
+                    if (program) {
+                        programCache[mappedKey] = *program;
+                    }
                 }
             }
         }
@@ -101,10 +110,15 @@ void acquireProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> progra
         // Don't precache depth programs, but acquire them.
         for (auto variant: definition.getDepthVariants()) {
             if (UTILS_LIKELY(definition.hasVariant(variant, shaderModel, isStereoSupported))) {
-                specialization.variant = variant;
-                Handle<HwProgram> const* program = globalProgramCache.acquire(specialization);
-                if (program) {
-                    programCache[variant.key] = *program;
+                for(int i = 0; i < 2; i++){
+                    // Filter unsupported varaiant + spec const combination
+                    specialization.variant = variant;
+                    specialization.dynamicSubKey = i;
+                    uint16_t mappedKey = mapCacheEntryKey(variant.key, i);
+                    Handle<HwProgram> const* program = globalProgramCache.acquire(specialization);
+                    if (program) {
+                        programCache[mappedKey] = *program;
+                    }
                 }
             }
         }
@@ -128,6 +142,8 @@ void releaseProgramsImpl(FEngine& engine, utils::Slice<Handle<HwProgram>> progra
     for (auto variant : definition.getVariants()) {
         if (UTILS_LIKELY(definition.hasVariant(variant, shaderModel, isStereoSupported))) {
             Handle<HwProgram>& program = programCache[variant.key];
+
+            // TODO: release for both dynamic spec const
             if constexpr (useCache) {
                 specialization.variant = variant;
                 if (globalProgramCache.contains(specialization)) {
@@ -534,7 +550,7 @@ void MaterialDefinition::processSpecializationConstants(FEngine& engine) {
             isVariantLit || hasShadowMultiplier;
 
     // Initialize the rest of the reserved constants with a dummy value.
-    for (size_t i = CONFIG_NEXT_RESERVED_SPEC_CONSTANT; i < CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
+    for (size_t i = CONFIG_DYNAMIC_SPEC_CONSTANTS_START + 1; i < CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
             i++) {
         specializationConstants[i] = 0;
     }
@@ -795,7 +811,9 @@ Program MaterialDefinition::getProgramWithVariants(FEngine const& engine,
     program.descriptorBindings(+DescriptorSetBindingPoints::PER_MATERIAL,
             programDescriptorBindings[+DescriptorSetBindingPoints::PER_MATERIAL]);
     auto constants = utils::FixedCapacityVector<Program::SpecializationConstant>(specialization.specializationConstants);
-    constants[CONFIG_DYNAMIC_SPEC_CONSTANTS_START + +DynamicSpecializationConstants::CONFIG_HAS_DIR] = specialization.variant.hasDirectionalLighting();
+    if (isVariantLit || hasShadowMultiplier) {
+        constants[CONFIG_DYNAMIC_SPEC_CONSTANTS_START + +DynamicSpecializationConstants::CONFIG_HAS_DIR] = (bool)specialization.dynamicSubKey;
+    }
     program.specializationConstants(std::move(constants));
 
     program.pushConstants(ShaderStage::VERTEX, pushConstants[uint8_t(ShaderStage::VERTEX)]);
@@ -816,6 +834,7 @@ Handle<HwProgram> MaterialDefinition::prepareProgram(FEngine& engine, DriverApi&
         return {};
     }
     if (UTILS_LIKELY(engine.features.engine.enable_program_cache && parser == *mMaterialParser)) {
+        LOG(INFO) << "specialization: " << (specialization.variant.key & 0x01);
         Handle<HwProgram>* program = engine.getMaterialCache().getProgramCache().get(specialization,
                 [this, &engine, &parser, &specialization, priorityQueue]() {
                     return compileProgram(engine, parser, specialization, priorityQueue);

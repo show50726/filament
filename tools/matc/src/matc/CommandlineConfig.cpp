@@ -207,7 +207,7 @@ static UserVariantFilterMask parseVariantFilter(const std::string& arg) {
     UserVariantFilterMask variantFilter = 0;
     while (std::getline(ss, item, ',')) {
         if (item == "directionalLighting") {
-            variantFilter |= uint32_t(UserVariantFilterBit::DIRECTIONAL_LIGHTING);
+            //variantFilter |= uint32_t(UserVariantFilterBit::DIRECTIONAL_LIGHTING);
         } else if (item == "dynamicLighting") {
             variantFilter |= uint32_t(UserVariantFilterBit::DYNAMIC_LIGHTING);
         } else if (item == "shadowReceiver") {

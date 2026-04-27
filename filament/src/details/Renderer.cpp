@@ -953,8 +953,11 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     RenderPassBuilder passBuilder(commandArena);
     passBuilder.renderFlags(renderFlags);
 
+    uint8_t subKey = 0;
+    subKey = view.hasDirectionalLighting()?1:0;
+
     Variant variant;
-    variant.setDirectionalLighting(view.hasDirectionalLighting());
+    // variant.setDirectionalLighting(view.hasDirectionalLighting());
     variant.setDynamicLighting(view.hasDynamicLighting());
     variant.setFog(view.hasFog());
     variant.setShadowSampler2D(view.hasShadowing() && view.getShadowType() != ShadowType::PCF);
@@ -1186,6 +1189,7 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     // This one doesn't need to be a FrameGraph pass because it always happens by construction
     // (i.e. it won't be culled, unless everything is culled), so no need to complexify things.
     passBuilder.variant(variant);
+    passBuilder.dynamicSubKey(subKey);
 
     // We need to specify the ColorPassDescriptorSet (which is in fact a collection of descriptor
     // sets) because the layout can change based on the material used, and that's only known

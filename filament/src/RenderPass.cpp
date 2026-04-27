@@ -147,7 +147,8 @@ RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
             builder.mVisibilityMask,
             builder.mVariant,
             builder.mCameraPosition,
-            builder.mCameraForwardVector);
+            builder.mCameraForwardVector,
+            builder.mDynamicSubKey);
 
     if (builder.mCustomCommands.has_value()) {
         mCustomCommands.reserve(customCommandCount);
@@ -191,7 +192,8 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
         FScene::VisibleMaskType const visibilityMask,
         Variant const variant,
         float3 const cameraPosition,
-        float3 const cameraForwardVector) const noexcept {
+        float3 const cameraForwardVector,
+        uint8_t const dynamicSubKey) const noexcept {
     FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
     FILAMENT_TRACING_CONTEXT(FILAMENT_TRACING_CATEGORY_FILAMENT);
 
@@ -218,13 +220,12 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
 
     auto work = [commandTypeFlags, curr, &soa,
                  variant, renderFlags, visibilityMask,
-                 cameraPosition, cameraForwardVector, stereoscopicEyeCount,
-                 subKey = mDynamicSubKey]
+                 cameraPosition, cameraForwardVector, stereoscopicEyeCount, dynamicSubKey]
             (uint32_t const startIndex, uint32_t const indexCount) {
         generateCommands(commandTypeFlags, curr,
                 soa, { startIndex, startIndex + indexCount },
                 variant, renderFlags, visibilityMask,
-                cameraPosition, cameraForwardVector, stereoscopicEyeCount, subKey);
+                cameraPosition, cameraForwardVector, stereoscopicEyeCount, dynamicSubKey);
     };
 
     if (visibleRenderables.size() <= JOBS_PARALLEL_FOR_COMMANDS_COUNT) {

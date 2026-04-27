@@ -431,7 +431,8 @@ private:
             FScene::VisibleMaskType visibilityMask,
             Variant variant,
             math::float3 cameraPosition,
-            math::float3 cameraForwardVector) const noexcept;
+            math::float3 cameraForwardVector,
+            uint8_t dynamicSubKey) const noexcept;
 
     // Appends a custom command.
     void appendCustomCommand(Command* commands,
@@ -485,7 +486,7 @@ private:
     BufferObjectSharedHandle mInstancedUboHandle; // ubo for instanced primitives
     DescriptorSetSharedHandle mInstancedDescriptorSetHandle; // a descriptor-set to hold the ubo
     bool mFinalized = false;
-    uint32_t mDynamicSubKey = 0;
+    uint8_t mDynamicSubKey;
 
     // a vector for our custom commands
     using CustomCommandVector = utils::FixedCapacityVector<Executor::CustomCommandFn>;

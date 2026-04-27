@@ -63,6 +63,10 @@ public:
 
     static constexpr uint32_t NUM_DYNAMIC_COMBINATIONS = 1u << uint32_t(DynamicSpecializationConstants::COUNT);
 
+    static uint16_t mapCacheEntryKey(uint8_t const variantKey, uint8_t const subKey) noexcept {
+        return variantKey & subKey;
+    }
+
     // prepareProgram creates the program for the material's given variant at the backend level.
     // Must be called outside of backend render pass.
     // Must be called before getProgram() below.
@@ -70,11 +74,8 @@ public:
             Variant variant, uint32_t subKey,
             backend::CompilerPriorityQueue const priorityQueue) const noexcept {
         variant = filterVariantForGetProgram(variant);
-        Variant mappedVariant = variant;
-        // if (subKey & 1u) {
-        //     mappedVariant.key |= 0x01; // Add DIR bit back!
-        // }
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedVariant.key];
+        uint16_t mappedKey = mapCacheEntryKey(variant.key, subKey);
+        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedKey];
         if (UTILS_LIKELY(program)) {
             return program;
         }
@@ -86,11 +87,8 @@ public:
     [[nodiscard]]
     backend::Handle<backend::HwProgram> getProgram(Variant variant, uint32_t subKey) const noexcept {
         variant = filterVariantForGetProgram(variant);
-        Variant mappedVariant = variant;
-        // if (subKey & 1u) {
-        //     mappedVariant.key |= 0x01; // Add DIR bit back!
-        // }
-        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedVariant.key];
+        uint16_t mappedKey = mapCacheEntryKey(variant.key, subKey);
+        backend::Handle<backend::HwProgram> program = mCachedPrograms[mappedKey];
         assert_invariant(program);
         return program;
     }

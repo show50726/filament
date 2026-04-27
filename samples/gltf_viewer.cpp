@@ -508,13 +508,13 @@ static void createOverdrawVisualizerEntities(Engine* engine, Scene* scene, App& 
 }
 
 static void onClick(App& app, View* view, ImVec2 pos) {
-    view->pick(pos.x, pos.y, [&app](View::PickingQueryResult const& result){
-        if (const char* name = app.asset->getName(result.renderable); name) {
-            app.notificationText = name;
-        } else {
-            app.notificationText.clear();
-        }
-    });
+    // view->pick(pos.x, pos.y, [&app](View::PickingQueryResult const& result){
+    //     if (const char* name = app.asset->getName(result.renderable); name) {
+    //         app.notificationText = name;
+    //     } else {
+    //         app.notificationText.clear();
+    //     }
+    // });
 }
 
 static utils::Path getPathForIBLAsset(std::string_view string) {
