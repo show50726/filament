@@ -40,6 +40,7 @@
 #include "fg/FrameGraphTexture.h"
 
 #include <private/filament/EngineEnums.h>
+#include <private/filament/DynamicSpecConstKey.h>
 #include <private/filament/Variant.h>
 
 #include <private/utils/Tracing.h>
@@ -956,6 +957,7 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     Variant variant;
     variant.setDirectionalLighting(view.hasDirectionalLighting());
     variant.setDynamicLighting(view.hasDynamicLighting());
+    DynamicSpecConstKey specKey{ view.hasDirectionalLighting() };
     variant.setFog(view.hasFog());
     variant.setShadowSampler2D(view.hasShadowing() && view.getShadowType() != ShadowType::PCF);
     variant.setStereo(view.hasStereo());
@@ -1186,6 +1188,7 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
     // This one doesn't need to be a FrameGraph pass because it always happens by construction
     // (i.e. it won't be culled, unless everything is culled), so no need to complexify things.
     passBuilder.variant(variant);
+    passBuilder.dynamicSpecConstKey(specKey);
 
     // We need to specify the ColorPassDescriptorSet (which is in fact a collection of descriptor
     // sets) because the layout can change based on the material used, and that's only known

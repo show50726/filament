@@ -121,19 +121,20 @@ Handle<HwProgram> LocalProgramCache::prepareProgramSlow(DriverApi& driver, Varia
                 defaultPrograms.prepareProgram(driver, variant, specKey, priorityQueue);
     }
 
-    ProgramSpecialization specialization = getProgramSpecialization(variant);
+    ProgramSpecialization specialization = getProgramSpecialization(variant, specKey);
     specialization.dynamicSpecConstKey = specKey;
 
     return mCachedPrograms[mappedKey] = mMaterial->getDefinition().prepareProgram(engine, driver,
                    mMaterial->getMaterialParser(), specialization, priorityQueue);
 }
 
-ProgramSpecialization LocalProgramCache::getProgramSpecialization(Variant variant) const noexcept {
+ProgramSpecialization LocalProgramCache::getProgramSpecialization(Variant variant, DynamicSpecConstKey specKey) const noexcept {
     assert_invariant(mMaterial != nullptr);
 
     return ProgramSpecialization {
         .materialCrc32 = mMaterial->getMaterialParser().getCrc32(),
         .variant = variant,
+        .dynamicSpecConstKey = specKey,
         .specializationConstants = mSpecializationConstants,
     };
 }

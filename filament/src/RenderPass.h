@@ -26,6 +26,7 @@
 
 #include "private/filament/Variant.h"
 #include "private/filament/EngineEnums.h"
+#include <private/filament/DynamicSpecConstKey.h>
 
 #include <backend/DriverApiForward.h>
 #include <backend/DriverEnums.h>
@@ -269,7 +270,9 @@ public:
         bool hasMorphing : 1;                               //              1 bit
         bool hasHybridInstancing : 1;                       //              1 bit
 
-        uint32_t rfu[2];                                    // 8 bytes
+        DynamicSpecConstKey dynamicSpecConstKey;             // 2 bytes
+        uint16_t rfu_padding;                               // 2 bytes
+        uint32_t rfu[1];                                    // 4 bytes
     };
     static_assert(sizeof(PrimitiveInfo) == 56);
 
@@ -429,7 +432,8 @@ private:
             FScene::VisibleMaskType visibilityMask,
             Variant variant,
             math::float3 cameraPosition,
-            math::float3 cameraForwardVector) const noexcept;
+            math::float3 cameraForwardVector,
+            DynamicSpecConstKey specKey) const noexcept;
 
     // Appends a custom command.
     void appendCustomCommand(Command* commands,
@@ -458,17 +462,20 @@ private:
             Variant variant, RenderFlags renderFlags,
             FScene::VisibleMaskType visibilityMask,
             math::float3 cameraPosition, math::float3 cameraForward,
-            uint8_t instancedStereoEyeCount) noexcept;
+            uint8_t instancedStereoEyeCount,
+            DynamicSpecConstKey specKey) noexcept;
 
     template<CommandTypeFlags commandTypeFlags>
     static Command* generateCommandsImpl(CommandTypeFlags extraFlags,
             Command* curr, FScene::RenderableSoa const& soa, utils::Range<uint32_t> range,
             Variant variant, RenderFlags renderFlags, FScene::VisibleMaskType visibilityMask,
             math::float3 cameraPosition, math::float3 cameraForward,
-            uint8_t instancedStereoEyeCount) noexcept;
+            uint8_t instancedStereoEyeCount,
+            DynamicSpecConstKey specKey) noexcept;
 
     static void setupColorCommand(Command& cmdDraw, Variant variant,
-            FMaterialInstance const* mi, bool inverseFrontFaces, bool hasDepthClamp) noexcept;
+            FMaterialInstance const* mi, bool inverseFrontFaces, bool hasDepthClamp,
+            DynamicSpecConstKey specKey) noexcept;
 
     static void updateSummedPrimitiveCounts(
             FScene::RenderableSoa& renderableData, utils::Range<uint32_t> vr) noexcept;
@@ -500,6 +507,7 @@ class RenderPassBuilder {
     math::float3 mCameraForwardVector{};
     RenderPass::RenderFlags mFlags{};
     Variant mVariant{};
+    DynamicSpecConstKey mDynamicSpecConstKey{};
     ColorPassDescriptorSet const* mColorPassDescriptorSet = nullptr;
     FScene::VisibleMaskType mVisibilityMask = std::numeric_limits<FScene::VisibleMaskType>::max();
 
@@ -542,6 +550,11 @@ public:
     //  flags controlling how commands are generated
     RenderPassBuilder& renderFlags(RenderPass::RenderFlags const flags) noexcept {
         mFlags = flags;
+        return *this;
+    }
+
+    RenderPassBuilder& dynamicSpecConstKey(DynamicSpecConstKey const key) noexcept {
+        mDynamicSpecConstKey = key;
         return *this;
     }
 

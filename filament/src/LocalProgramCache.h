@@ -23,6 +23,7 @@
 #include <backend/Handle.h>
 
 #include <private/filament/Variant.h>
+#include <private/filament/DynamicSpecConstKey.h>
 
 #include <backend/DriverEnums.h>
 #include <backend/DriverApiForward.h>
@@ -143,7 +144,7 @@ private:
         DynamicSpecConstKey const specKey,
         backend::CompilerPriorityQueue const priorityQueue) const noexcept;
 
-    ProgramSpecialization getProgramSpecialization(Variant variant) const noexcept;
+    ProgramSpecialization getProgramSpecialization(Variant variant, DynamicSpecConstKey specKey) const noexcept;
 
     Variant filterVariantForGetProgram(Variant const variant) const noexcept;
 
