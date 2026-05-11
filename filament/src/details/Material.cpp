@@ -15,6 +15,7 @@
  */
 
 #include "details/Material.h"
+#include "DynamicSpecConstKey.h"
 #include "details/Engine.h"
 
 #include "Froxelizer.h"
@@ -264,7 +265,9 @@ void FMaterial::compile(CompilerPriorityQueue const priority,
     if (UTILS_LIKELY(isParallelShaderCompileSupported)) {
         for (auto const variant : variants) {
             if (mDefinition.hasVariant(variant, shaderModel, isStereoSupported)) {
-                mi->prepareProgram(driver, variant, priority);
+              for (auto const specKey : DynamicSpecConstKey::getKeys()) {
+                mi->prepareProgram(driver, variant, specKey, priority);
+              }
             }
         }
     }
@@ -373,6 +376,7 @@ size_t FMaterial::getParameters(ParameterInfo* parameters, size_t count) const n
 
 #if FILAMENT_ENABLE_MATDBG
 
+// TODO: Make sure matdbg works
 void FMaterial::updateActiveProgramsForMatdbg(Variant const variant) const noexcept {
     assert_invariant((size_t)variant.key < VARIANT_COUNT);
     std::unique_lock lock(mActiveProgramsLock);
@@ -483,7 +487,7 @@ FixedCapacityVector<Program::SpecializationConstant> FMaterial::processSpecializ
                         << types[value.index()] << " was provided.";
                 break;
         }
-        uint32_t const index = pos->second + CONFIG_MAX_RESERVED_SPEC_CONSTANTS;
+        uint32_t const index = pos->second + CONFIG_MAX_INTERNAL_SPEC_CONSTANTS;
         specializationConstants[index] = value;
     }
     return specializationConstants;

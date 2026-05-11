@@ -106,7 +106,7 @@ highp vec3 getNormalizedViewportCoord() {
     return vec3(logicalUv, gl_FragCoord.z);
 }
 
-#if defined(VARIANT_HAS_SHADOWING) && defined(VARIANT_HAS_DYNAMIC_LIGHTING)
+#if defined(VARIANT_HAS_SHADOWING)
 highp vec4 getSpotLightSpacePosition(int index, highp vec3 dir, highp float zLight) {
     highp mat4 lightFromWorldMatrix = shadowUniforms.shadows[index].lightFromWorldMatrix;
 
@@ -124,7 +124,7 @@ bool isDoubleSided() {
 }
 #endif
 
-#if defined(VARIANT_HAS_SHADOWING) && defined(VARIANT_HAS_DIRECTIONAL_LIGHTING)
+#if defined(VARIANT_HAS_SHADOWING)
 
 /**
  * Returns the cascade index for this fragment (between 0 and CONFIG_MAX_SHADOW_CASCADES - 1).

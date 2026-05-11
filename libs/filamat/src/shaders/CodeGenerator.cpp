@@ -18,6 +18,7 @@
 
 #include "MaterialInfo.h"
 #include "../PushConstantDefinitions.h"
+#include <private/filament/Variant.h>
 
 #include "generated/shaders.h"
 
@@ -271,8 +272,8 @@ utils::io::sstream& CodeGenerator::generateCommonProlog(utils::io::sstream& out,
         // CONFIG_MAX_INSTANCES is only needed for WebGL, so we can replace it with a constant.
         // More information at https://github.com/gpuweb/gpuweb/issues/572#issuecomment-649760005
         out << "const int CONFIG_MAX_INSTANCES = " << (int)CONFIG_MAX_INSTANCES << ";\n";
-        out << "const int CONFIG_FROXEL_BUFFER_HEIGHT = 2048;\n";
-        out << "const int CONFIG_FROXEL_RECORD_BUFFER_HEIGHT = 16384;\n";
+        out << "const int CONFIG_FROXEL_BUFFER_HEIGHT = 1024;\n";
+        out << "const int CONFIG_FROXEL_RECORD_BUFFER_HEIGHT = 1024;\n";
     } else {
         generateSpecializationConstant(out, "CONFIG_MAX_INSTANCES",
                 +ReservedSpecializationConstants::CONFIG_MAX_INSTANCES, (int)CONFIG_MAX_INSTANCES);
@@ -320,6 +321,17 @@ utils::io::sstream& CodeGenerator::generateCommonProlog(utils::io::sstream& out,
         // when it's not supported.
         generateSpecializationConstant(out, "CONFIG_SRGB_SWAPCHAIN_EMULATION",
                 +ReservedSpecializationConstants::CONFIG_SRGB_SWAPCHAIN_EMULATION, false);
+    }
+
+    bool const isDepthVariant = filament::Variant::isValidDepthVariant(v);
+    if (isDepthVariant) {
+        out << "const bool CONFIG_HAS_DYNAMIC_LIGHTING = false;\n";
+    } else {
+        bool const litVariants = material.isLit || material.hasShadowMultiplier;
+        generateSpecializationConstant(out, "CONFIG_HAS_DYNAMIC_LIGHTING",
+                CONFIG_MAX_RESERVED_SPEC_CONSTANTS +
+                        +DynamicSpecializationConstants::CONFIG_HAS_DYNAMIC_LIGHTING,
+                litVariants);
     }
 
     out << '\n';
@@ -1104,10 +1116,8 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage sta
         if (variant.hasDirectionalLighting()) {
             out << SHADERS_SURFACE_LIGHT_DIRECTIONAL_FS_DATA;
         }
-        if (variant.hasDynamicLighting()) {
-            out << SHADERS_SURFACE_LIGHT_PUNCTUAL_FS_DATA;
-        }
 
+        out << SHADERS_SURFACE_LIGHT_PUNCTUAL_FS_DATA;
         out << SHADERS_SURFACE_SHADING_LIT_FS_DATA;
     }
     return out;
