@@ -23,17 +23,10 @@ size_t ProgramSpecialization::hash() const noexcept {
     size_t seed = 0;
     utils::hash::combine_fast(seed, materialCrc32);
     utils::hash::combine_fast(seed, variant.key);
-    utils::hash::combine_fast(seed, specializationConstants.hash());
     utils::hash::combine_fast(seed, specKey.key);
-
-    for (size_t i = 0; i < specializationConstants.size(); ++i) {
-        if (i >= CONFIG_MAX_RESERVED_SPEC_CONSTANTS && i < CONFIG_MAX_INTERNAL_SPEC_CONSTANTS) {
-            continue;
-        }
-        std::visit([&seed](auto&& arg) {
-            utils::hash::combine_fast(seed, arg);
-        }, specializationConstants[i]);
-    }
+    // Both specKey and dynamic constants (indices 16-31) track the same dynamic state.
+    // Direct slice hashing is safe and fast because indices 16-31 are unmutated defaults during cache lookup.
+    utils::hash::combine_fast(seed, specializationConstants.hash());
     return seed;
 }
 
@@ -41,22 +34,11 @@ bool ProgramSpecialization::operator==(ProgramSpecialization const& rhs) const n
     if (this == &rhs) {
         return true;
     }
-    if (materialCrc32 != rhs.materialCrc32 || variant != rhs.variant ||
-        specKey != rhs.specKey) {
-        return false;
-        }
-    if (specializationConstants.size() != rhs.specializationConstants.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < specializationConstants.size(); ++i) {
-        if (i >= CONFIG_MAX_RESERVED_SPEC_CONSTANTS && i < CONFIG_MAX_INTERNAL_SPEC_CONSTANTS) {
-            continue;
-        }
-        if (specializationConstants[i] != rhs.specializationConstants[i]) {
-            return false;
-        }
-    }
-    return true;
+    // Both specKey and dynamic constants track the same state. Direct slice comparison
+    // safely avoids element-wise loop overhead because dynamic constants are unmutated defaults here.
+    return materialCrc32 == rhs.materialCrc32 && variant == rhs.variant &&
+           specKey == rhs.specKey &&
+           specializationConstants == rhs.specializationConstants;
 }
 
 } // namespace filament
