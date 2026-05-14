@@ -94,7 +94,7 @@ void main() {
     fragColor.rgb = fragColor.rgb * (1.0 - fogColor.a) + fogColor.rgb;
 #endif
 
-#if defined(VARIANT_HAS_SHADOWING) && defined(VARIANT_HAS_DIRECTIONAL_LIGHTING)
+#if defined(VARIANT_HAS_SHADOWING) || defined(MATERIAL_HAS_LIGHTING)
     if (CONFIG_DEBUG_DIRECTIONAL_SHADOWMAP) {
         float a = fragColor.a;
         highp vec4 p = getShadowPosition(getShadowCascade());

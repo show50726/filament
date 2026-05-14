@@ -55,6 +55,8 @@ void ShaderGenerator::generateSurfaceMaterialVariantDefines(io::sstream& out,
 
     CodeGenerator::generateDefine(out, "VARIANT_HAS_DIRECTIONAL_LIGHTING",
             litVariants && variant.hasDirectionalLighting());
+    CodeGenerator::generateDefine(out, "MATERIAL_HAS_LIGHTING",
+            hasLighting(material, variant));
     CodeGenerator::generateDefine(out, "VARIANT_HAS_SHADOWING",
             litVariants && filament::Variant::isShadowReceiverVariant(variant));
     CodeGenerator::generateDefine(out, "VARIANT_HAS_VSM",
@@ -465,8 +467,7 @@ std::string ShaderGenerator::createSurfaceVertexProgram(ShaderModel const shader
             +PerRenderableBindingPoints::OBJECT_UNIFORMS,
             UibGenerator::getPerRenderableUib());
 
-    const bool litVariants = material.isLit || material.hasShadowMultiplier;
-    if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
+    if (hasLighting(material, variant)) {
         cg.generateUniforms(vs, ShaderStage::FRAGMENT,
                 DescriptorSetBindingPoints::PER_VIEW,
                 +PerViewBindingPoints::SHADOWS,
@@ -573,17 +574,14 @@ std::string ShaderGenerator::createSurfaceFragmentProgram(ShaderModel const shad
             +PerRenderableBindingPoints::OBJECT_UNIFORMS,
             UibGenerator::getPerRenderableUib());
 
-    if (!filament::Variant::isValidDepthVariant(variant)) {
+    if (hasLighting(material, variant)) {
         cg.generateUniforms(fs, ShaderStage::FRAGMENT, DescriptorSetBindingPoints::PER_VIEW,
                 +PerViewBindingPoints::LIGHTS, UibGenerator::getLightsUib());
 
-        bool const litVariants = material.isLit || material.hasShadowMultiplier;
-        if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
-            cg.generateUniforms(fs, ShaderStage::FRAGMENT,
-                    DescriptorSetBindingPoints::PER_VIEW,
-                    +PerViewBindingPoints::SHADOWS,
-                    UibGenerator::getShadowUib());
-        }
+        cg.generateUniforms(fs, ShaderStage::FRAGMENT,
+                DescriptorSetBindingPoints::PER_VIEW,
+                +PerViewBindingPoints::SHADOWS,
+                UibGenerator::getShadowUib());
 
         cg.generateUniforms(fs, ShaderStage::FRAGMENT, DescriptorSetBindingPoints::PER_VIEW,
                 +PerViewBindingPoints::RECORD_BUFFER, UibGenerator::getFroxelRecordUib());
@@ -661,7 +659,7 @@ std::string ShaderGenerator::createSurfaceFragmentProgram(ShaderModel const shad
                 CodeGenerator::generateSurfaceReflections(fs, ShaderStage::FRAGMENT);
             } else {
                 CodeGenerator::generateSurfaceLit(fs, ShaderStage::FRAGMENT, variant,
-                        material.shading,material.hasCustomSurfaceShading);
+                        material.shading, material.hasCustomSurfaceShading);
             }
         } else {
             CodeGenerator::generateSurfaceUnlit(fs, ShaderStage::FRAGMENT, variant,
@@ -845,6 +843,13 @@ bool ShaderGenerator::hasStereo(
             // HACK(exv): Ignore stereo variant when targeting ESSL 1.0. We should properly build a
             // system in matc which allows the set of included variants to differ per-feature level.
             && featureLevel > MaterialBuilder::FeatureLevel::FEATURE_LEVEL_0;
+}
+
+bool ShaderGenerator::hasLighting(
+        MaterialInfo const& material, filament::Variant const variant) noexcept {
+    return (material.isLit || material.hasShadowMultiplier)
+            && !filament::Variant::isSSRVariant(variant)
+            && !filament::Variant::isValidDepthVariant(variant);
 }
 
 } // namespace filament

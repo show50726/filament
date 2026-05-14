@@ -1081,7 +1081,7 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage sta
         filament::Variant variant, Shading shading, bool customSurfaceShading) {
     if (stage == ShaderStage::FRAGMENT) {
         out << SHADERS_SURFACE_LIGHTING_FS_DATA;
-        if (filament::Variant::isShadowReceiverVariant(variant)) {
+        if (!filament::Variant::isSSRVariant(variant)) {
             out << SHADERS_SURFACE_SHADOWING_FS_DATA;
         }
 
@@ -1112,11 +1112,7 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage sta
 
         out << SHADERS_SURFACE_AMBIENT_OCCLUSION_FS_DATA;
         out << SHADERS_SURFACE_LIGHT_INDIRECT_FS_DATA;
-
-        if (variant.hasDirectionalLighting()) {
-            out << SHADERS_SURFACE_LIGHT_DIRECTIONAL_FS_DATA;
-        }
-
+        out << SHADERS_SURFACE_LIGHT_DIRECTIONAL_FS_DATA;
         out << SHADERS_SURFACE_LIGHT_PUNCTUAL_FS_DATA;
         out << SHADERS_SURFACE_SHADING_LIT_FS_DATA;
     }
@@ -1126,10 +1122,8 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage sta
 io::sstream& CodeGenerator::generateSurfaceUnlit(io::sstream& out, ShaderStage stage,
         filament::Variant variant, bool hasShadowMultiplier) {
     if (stage == ShaderStage::FRAGMENT) {
-        if (hasShadowMultiplier) {
-            if (filament::Variant::isShadowReceiverVariant(variant)) {
-                out << SHADERS_SURFACE_SHADOWING_FS_DATA;
-            }
+        if (hasShadowMultiplier && !filament::Variant::isSSRVariant(variant)) {
+            out << SHADERS_SURFACE_SHADOWING_FS_DATA;
         }
         out << SHADERS_SURFACE_SHADING_UNLIT_FS_DATA;
     }

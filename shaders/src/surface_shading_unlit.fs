@@ -38,8 +38,8 @@ vec4 fixupAlpha(vec4 color) {
 vec4 evaluateMaterial(const MaterialInputs material) {
     vec4 color = material.baseColor;
 
-#if defined(VARIANT_HAS_DIRECTIONAL_LIGHTING)
-#if defined(VARIANT_HAS_SHADOWING)
+#if defined(MATERIAL_HAS_LIGHTING)
+#if defined(VARIANT_HAS_SHADOWING) || defined(MATERIAL_HAS_LIGHTING)
     float visibility = 1.0;
     int cascade = getShadowCascade();
     bool cascadeHasVisibleShadows = bool(frameUniforms.cascades & ((1 << cascade) << 8));

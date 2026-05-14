@@ -1,4 +1,4 @@
-#if defined(VARIANT_HAS_SHADOWING)
+#if defined(VARIANT_HAS_SHADOWING) || defined(MATERIAL_HAS_LIGHTING)
 // Adreno drivers seem to ignore precision qualifiers in structs, unless they're used in
 // UBOs, which is the case here.
 struct ShadowData {

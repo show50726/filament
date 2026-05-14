@@ -156,7 +156,7 @@ Light getLight(const uint lightIndex) {
     light.contactShadows = bool(typeShadow & 0x10u);
     if (CONFIG_HAS_DYNAMIC_LIGHTING) {
         light.lightType = (typeShadow & 0x1u);
-#if defined(VARIANT_HAS_SHADOWING)
+#if defined(VARIANT_HAS_SHADOWING) || defined(MATERIAL_HAS_LIGHTING)
         light.shadowIndex = int((typeShadow >>  8u) & 0xFFu);
         light.castsShadows   = bool(channels & 0x10000u);
         if (light.lightType == LIGHT_TYPE_SPOT) {
@@ -207,7 +207,7 @@ void evaluatePunctualLights(const MaterialInputs material,
 #endif
 
         float visibility = 1.0;
-#if defined(VARIANT_HAS_SHADOWING)
+#if defined(VARIANT_HAS_SHADOWING) || defined(MATERIAL_HAS_LIGHTING)
         if (light.NoL > 0.0) {
             if (light.castsShadows) {
                 int shadowIndex = light.shadowIndex;

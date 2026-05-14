@@ -133,6 +133,9 @@ private:
             filament::Variant variant,
             MaterialBuilder::FeatureLevel featureLevel) noexcept;
 
+    static bool hasLighting(
+            MaterialInfo const& material, filament::Variant const variant) noexcept;
+
     MaterialBuilder::PropertyList mProperties;
     MaterialBuilder::VariableList mVariables;
     MaterialBuilder::OutputList mOutputs;

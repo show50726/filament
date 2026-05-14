@@ -289,7 +289,7 @@ vec4 evaluateLights(const MaterialInputs material) {
     // it also saves 1 shader variant
     evaluateIBL(material, pixel, color);
 
-#if defined(VARIANT_HAS_DIRECTIONAL_LIGHTING)
+#if defined(MATERIAL_HAS_LIGHTING)
     evaluateDirectionalLight(material, pixel, color);
 #endif
 
