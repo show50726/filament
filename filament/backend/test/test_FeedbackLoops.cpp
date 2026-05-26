@@ -33,7 +33,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
 #include <imageio/ImageEncoder.h>
 #include <image/ColorTransform.h>
 
@@ -102,9 +102,9 @@ TEST_F(BackendTest, FeedbackLoops) {
     SKIP_IF(SkipEnvironment(OperatingSystem::APPLE, Backend::OPENGL),
             "OpenGL image is upside down due to readPixels failing for texture with uploaded image "
             "data");
-    SKIP_IF(SkipEnvironment(OperatingSystem::APPLE, Backend::WEBGPU),
-            "OpenGL image is upside down due to readPixels failing for texture with uploaded image "
-            "data");
+    // SKIP_IF(SkipEnvironment(OperatingSystem::APPLE, Backend::WEBGPU),
+    //         "OpenGL image is upside down due to readPixels failing for texture with uploaded image "
+    //         "data");
     SKIP_IF(SkipEnvironment(OperatingSystem::CI, Backend::OPENGL), "b/453756688");
     SKIP_IF(Backend::VULKAN, "Image is unexpectedly darker, see b/453776546");
 

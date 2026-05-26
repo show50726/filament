@@ -600,6 +600,8 @@ function build_android {
                     -Pcom.google.android.filament.dist-dir=../out/android-debug/filament \
                    -Pcom.google.android.filament.tools-dir=${root_dir}/out/debug/filament \
                     -Pcom.google.android.filament.abis=${ABI_GRADLE_OPTION} \
+                    ${VULKAN_ANDROID_GRADLE_OPTION} \
+                    ${WEBGPU_ANDROID_GRADLE_OPTION} \
                     ${MATOPT_GRADLE_OPTION} \
                     :samples:${sample}:assembleDebug
             done
@@ -655,6 +657,8 @@ function build_android {
                     -Pcom.google.android.filament.dist-dir=../out/android-release/filament \
                     -Pcom.google.android.filament.tools-dir=${root_dir}/out/release/filament \
                     -Pcom.google.android.filament.abis=${ABI_GRADLE_OPTION} \
+                    ${VULKAN_ANDROID_GRADLE_OPTION} \
+                    ${WEBGPU_ANDROID_GRADLE_OPTION} \
                     ${MATOPT_GRADLE_OPTION} \
                     :samples:${sample}:assembleRelease
             done

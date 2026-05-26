@@ -576,7 +576,7 @@ endif()
 if (FILAMENT_BUILD_TESTING)
     option(INSTALL_BACKEND_TEST "Install the backend test library so it can be consumed on iOS" OFF)
 
-    if (APPLE OR LINUX)
+    if (APPLE OR LINUX OR ANDROID)
         set(BACKEND_TEST_SRC
             test/BackendTest.cpp
             test/ShaderGenerator.cpp
@@ -611,6 +611,7 @@ if (FILAMENT_BUILD_TESTING)
             test/test_Template.cpp
             test/test_AsyncUploads.cpp
             test/test_Platform.cpp
+            test/benchmark_UpdateImage.cpp
         )
         if (FILAMENT_SUPPORTS_WEBGPU)
             list(APPEND BACKEND_TEST_SRC
@@ -627,10 +628,13 @@ if (FILAMENT_BUILD_TESTING)
             absl::str_format
             backend
             gtest
-            imageio
+            benchmark
             filamat
             SPIRV
             spirv-cross-glsl)
+        if (NOT ANDROID)
+            list(APPEND BACKEND_TEST_LIBS imageio)
+        endif()
         # Create input/output directories for test result images.
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/images/actual_images)
         file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/images/diff_images)
@@ -700,6 +704,15 @@ if (FILAMENT_BUILD_TESTING)
         set_target_properties(backend_test_linux PROPERTIES FOLDER Tests)
         if (FILAMENT_SUPPORTS_WEBGPU)
             target_link_libraries(backend_test_linux PRIVATE webgpu_dawn dawncpp_headers)
+        endif()
+    endif()
+
+    if (ANDROID)
+        add_executable(backend_test_android test/android_runner.cpp ${BACKEND_TEST_SRC})
+        target_link_libraries(backend_test_android PRIVATE ${BACKEND_TEST_LIBS})
+        set_target_properties(backend_test_android PROPERTIES FOLDER Tests)
+        if (FILAMENT_SUPPORTS_WEBGPU)
+            target_link_libraries(backend_test_android PRIVATE webgpu_dawn dawncpp_headers)
         endif()
     endif()
 

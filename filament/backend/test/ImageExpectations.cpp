@@ -25,7 +25,7 @@
 #include "backend/PixelBufferDescriptor.h"
 #include "private/backend/DriverApi.h"
 
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
 
 #include <imageio/ImageEncoder.h>
 #include <imageio/ImageDecoder.h>
@@ -138,7 +138,7 @@ void ImageExpectation::compareImage() const {
     EXPECT_THAT(bytesFilled, testing::IsTrue())
                         << "Render target wasn't copied to the buffer for " << mFileName;
     if (bytesFilled) {
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
         LoadedPng loadedImage(mParams.expectedFilePath());
         if (loadedImage.bytes().size() != mResult.bytes().size()) {
             // Something is wrong with the size of the expected result, which usually means the file
@@ -220,7 +220,7 @@ RenderTargetDump::RenderTargetDump(filament::backend::DriverApi& api,
     auto cb = [](void* buffer, size_t size, void* user) {
         auto* internal = static_cast<RenderTargetDump::Internal*>(user);
         internal->bytesFilled = true;
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
         image::LinearImage image;
         if (internal->params.isSrgb()) {
             image = image::toLinearWithAlpha<uint8_t>(internal->params.width(),
@@ -280,7 +280,7 @@ bool RenderTargetDump::bytesFilled() const {
 RenderTargetDump::Internal::Internal(const ScreenshotParams& params) : params(params) {}
 
 LoadedPng::LoadedPng(std::string filePath) : mFilePath(std::move(filePath)) {
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
     std::ifstream pngStream(mFilePath, std::ios::binary);
     image::LinearImage loadedImage = image::ImageDecoder::decode(pngStream, filePath,
             image::ImageDecoder::ColorSpace::LINEAR);

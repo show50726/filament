@@ -15,6 +15,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <benchmark/benchmark.h>
 
 #include <private/backend/PlatformFactory.h>
 
@@ -34,8 +35,7 @@ using namespace filament;
 using namespace filament::backend;
 using namespace filament::math;
 
-#ifndef FILAMENT_IOS
-#include <imageio/ImageEncoder.h>
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
 #include <image/ColorTransform.h>
 
 using namespace image;
@@ -215,11 +215,14 @@ void initTests(Backend backend, OperatingSystem operatingSystem, bool isMobile, 
         char* argv[]) {
     BackendTest::init(backend, operatingSystem, isMobile, argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
+    ::benchmark::Initialize(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new Environment);
 }
 
 int runTests() {
-    return RUN_ALL_TESTS();
+    int gtestResult = RUN_ALL_TESTS();
+    ::benchmark::RunSpecifiedBenchmarks();
+    return gtestResult;
 }
 
 } // namespace test

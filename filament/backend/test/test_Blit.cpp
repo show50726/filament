@@ -29,7 +29,7 @@
 
 #include <fstream>
 
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
 
 #include <imageio/ImageEncoder.h>
 #include <image/ColorTransform.h>

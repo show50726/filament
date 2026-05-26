@@ -34,7 +34,7 @@
 using namespace filament;
 using namespace filament::backend;
 
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
 
 #include <imageio/ImageEncoder.h>
 #include <image/ColorTransform.h>
@@ -145,7 +145,7 @@ TEST_F(ReadPixelsTest, ReadPixels) {
         }
 
         void exportScreenshot(void* pixelData) const {
-#ifndef FILAMENT_IOS
+#if !defined(FILAMENT_IOS) && !defined(__ANDROID__)
             const size_t width = readRect.width, height = readRect.height;
             LinearImage image(width, height, 4);
             if (format == PixelDataFormat::RGBA && type == PixelDataType::UBYTE) {

@@ -1174,7 +1174,7 @@ void WebGPUDriver::update3DImage(Handle<HwTexture> textureHandle, const uint32_t
     if (doBlit) {
         const wgpu::TextureDescriptor stagingTextureDescriptor{
             .label = "blit_staging_input_texture",
-            .usage = texture->getTexture().GetUsage(),
+            .usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding,
             .dimension = texture->getTexture().GetDimension(),
             .size = extent,
             .format = inputPixelFormat,
@@ -1193,6 +1193,22 @@ void WebGPUDriver::update3DImage(Handle<HwTexture> textureHandle, const uint32_t
             .aspect = texture->getAspect(),
         };
         mDevice.GetQueue().WriteTexture(&copyInfo, dataBuff, dataSize, &layout, &extent);
+
+        const wgpu::TextureDescriptor stagingTargetDescriptor{
+            .label = "blit_staging_output_texture",
+            .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc,
+            .dimension = texture->getTexture().GetDimension(),
+            .size = extent,
+            .format = outputLinearFormat,
+            .mipLevelCount = 1,
+            .sampleCount = texture->getTexture().GetSampleCount(),
+            .viewFormatCount = 0,
+            .viewFormats = nullptr,
+        };
+        const wgpu::Texture stagingTarget{ mDevice.CreateTexture(&stagingTargetDescriptor) };
+        FILAMENT_CHECK_POSTCONDITION(stagingTarget)
+                << "Failed to create staging output texture for blit?";
+
         auto commandEncoder = mQueueManager.getCommandEncoder();
         WebGPUBlitter::BlitArgs blitArgs{
             .source = {
@@ -1202,18 +1218,32 @@ void WebGPUDriver::update3DImage(Handle<HwTexture> textureHandle, const uint32_t
                 .mipLevel = 0,
             },
             .destination = {
-                .texture = texture->getTexture(),
-                .origin = {.x=xoffset,.y=yoffset},
+                .texture = stagingTarget,
+                .origin = { .x = 0, .y = 0 },
                 .extent = {.width = width, .height = height},
-                .mipLevel = level,
+                .mipLevel = 0,
             },
             .filter = SamplerMagFilter::NEAREST,
         };
         for (uint32_t layerIndex{ 0 }; layerIndex < depth; ++layerIndex) {
             blitArgs.source.layerOrDepth = layerIndex;
-            blitArgs.destination.layerOrDepth = layerIndex + zoffset;
+            blitArgs.destination.layerOrDepth = layerIndex;
             mBlitter.blit(mDevice.GetQueue(), commandEncoder, blitArgs);
         }
+
+        const wgpu::TexelCopyTextureInfo copySrc{
+            .texture = stagingTarget,
+            .mipLevel = 0,
+            .origin = { .x = 0, .y = 0, .z = 0 },
+            .aspect = texture->getAspect(),
+        };
+        const wgpu::TexelCopyTextureInfo copyDst{
+            .texture = texture->getTexture(),
+            .mipLevel = level,
+            .origin = { .x = xoffset, .y = yoffset, .z = zoffset },
+            .aspect = texture->getAspect(),
+        };
+        commandEncoder.CopyTextureToTexture(&copySrc, &copyDst, &extent);
     } else {
         // Direct copy without a blit.
         const auto copyInfo { wgpu::TexelCopyTextureInfo{
