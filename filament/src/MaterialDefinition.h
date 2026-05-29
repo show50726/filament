@@ -93,6 +93,9 @@ struct MaterialDefinition {
     bool hasVariant(Variant const variant,
             backend::ShaderModel const sm, bool isStereoSupported) const noexcept;
 
+    bool isValidProgram(Variant const variant, DynamicSpecConstKey const specKey,
+            backend::ShaderModel const sm, bool isStereoSupported) const noexcept;
+
     backend::DescriptorSetLayout const& getPerViewDescriptorSetLayoutDescription(
             Variant const variant, bool useS2dDescriptorSetLayout) const noexcept;
 

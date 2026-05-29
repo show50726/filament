@@ -264,8 +264,8 @@ void FMaterial::compile(CompilerPriorityQueue const priority,
 
     if (UTILS_LIKELY(isParallelShaderCompileSupported)) {
         for (auto const variant : variants) {
-            if (mDefinition.hasVariant(variant, shaderModel, isStereoSupported)) {
-                for (auto const specKey : DynamicSpecConstKey::getAllPossibleKeys()) {
+            for (auto const specKey : DynamicSpecConstKey::getAllPossibleKeys()) {
+                if (mDefinition.isValidProgram(variant, specKey, shaderModel, isStereoSupported)) {
                     mi->prepareProgram(driver, variant, specKey, priority);
                 }
             }
