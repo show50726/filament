@@ -528,6 +528,11 @@ struct AmbientOcclusionOptions {
          * Caution: Changing this option at runtime is very expensive as it may trigger a shader re-compilation.
          */
         bool linearThickness = false;
+
+        // 0 -> linear
+        // 0.5 -> hybrid
+        // 1 -> quadric
+        int distributionType = 0;
     };
     Gtao gtao;                           // %codegen_skip_javascript% %codegen_java_flatten%
 };

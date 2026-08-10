@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "../PlatformHelper.h"
 #include <filamentapp/FilamentApp2.h>
 #include <filamentapp/NativeWindowHelper.h>
 #include <filamentapp/SDLDisplayManager.h>
@@ -27,8 +28,8 @@
 namespace filament::app {
 
 SDLDisplayManager::SDLDisplayManager(filament::Engine::Backend backend)
-        : mBackend(backend) {
-    FILAMENT_CHECK_PRECONDITION(init());
+    : mBackend(resolveBackend(backend)) {
+  FILAMENT_CHECK_PRECONDITION(init());
 }
 
 SDLDisplayManager::~SDLDisplayManager() {}

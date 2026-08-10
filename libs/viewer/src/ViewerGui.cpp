@@ -892,6 +892,8 @@ void ViewerGui::updateUserInterface() {
                     ImGui::SliderFloat("Constant Thickness", &ssao.gtao.constThickness, 0.01f, 10.0f);
                     ImGui::Checkbox("Linear Thickness", &ssao.gtao.linearThickness);
                 }
+                ImGui::SliderInt("Sample Distrib Type",
+                                 &ssao.gtao.distributionType, 0, 2);
 
                 ssao.gtao.sampleSliceCount = static_cast<uint8_t>(sliceCount);
                 ssao.gtao.sampleStepsPerSlice = static_cast<uint8_t>(stepsPerSlice);

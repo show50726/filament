@@ -134,6 +134,10 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
     // The distance we want to move forward for each step
     float stepRadius = ssRadius / (materialParams.stepsPerSlice + 1.0);
 
+    float kRadialWarp = materialParams.distributionType == 0 ? 0.0 : materialParams.distributionType == 1 ? 0.5 : 1.0;
+    float maxSampleIndex = max(materialParams.stepsPerSlice - 1.0 + initialRayStep, 1.0);
+    float maxSampleRadius = maxSampleIndex * stepRadius;
+
     float visibility = 0.0;
     for (float i = 0.0; i < materialParams.sliceCount.x; i += 1.0) {
         float slice = (i + noiseDirection) * materialParams.sliceCount.y;
@@ -168,7 +172,13 @@ void groundTruthAmbientOcclusion(out float obscurance, out vec3 bentNormal,
 
         for (float j = 0.0; j < materialParams.stepsPerSlice; j += 1.0) {
             // At least move 1 pixel forward in the screen-space
-            vec2 sampleOffset = max((j + initialRayStep)*stepRadius, 1.0 + j) * omega;
+            float sampleIndex = j + initialRayStep;
+            float t = sampleIndex / maxSampleIndex;
+
+            float warpedT = mix(t, t*t, kRadialWarp);
+            float radialDistance = warpedT * maxSampleRadius;
+            vec2 sampleOffset = max(radialDistance, 1.0 + j) * omega;
+
             float sampleOffsetLength = length(sampleOffset);
 
             float level = clamp(floor(log2(sampleOffsetLength)) - kLog2LodRate, 0.0, float(materialParams.maxLevel));

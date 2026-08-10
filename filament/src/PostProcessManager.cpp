@@ -1058,6 +1058,8 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                         mi->setParameter("intensity", options.intensity);
                         mi->setParameter("thicknessHeuristic", options.gtao.thicknessHeuristic);
                         mi->setParameter("constThickness", options.gtao.constThickness);
+                        mi->setParameter("distributionType",
+                                         options.gtao.distributionType);
 
                         break;
                     }

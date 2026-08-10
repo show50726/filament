@@ -1610,14 +1610,15 @@ void FRenderer::renderJob(DriverApi& driver, RootArenaScope& rootArenaScope, FVi
         }
     }
 
-    if (UTILS_UNLIKELY(engine.debug.shadowmap.display_shadow_texture)) {
-        auto shadowmap = blackboard.get<FrameGraphTexture>("shadowmap");
-        input = ppm.debugDisplayShadowTexture(fg, input, shadowmap,
-                engine.debug.shadowmap.display_shadow_texture_scale,
-                engine.debug.shadowmap.display_shadow_texture_layer,
-                engine.debug.shadowmap.display_shadow_texture_level,
-                engine.debug.shadowmap.display_shadow_texture_channel,
-                engine.debug.shadowmap.display_shadow_texture_power);
+    if (true) {
+        auto shadowmap = blackboard.get<FrameGraphTexture>("ssao");
+        input = ppm.debugDisplayShadowTexture(
+            fg, input, shadowmap,
+            engine.debug.shadowmap.display_shadow_texture_scale * 4,
+            engine.debug.shadowmap.display_shadow_texture_layer,
+            engine.debug.shadowmap.display_shadow_texture_level,
+            engine.debug.shadowmap.display_shadow_texture_channel,
+            engine.debug.shadowmap.display_shadow_texture_power);
     }
 
 //    auto debug = structure
