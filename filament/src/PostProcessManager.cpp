@@ -1060,6 +1060,8 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::screenSpaceAmbientOcclusion(
                         mi->setParameter("constThickness", options.gtao.constThickness);
                         mi->setParameter("distributionType",
                                          options.gtao.distributionType);
+                        mi->setParameter("traceFullCross",
+                                options.gtao.traceFullCross ? 1 : 0);
 
                         break;
                     }

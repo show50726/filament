@@ -894,6 +894,8 @@ void ViewerGui::updateUserInterface() {
                 }
                 ImGui::SliderInt("Sample Distrib Type",
                                  &ssao.gtao.distributionType, 0, 2);
+                ImGui::Checkbox("Trace Full Cross (Even Slices)",
+                        &ssao.gtao.traceFullCross);
 
                 ssao.gtao.sampleSliceCount = static_cast<uint8_t>(sliceCount);
                 ssao.gtao.sampleStepsPerSlice = static_cast<uint8_t>(stepsPerSlice);

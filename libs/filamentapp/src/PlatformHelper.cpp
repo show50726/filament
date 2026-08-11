@@ -45,6 +45,8 @@ filament::Engine::Backend resolveBackend(filament::Engine::Backend backend) {
         backend = Engine::Backend::VULKAN;
 #elif defined(FILAMENT_DRIVER_SUPPORTS_WEBGPU)
         backend = Engine::Backend::WEBGPU;
+#else
+        backend = Engine::Backend::OPENGL;
 #endif
     }
     return backend;

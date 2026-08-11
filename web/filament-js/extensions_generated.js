@@ -116,6 +116,8 @@ Filament.loadGeneratedExtensions = function() {
             useVisibilityBitmasks: false,
             constThickness: 0.5,
             linearThickness: false,
+            distributionType: 0,
+            traceFullCross: false,
         };
         return Object.assign(options, overrides);
     };

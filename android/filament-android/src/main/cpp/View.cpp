@@ -340,6 +340,24 @@ Java_com_google_android_filament_View_nSetSSCTOptions(JNIEnv *, jclass, jlong na
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_View_nSetGTAOOptions(JNIEnv*, jclass, jlong nativeView,
+        jint sampleSliceCount, jint sampleStepsPerSlice, jfloat thicknessHeuristic,
+        jboolean useVisibilityBitmasks, jfloat constThickness, jboolean linearThickness,
+        jint distributionType, jboolean traceFullCross) {
+    View* view = (View*) nativeView;
+    View::AmbientOcclusionOptions options = view->getAmbientOcclusionOptions();
+    options.gtao.sampleSliceCount = (uint8_t) sampleSliceCount;
+    options.gtao.sampleStepsPerSlice = (uint8_t) sampleStepsPerSlice;
+    options.gtao.thicknessHeuristic = thicknessHeuristic;
+    options.gtao.useVisibilityBitmasks = (bool) useVisibilityBitmasks;
+    options.gtao.constThickness = constThickness;
+    options.gtao.linearThickness = (bool) linearThickness;
+    options.gtao.distributionType = distributionType;
+    options.gtao.traceFullCross = (bool) traceFullCross;
+    view->setAmbientOcclusionOptions(options);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_View_nSetBloomOptions(JNIEnv*, jclass,
         jlong nativeView, jlong nativeTexture,
         jfloat dirtStrength, jfloat strength, jint resolution, jint levels,

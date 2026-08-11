@@ -1901,6 +1901,9 @@ export interface View$AmbientOcclusionOptions$Gtao {
      * Caution: Changing this option at runtime is very expensive as it may trigger a shader re-compilation.
      */
     linearThickness?: boolean;
+    distributionType?: number;
+    /** Traces two perpendicular slices together when the slice count is even. */
+    traceFullCross?: boolean;
 }
 
 /**

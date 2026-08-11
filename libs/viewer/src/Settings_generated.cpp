@@ -635,6 +635,10 @@ int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, AmbientOcclusio
             i = parse(tokens, i + 1, jsonChunk, &out->constThickness);
         } else if (compare(tok, jsonChunk, "linearThickness") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->linearThickness);
+        } else if (compare(tok, jsonChunk, "distributionType") == 0) {
+            i = parse(tokens, i + 1, jsonChunk, &out->distributionType);
+        } else if (compare(tok, jsonChunk, "traceFullCross") == 0) {
+            i = parse(tokens, i + 1, jsonChunk, &out->traceFullCross);
         } else {
             slog.w << "Invalid Gtao key: '" << STR(tok, jsonChunk) << "'" << io::endl;
             i = parse(tokens, i + 1);
@@ -654,7 +658,9 @@ std::ostream& operator<<(std::ostream& out, const AmbientOcclusionOptions::Gtao&
         << "\"thicknessHeuristic\": " << (in.thicknessHeuristic) << ",\n"
         << "\"useVisibilityBitmasks\": " << to_string(in.useVisibilityBitmasks) << ",\n"
         << "\"constThickness\": " << (in.constThickness) << ",\n"
-        << "\"linearThickness\": " << to_string(in.linearThickness) << "\n"
+        << "\"linearThickness\": " << to_string(in.linearThickness) << ",\n"
+        << "\"distributionType\": " << (in.distributionType) << ",\n"
+        << "\"traceFullCross\": " << to_string(in.traceFullCross) << "\n"
         << "}";
 }
 

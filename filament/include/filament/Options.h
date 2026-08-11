@@ -533,6 +533,9 @@ struct AmbientOcclusionOptions {
         // 0.5 -> hybrid
         // 1 -> quadric
         int distributionType = 0;
+
+        /** Traces two perpendicular slices together when the slice count is even. */
+        bool traceFullCross = false;
     };
     Gtao gtao;                           // %codegen_skip_javascript% %codegen_java_flatten%
 };

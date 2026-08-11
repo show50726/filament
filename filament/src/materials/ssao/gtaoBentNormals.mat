@@ -105,6 +105,11 @@ material {
             type : int,
             name : distributionType,
             default : 0
+        },
+        {
+            type : int,
+            name : traceFullCross,
+            default : 0
         }
     ],
     constants : [

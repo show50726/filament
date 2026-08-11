@@ -102,6 +102,8 @@ value_object<View::AmbientOcclusionOptions::Gtao>("View$AmbientOcclusionOptions$
     .field("useVisibilityBitmasks", &View::AmbientOcclusionOptions::Gtao::useVisibilityBitmasks)
     .field("constThickness", &View::AmbientOcclusionOptions::Gtao::constThickness)
     .field("linearThickness", &View::AmbientOcclusionOptions::Gtao::linearThickness)
+    .field("distributionType", &View::AmbientOcclusionOptions::Gtao::distributionType)
+    .field("traceFullCross", &View::AmbientOcclusionOptions::Gtao::traceFullCross)
     ;
 
 value_object<View::AmbientOcclusionOptions>("View$AmbientOcclusionOptions")
