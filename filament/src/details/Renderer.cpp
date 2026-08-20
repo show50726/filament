@@ -1199,8 +1199,13 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // screen-space reflections pass
 
     if (ssReflectionsOptions.enabled) {
+        auto ssrStructure = structure;
+        if (ssReflectionsOptions.tracingMode ==
+                ScreenSpaceReflectionsOptions::TracingMode::HIERARCHICAL) {
+            ssrStructure = ppm.generateHiZ(fg, structure);
+        }
         auto reflections = ppm.ssr(fg, passBuilder,
-                view.getFrameHistory(), structure,
+                view.getFrameHistory(), ssrStructure,
                 { .width = svp.width, .height = svp.height });
 
         if (UTILS_LIKELY(reflections)) {

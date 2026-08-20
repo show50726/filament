@@ -1,0 +1,54 @@
+material {
+    name : hizDepth,
+    parameters : [
+        {
+            type : sampler2d,
+            name : depth,
+            precision : high,
+            filterable : false
+        },
+        {
+            type : bool,
+            name : copy
+        }
+    ],
+    outputs : [
+        {
+            name : depth,
+            target : depth,
+            type : float
+        }
+    ],
+    domain : postprocess,
+    depthWrite : true,
+    depthCulling : false,
+    culling : none
+}
+
+fragment {
+    void postProcess(inout PostProcessInputs postProcess) {
+        highp ivec2 coord = ivec2(gl_FragCoord.xy);
+        if (materialParams.copy) {
+            postProcess.depth = texelFetch(materialParams_depth, coord, 0).r;
+            return;
+        }
+
+        highp ivec2 sourceSize = textureSize(materialParams_depth, 0);
+        highp ivec2 destinationSize = max(sourceSize / 2, ivec2(1));
+        highp ivec2 begin = coord * sourceSize / destinationSize;
+        highp ivec2 end = (coord + 1) * sourceSize / destinationSize;
+
+        highp float nearestDepth = 0.0;
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                highp ivec2 source = begin + ivec2(x, y);
+                if (all(lessThan(source, end))) {
+                    // Filament uses reversed-Z, so max() preserves the nearest surface.
+                    nearestDepth = max(nearestDepth,
+                            texelFetch(materialParams_depth, source, 0).r);
+                }
+            }
+        }
+        postProcess.depth = nearestDepth;
+    }
+}

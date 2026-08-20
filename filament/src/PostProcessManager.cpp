@@ -677,6 +677,90 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
     return { depth, structurePass->picking };
 }
 
+FrameGraphId<FrameGraphTexture> PostProcessManager::generateHiZ(FrameGraph& fg,
+        FrameGraphId<FrameGraphTexture> const structure) noexcept {
+    auto const& structureDesc = fg.getDescriptor(structure);
+    uint8_t const levelCount = uint8_t(std::min<size_t>(8,
+            FTexture::maxLevelCount(structureDesc.width, structureDesc.height)));
+
+    struct HiZCopyPassData {
+        FrameGraphId<FrameGraphTexture> structure;
+        FrameGraphId<FrameGraphTexture> hiz;
+    };
+
+    auto const& copyPass = fg.addPass<HiZCopyPassData>("SSR HiZ Copy",
+            [&](FrameGraph::Builder& builder, auto& data) {
+                data.structure = builder.sample(structure);
+                data.hiz = builder.createTexture("SSR HiZ", {
+                        .width = structureDesc.width,
+                        .height = structureDesc.height,
+                        .levels = levelCount,
+                        .format = structureDesc.format,
+                });
+                auto base = builder.createSubresource(data.hiz, "SSR HiZ base", {
+                        .level = 0,
+                });
+                base = builder.write(base, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
+                builder.declareRenderPass("SSR HiZ Copy Target", {
+                        .attachments = { .depth = base },
+                });
+            },
+            [this](FrameGraphResources const& resources, auto const& data,
+                    DriverApi& driver) {
+                auto& material = getPostProcessMaterial("hizDepth");
+                FMaterial const* const ma = material.getMaterial(mEngine);
+                FMaterialInstance* const mi = getMaterialInstance(driver, ma);
+                mi->setParameter("depth", resources.getTexture(data.structure), SamplerParams{
+                        .filterMin = SamplerMinFilter::NEAREST,
+                });
+                mi->setParameter("copy", true);
+                commitAndRenderFullScreenQuad(driver, resources.getRenderPassInfo(), mi);
+                unbindAllDescriptorSets(driver);
+            });
+
+    struct HiZMipmapPassData {
+        FrameGraphId<FrameGraphTexture> hiz;
+    };
+
+    auto const& mipmapPass = fg.addPass<HiZMipmapPassData>("SSR HiZ Mipmap",
+            [&](FrameGraph::Builder& builder, auto& data) {
+                data.hiz = builder.sample(copyPass->hiz);
+                for (uint8_t level = 1; level < levelCount; level++) {
+                    auto out = builder.createSubresource(data.hiz, "SSR HiZ mip", {
+                            .level = level,
+                    });
+                    out = builder.write(out, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
+                    builder.declareRenderPass("SSR HiZ mip target", {
+                            .attachments = { .depth = out },
+                    });
+                }
+            },
+            [=, this](FrameGraphResources const& resources, auto const& data,
+                    DriverApi& driver) {
+                auto const hiz = resources.getTexture(data.hiz);
+                auto& material = getPostProcessMaterial("hizDepth");
+                FMaterial const* const ma = material.getMaterial(mEngine);
+                FMaterialInstance* const mi = getMaterialInstance(driver, ma);
+                mi->setParameter("copy", false);
+                auto const pipeline = getPipelineState(mi);
+
+                for (uint8_t level = 0; level < levelCount - 1; level++) {
+                    auto const source = driver.createTextureView(hiz, level, 1);
+                    mi->setParameter("depth", source, SamplerParams{
+                            .filterMin = SamplerMinFilter::NEAREST,
+                    });
+                    mi->commit(driver, getUboManager());
+                    mi->use(driver);
+                    renderFullScreenQuad(resources.getRenderPassInfo(level), pipeline, driver);
+                    DescriptorSet::unbind(driver, DescriptorSetBindingPoints::PER_MATERIAL);
+                    driver.destroyTexture(source);
+                }
+                unbindAllDescriptorSets(driver);
+            });
+
+    return mipmapPass->hiz;
+}
+
 FrameGraphId<FrameGraphTexture> PostProcessManager::transparentPicking(FrameGraph& fg,
         RenderPassBuilder const& passBuilder, uint8_t const structureRenderFlags,
         uint32_t width, uint32_t height, float const scale) noexcept {

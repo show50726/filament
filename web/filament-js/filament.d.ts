@@ -2038,6 +2038,17 @@ export interface View$TemporalAntiAliasingOptions {
 }
 
 /**
+ * Screen-space ray tracing algorithm. This can be changed at runtime.
+ * HIERARCHICAL builds and traverses a conservative Hi-Z pyramid each frame.
+ */
+export enum View$ScreenSpaceReflectionsOptions$TracingMode {
+    LINEAR, // /** use the original linear screen-space ray marching algorithm */
+
+    HIERARCHICAL, // /** use conservative hierarchical-Z screen-space ray marching */
+
+}
+
+/**
  * Options for Screen-space Reflections.
  * @see #setScreenSpaceReflectionsOptions
  */
@@ -2048,8 +2059,10 @@ export interface View$ScreenSpaceReflectionsOptions {
     bias?: number;
     /** maximum distance, in world units, to raycast */
     maxDistance?: number;
-    /** stride, in texels, for samples along the ray. */
+    /** stride, in texels, for linear ray samples; ignored in HIERARCHICAL mode. */
     stride?: number;
+    /** screen-space ray tracing algorithm */
+    tracingMode?: View$ScreenSpaceReflectionsOptions$TracingMode;
     enabled?: boolean;
 }
 

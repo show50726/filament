@@ -152,6 +152,7 @@ value_object<View::ScreenSpaceReflectionsOptions>("View$ScreenSpaceReflectionsOp
     .field("bias", &View::ScreenSpaceReflectionsOptions::bias)
     .field("maxDistance", &View::ScreenSpaceReflectionsOptions::maxDistance)
     .field("stride", &View::ScreenSpaceReflectionsOptions::stride)
+    .field("tracingMode", &View::ScreenSpaceReflectionsOptions::tracingMode)
     .field("enabled", &View::ScreenSpaceReflectionsOptions::enabled)
     ;
 

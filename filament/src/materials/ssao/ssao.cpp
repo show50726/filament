@@ -30,6 +30,7 @@ namespace filament {
 static const StaticMaterialInfo sMaterialList[] = {
     { "bilateralBlur",              MATERIAL(SSAO, BILATERALBLUR) },
     { "bilateralBlurBentNormals",   MATERIAL(SSAO, BILATERALBLURBENTNORMALS) },
+    { "hizDepth",                   MATERIAL(SSAO, HIZDEPTH) },
     { "mipmapDepth",                MATERIAL(SSAO, MIPMAPDEPTH) },
     { "sao",                        MATERIAL(SSAO, SAO) },
     { "saoBentNormals",             MATERIAL(SSAO, SAOBENTNORMALS) },

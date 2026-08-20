@@ -888,6 +888,23 @@ std::ostream& operator<<(std::ostream& out, const TemporalAntiAliasingOptions& i
         << "}";
 }
 
+int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceReflectionsOptions::TracingMode* out) {
+    if (0 == compare(tokens[i], jsonChunk, "LINEAR")) { *out = ScreenSpaceReflectionsOptions::TracingMode::LINEAR; }
+    else if (0 == compare(tokens[i], jsonChunk, "HIERARCHICAL")) { *out = ScreenSpaceReflectionsOptions::TracingMode::HIERARCHICAL; }
+    else {
+        slog.w << "Invalid ScreenSpaceReflectionsOptions::TracingMode: '" << STR(tokens[i], jsonChunk) << "'" << io::endl;
+    }
+    return i + 1;
+}
+
+std::ostream& operator<<(std::ostream& out, ScreenSpaceReflectionsOptions::TracingMode in) {
+    switch (in) {
+        case ScreenSpaceReflectionsOptions::TracingMode::LINEAR: return out << "\"LINEAR\"";
+        case ScreenSpaceReflectionsOptions::TracingMode::HIERARCHICAL: return out << "\"HIERARCHICAL\"";
+    }
+    return out << "\"INVALID\"";
+}
+
 int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceReflectionsOptions* out) {
     CHECK_TOKTYPE(tokens[i], JSMN_OBJECT);
     int size = tokens[i++].size;
@@ -902,6 +919,8 @@ int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceRefl
             i = parse(tokens, i + 1, jsonChunk, &out->maxDistance);
         } else if (compare(tok, jsonChunk, "stride") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->stride);
+        } else if (compare(tok, jsonChunk, "tracingMode") == 0) {
+            i = parse(tokens, i + 1, jsonChunk, &out->tracingMode);
         } else if (compare(tok, jsonChunk, "enabled") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->enabled);
         } else {
@@ -922,6 +941,7 @@ std::ostream& operator<<(std::ostream& out, const ScreenSpaceReflectionsOptions&
         << "\"bias\": " << (in.bias) << ",\n"
         << "\"maxDistance\": " << (in.maxDistance) << ",\n"
         << "\"stride\": " << (in.stride) << ",\n"
+        << "\"tracingMode\": " << (in.tracingMode) << ",\n"
         << "\"enabled\": " << to_string(in.enabled) << "\n"
         << "}";
 }

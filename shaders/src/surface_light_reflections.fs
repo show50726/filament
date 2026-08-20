@@ -57,7 +57,7 @@ highp float distanceSquared(highp vec2 a, highp vec2 b) {
 
 // Note: McGuire and Mara use the "cs" prefix to stand for "camera space", equivalent to Filament's
 // "view space". "cs" has been replaced with "vs" to avoid confusion.
-bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection,
+bool traceScreenSpaceRayLinear(const highp vec3 vsOrigin, const highp vec3 vsDirection,
         highp_mat4 uvFromViewMatrix, const highp sampler2D vsZBuffer,
         const float vsZThickness, const highp float nearPlaneZ, const float stride,
         const float jitterFraction, const highp float maxSteps, const float maxRayTraceDistance,
@@ -180,6 +180,135 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
 }
 
 // -- end "BSD 2-clause license" -------------------------------------------------------------------
+
+bool traceScreenSpaceRayHierarchical(const highp vec3 vsOrigin, const highp vec3 vsDirection,
+        highp_mat4 uvFromViewMatrix, const highp sampler2D vsZBuffer,
+        const float vsZThickness, const highp float nearPlaneZ, const float jitterFraction,
+        const highp float maxSteps, const float maxRayTraceDistance,
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint) {
+    highp float rayLength = ((vsOrigin.z + vsDirection.z * maxRayTraceDistance) > nearPlaneZ) ?
+            (nearPlaneZ - vsOrigin.z) / vsDirection.z : maxRayTraceDistance;
+    highp vec3 vsEndPoint = vsDirection * rayLength + vsOrigin;
+
+    highp vec4 H0 = mulMat4x4Float3(uvFromViewMatrix, vsOrigin);
+    highp vec4 H1 = mulMat4x4Float3(uvFromViewMatrix, vsEndPoint);
+    highp float k0 = 1.0 / H0.w;
+    highp float k1 = 1.0 / H1.w;
+    highp vec3 Q0 = vsOrigin * k0;
+    highp vec3 Q1 = vsEndPoint * k1;
+    highp vec2 P0 = H0.xy * k0;
+    highp vec2 P1 = H1.xy * k1;
+
+    hitPixel = vec2(-1.0);
+    P1 += vec2((distanceSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
+
+    highp vec2 delta = P1 - P0;
+    bool permute = false;
+    if (abs(delta.x) < abs(delta.y)) {
+        permute = true;
+        delta = delta.yx;
+        P1 = P1.yx;
+        P0 = P0.yx;
+    }
+
+    float stepDirection = sign(delta.x);
+    highp float invdx = stepDirection / delta.x;
+    highp vec2 dP = vec2(stepDirection, invdx * delta.y);
+    highp vec3 dQ = (Q1 - Q0) * invdx;
+    highp float dk = (k1 - k0) * invdx;
+
+    P0 += dP * jitterFraction;
+    Q0 += dQ * jitterFraction;
+    k0 += dk * jitterFraction;
+
+    highp vec2 P = P0;
+    highp vec3 Q = Q0;
+    highp float k = k0;
+    highp float end = P1.x * stepDirection;
+
+    highp vec2 resolution = vec2(textureSize(vsZBuffer, 0));
+    int maxMip = min(7, int(floor(log2(max(resolution.x, resolution.y)))));
+    int mip = min(2, maxMip);
+    highp float iterationLimit = maxSteps * float(maxMip + 2);
+
+    for (highp float iteration = 0.0;
+            iteration < iterationLimit && P.x * stepDirection <= end;
+            iteration += 1.0) {
+        highp vec2 pixel = permute ? P.yx : P;
+        highp vec2 pixelStep = permute ? dP.yx : dP;
+        highp vec2 samplePixel = pixel + sign(pixelStep) * 0.01;
+        if (any(lessThan(samplePixel, vec2(0.0))) ||
+                any(greaterThanEqual(samplePixel, resolution))) {
+            break;
+        }
+
+        highp ivec2 levelSize = textureSize(vsZBuffer, mip);
+        highp ivec2 cell = ivec2(floor(samplePixel * vec2(levelSize) / resolution));
+        cell = clamp(cell, ivec2(0), levelSize - 1);
+
+        highp vec2 cellMin = vec2(cell) * resolution / vec2(levelSize);
+        highp vec2 cellMax = vec2(cell + 1) * resolution / vec2(levelSize);
+        highp vec2 boundary = mix(cellMin, cellMax, greaterThan(pixelStep, vec2(0.0)));
+        highp float tx = abs(pixelStep.x) > 0.00001 ?
+                (boundary.x - pixel.x) / pixelStep.x : 1e20;
+        highp float ty = abs(pixelStep.y) > 0.00001 ?
+                (boundary.y - pixel.y) / pixelStep.y : 1e20;
+        highp float advance = max(min(tx, ty) + 0.01, 0.01);
+        highp float remaining = max((P1.x - P.x) / dP.x, 0.0);
+        advance = min(advance, remaining);
+        if (advance <= 0.0) {
+            break;
+        }
+
+        highp vec3 nextQ = Q + dQ * advance;
+        highp float nextK = k + dk * advance;
+        highp float rayZ0 = Q.z / k;
+        highp float rayZ1 = nextQ.z / nextK;
+        highp float rayZMin = min(rayZ0, rayZ1);
+        highp float rayZMax = max(rayZ0, rayZ1);
+        highp float sceneZMax = linearizeDepth(texelFetch(vsZBuffer, cell, mip).r);
+
+        if (mip > 0 && rayZMin <= sceneZMax) {
+            mip--;
+            continue;
+        }
+
+        if (mip == 0 && rayZMax >= sceneZMax - vsZThickness && rayZMin <= sceneZMax) {
+            highp float rayZDelta = rayZ1 - rayZ0;
+            highp float hitFraction = abs(rayZDelta) > 0.00001 ?
+                    saturate((sceneZMax - rayZ0) / rayZDelta) : 0.0;
+            highp vec3 hitQ = mix(Q, nextQ, hitFraction);
+            highp float hitK = mix(k, nextK, hitFraction);
+            vsHitPoint = hitQ * (1.0 / hitK);
+            highp vec2 nextPixel = pixel + pixelStep * advance;
+            hitPixel = mix(pixel, nextPixel, hitFraction);
+            return true;
+        }
+
+        P += dP * advance;
+        Q = nextQ;
+        k = nextK;
+        mip = min(mip + 1, maxMip);
+    }
+
+    vsHitPoint = Q * (1.0 / k);
+    return false;
+}
+
+bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection,
+        highp_mat4 uvFromViewMatrix, const highp sampler2D vsZBuffer,
+        const float vsZThickness, const highp float nearPlaneZ, const float stride,
+        const float jitterFraction, const highp float maxSteps, const float maxRayTraceDistance,
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint) {
+    if (frameUniforms.ssrTracingMode == 1u) {
+        return traceScreenSpaceRayHierarchical(vsOrigin, vsDirection, uvFromViewMatrix, vsZBuffer,
+                vsZThickness, nearPlaneZ, jitterFraction, maxSteps, maxRayTraceDistance,
+                hitPixel, vsHitPoint);
+    }
+    return traceScreenSpaceRayLinear(vsOrigin, vsDirection, uvFromViewMatrix, vsZBuffer,
+            vsZThickness, nearPlaneZ, stride, jitterFraction, maxSteps, maxRayTraceDistance,
+            hitPixel, vsHitPoint);
+}
 
 highp mat4 scaleMatrix(const highp float x, const highp float y) {
     mat4 m = mat4(1.0);

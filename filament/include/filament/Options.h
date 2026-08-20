@@ -637,14 +637,27 @@ struct TemporalAntiAliasingOptions {
  * @see #setScreenSpaceReflectionsOptions
  */
 struct ScreenSpaceReflectionsOptions {
+    /**
+     * Screen-space ray tracing algorithm. This can be changed at runtime.
+     * HIERARCHICAL builds and traverses a conservative Hi-Z pyramid each frame.
+     */
+    enum class TracingMode : uint8_t {
+        /** use the original linear screen-space ray marching algorithm */
+        LINEAR = 0,
+        /** use conservative hierarchical-Z screen-space ray marching */
+        HIERARCHICAL = 1,
+    };
+
     /** ray thickness, in world units */
     float thickness = 0.1f;
     /** bias, in world units, to prevent self-intersections */
     float bias = 0.01f;
     /** maximum distance, in world units, to raycast */
     float maxDistance = 3.0f;
-    /** stride, in texels, for samples along the ray. */
+    /** stride, in texels, for linear ray samples; ignored in HIERARCHICAL mode. */
     float stride = 2.0f;
+    /** screen-space ray tracing algorithm */
+    TracingMode tracingMode = TracingMode::LINEAR;
     bool enabled = false;
 };
 

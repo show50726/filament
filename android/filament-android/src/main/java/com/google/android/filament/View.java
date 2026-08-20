@@ -566,7 +566,7 @@ public class View {
     public void setScreenSpaceReflectionsOptions(@NonNull ScreenSpaceReflectionsOptions options) {
         mScreenSpaceReflectionsOptions = options;
         nSetScreenSpaceReflectionsOptions(getNativeObject(), options.thickness, options.bias,
-                options.maxDistance, options.stride, options.enabled);
+                options.maxDistance, options.stride, options.tracingMode.ordinal(), options.enabled);
     }
 
     /**
@@ -1443,7 +1443,7 @@ public class View {
             boolean nativeResolution, int foregroundRingCount, int backgroundRingCount, int fastGatherRingCount, int maxForegroundCOC, int maxBackgroundCOC);
     private static native void nSetVignetteOptions(long nativeView, float midPoint, float roundness, float feather, float r, float g, float b, float a, boolean enabled);
     private static native void nSetTemporalAntiAliasingOptions(long nativeView, float feedback, float filterWidth, boolean enabled);
-    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, boolean enabled);
+    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, int tracingMode, boolean enabled);
     private static native void nSetMultiSampleAntiAliasingOptions(long nativeView, boolean enabled, int sampleCount, boolean customResolve);
     private static native boolean nIsShadowingEnabled(long nativeView);
     private static native void nSetScreenSpaceRefractionEnabled(long nativeView, boolean enabled);
@@ -2076,14 +2076,28 @@ public class View {
      * @see #setScreenSpaceReflectionsOptions
      */
     public static class ScreenSpaceReflectionsOptions {
+        /**
+         * Screen-space ray tracing algorithm. This can be changed at runtime.
+         * HIERARCHICAL builds and traverses a conservative Hi-Z pyramid each frame.
+         */
+        public enum TracingMode {
+            /** use the original linear screen-space ray marching algorithm */
+            LINEAR,
+            /** use conservative hierarchical-Z screen-space ray marching */
+            HIERARCHICAL,
+        }
+
         /** ray thickness, in world units */
         public float thickness = 0.1f;
         /** bias, in world units, to prevent self-intersections */
         public float bias = 0.01f;
         /** maximum distance, in world units, to raycast */
         public float maxDistance = 3.0f;
-        /** stride, in texels, for samples along the ray. */
+        /** stride, in texels, for linear ray samples; ignored in HIERARCHICAL mode. */
         public float stride = 2.0f;
+        /** screen-space ray tracing algorithm */
+        @NonNull
+        public ScreenSpaceReflectionsOptions.TracingMode tracingMode = ScreenSpaceReflectionsOptions.TracingMode.LINEAR;
         public boolean enabled = false;
     }
 

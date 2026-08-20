@@ -203,6 +203,10 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     float ssrBias;                      // ssr bias, in world units
     float ssrDistance;                  // ssr world raycast distance, 0 when ssr is off
     float ssrStride;                    // ssr texel stride, >= 1.0
+    uint32_t ssrTracingMode;            // ScreenSpaceReflectionsOptions::TracingMode
+    float ssrReserved0;
+    float ssrReserved1;
+    float ssrReserved2;
 
     // --------------------------------------------------------------------------------------------
     // user defined global variables
@@ -231,7 +235,7 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     int32_t extraDirReserved2;
 
     // bring PerViewUib to 2 KiB
-    math::float4 reserved[9];
+    math::float4 reserved[8];
 };
 
 // 2 KiB == 128 float4s

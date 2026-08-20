@@ -928,6 +928,10 @@ void ViewerGui::updateUserInterface() {
         ImGui::SliderFloat("Bias", &ssrefl.bias, 0.001f, 0.5f);
         ImGui::SliderFloat("Max distance", &ssrefl.maxDistance, 0.1, 10.0f);
         ImGui::SliderFloat("Stride", &ssrefl.stride, 1.0, 10.0f);
+        int tracingMode = static_cast<int>(ssrefl.tracingMode);
+        ImGui::Combo("Tracing mode", &tracingMode, "Linear DDA\0Hierarchical Hi-Z\0\0");
+        ssrefl.tracingMode =
+                static_cast<ScreenSpaceReflectionsOptions::TracingMode>(tracingMode);
     }
 
     if (ImGui::CollapsingHeader("Dynamic Resolution")) {
