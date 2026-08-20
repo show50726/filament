@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include "../src/details/BufferAllocator.h"
-#include "utils/Panic.h"
+
+#include <utils/Panic.h>
+
+#include <gtest/gtest.h>
 
 #include <utility>
 #include <vector>
@@ -70,6 +71,31 @@ TEST_F(BufferAllocatorTest, SimpleAllocation) {
     EXPECT_EQ(mAllocator.getAllocationOffset(id2), offset2);
     EXPECT_FALSE(mAllocator.isLockedByGpu(id2));
     EXPECT_EQ(mAllocator.getAllocationSize(id2), 64);
+}
+
+TEST_F(BufferAllocatorTest, DebugAllocationsReportPhysicalBlocks) {
+    auto const [firstId, firstOffset] = mAllocator.allocate(100);
+    auto const [secondId, secondOffset] = mAllocator.allocate(64);
+    mAllocator.acquireGpu(firstId);
+    mAllocator.retire(firstId);
+
+    auto const allocations = mAllocator.getDebugAllocations();
+    ASSERT_EQ(allocations.size(), 3u);
+
+    EXPECT_EQ(allocations[0].id, firstId);
+    EXPECT_EQ(allocations[0].slot.offset, firstOffset);
+    EXPECT_EQ(allocations[0].slot.slotSize, 128u);
+    EXPECT_FALSE(allocations[0].slot.isAllocated);
+    EXPECT_EQ(allocations[0].slot.gpuUseCount, 1u);
+
+    EXPECT_EQ(allocations[1].id, secondId);
+    EXPECT_EQ(allocations[1].slot.offset, secondOffset);
+    EXPECT_EQ(allocations[1].slot.slotSize, 64u);
+    EXPECT_TRUE(allocations[1].slot.isAllocated);
+
+    EXPECT_EQ(allocations[2].slot.offset, 192u);
+    EXPECT_EQ(allocations[2].slot.slotSize, TOTAL_SIZE - 192u);
+    EXPECT_TRUE(allocations[2].slot.isFree());
 }
 
 TEST_F(BufferAllocatorTest, AllocateZeroSize) {

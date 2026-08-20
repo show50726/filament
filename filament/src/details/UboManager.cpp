@@ -26,6 +26,8 @@
 
 #include <utils/Logger.h>
 
+#include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace filament {
@@ -121,6 +123,8 @@ UboManager::UboManager(DriverApi& driver, allocation_size_t defaultSlotSizeInByt
 
 void UboManager::beginFrame(DriverApi& driver) {
     FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+    ++mFrame;
+    mReallocatedThisFrame = false;
     // Check finished frames and decrement GPU count accordingly.
     mFenceManager.reclaimCompletedResources(driver,
             [this](AllocationId id) { mAllocator.releaseGpu(id); });
@@ -304,12 +308,60 @@ allocation_size_t UboManager::getTotalSize() const noexcept {
     return mUboSize;
 }
 
+#if FILAMENT_ENABLE_UBOVIEWER
+uboviewer::UboInfo UboManager::getDebugInfo() const {
+    std::unordered_map<AllocationId, FMaterialInstance const*> owners;
+    owners.reserve(mManagedInstances.size());
+    for (FMaterialInstance const* instance : mManagedInstances) {
+        AllocationId const id = instance->getAllocationId();
+        if (BufferAllocator::isValid(id)) {
+            owners.emplace(id, instance);
+        }
+    }
+
+    uboviewer::UboInfo info;
+    info.frame = mFrame;
+    info.totalSize = mUboSize;
+    info.reallocated = mReallocatedThisFrame;
+    for (BufferAllocator::DebugAllocation const& allocation : mAllocator.getDebugAllocations()) {
+        BufferAllocator::Slot const& slot = allocation.slot;
+        uboviewer::AllocationInfo output;
+        output.id = allocation.id;
+        output.offset = slot.offset;
+        output.size = slot.slotSize;
+        output.gpuUseCount = slot.gpuUseCount;
+
+        auto const owner = owners.find(allocation.id);
+        if (slot.isAllocated) {
+            output.state = uboviewer::AllocationState::ALLOCATED;
+            if (owner != owners.end()) {
+                FMaterialInstance const* instance = owner->second;
+                output.owner = reinterpret_cast<uintptr_t>(instance);
+                output.requestedSize = instance->getUniformBuffer().getSize();
+                output.name = instance->getName();
+            } else {
+                output.name = "<allocated>";
+            }
+        } else if (slot.gpuUseCount > 0) {
+            output.state = uboviewer::AllocationState::RETIRED;
+            output.name = "<retired>";
+        } else {
+            output.state = uboviewer::AllocationState::FREE;
+            output.name = "<free>";
+        }
+        info.allocations.push_back(std::move(output));
+    }
+    return info;
+}
+#endif
+
 allocation_size_t UboManager::getAllocationOffset(AllocationId id) const {
     return mAllocator.getAllocationOffset(id);
 }
 
 void UboManager::reallocate(DriverApi& driver, allocation_size_t requiredSize) {
     FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
+    mReallocatedThisFrame = true;
     if (mUbHandle) {
         driver.destroyBufferObject(mUbHandle);
     }

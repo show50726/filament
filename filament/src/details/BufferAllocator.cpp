@@ -269,6 +269,19 @@ BufferAllocator::allocation_size_t BufferAllocator::getAllocationSize(Allocation
     return getNodeById(id)->slot.slotSize;
 }
 
+std::vector<BufferAllocator::DebugAllocation> BufferAllocator::getDebugAllocations() const {
+    std::vector<DebugAllocation> result;
+    result.reserve(mNodes.size());
+    for (size_t index = 0; index < mNodes.size();) {
+        Slot const& slot = mNodes[index].slot;
+        assert_invariant(slot.offset == index * mSlotSize);
+        assert_invariant(slot.slotSize > 0);
+        result.push_back({ static_cast<AllocationId>(index + 1), slot });
+        index += slot.slotSize >> mSlotSizeShift;
+    }
+    return result;
+}
+
 bool BufferAllocator::isValid(AllocationId id) {
     return id != UNALLOCATED && id != REALLOCATION_REQUIRED;
 }

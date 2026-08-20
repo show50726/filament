@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Filament UBO Profiler</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --background: #f4f5f8;
+            --panel: #ffffff;
+            --panel-raised: #f7f8fb;
+            --border: #d0d0d0;
+            --text: #292929;
+            --muted: #6f6f6f;
+            --accent: #5362e5;
+            --sidebar: #6885c5;
+            --sidebar-control: #3f4cbe;
+            --sidebar-control-active: #2c3892;
+            --hover: #b3c2ff;
+            --allocated: #aee1a6;
+            --retired: #df8e8e;
+            --free: #d9d9d9;
+            --reallocate: #c94f5d;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-width: 880px;
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 250px minmax(0, 1fr);
+            background: var(--background);
+            color: var(--text);
+            font: 12px/1.45 "Open Sans", Arial, sans-serif;
+        }
+        header {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 13px 16px;
+            border-right: 1px solid #5d75ad;
+            background: var(--sidebar);
+            color: #fafafa;
+        }
+        h1 { margin: 0; text-align: center; font-size: 21px; font-weight: 400; }
+        .tool-subtitle { margin: -2px 0 25px; text-align: center; font-size: 11px; opacity: .82; }
+        .sidebar-section { padding: 14px 0; border-top: 1px solid rgba(255, 255, 255, .36); }
+        .sidebar-label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, .82);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .timeline-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+        button {
+            border: 2px solid var(--accent);
+            border-radius: 5px;
+            background: #fff;
+            color: var(--accent);
+            padding: 6px 11px;
+            font: 600 12px/1.25 "Open Sans", Arial, sans-serif;
+            cursor: pointer;
+        }
+        button:hover { background: var(--hover); }
+        button.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+        header button {
+            border-color: rgba(255, 255, 255, .55);
+            background: var(--sidebar-control);
+            color: #fafafa;
+        }
+        header button:hover { border-color: #fff; background: var(--sidebar-control-active); }
+        header button.active { border-color: #fff; background: var(--sidebar-control-active); color: #fff; }
+        #pause { width: 100%; margin-top: 8px; }
+        .status { min-height: 20px; color: #fafafa; }
+        .status.connected::before { background: #aee1a6; }
+        .status::before {
+            content: "";
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            margin-right: 6px;
+            border-radius: 50%;
+            background: #df8e8e;
+        }
+        main { min-width: 0; padding: 18px; display: grid; align-content: start; gap: 14px; }
+        section { border: 1px solid var(--border); border-radius: 2px; background: var(--panel); }
+        .section-title {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            color: #4d4d4d;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .section-title .spacer { flex: 1; }
+        .layout-controls { display: flex; align-items: center; gap: 6px; }
+        .layout-controls button { padding: 4px 9px; font-size: 12px; }
+        .hint { color: var(--muted); font-weight: 400; }
+        #timeline { display: block; width: 100%; height: 150px; background: #fff; cursor: grab; }
+        #timeline.dragging { cursor: grabbing; }
+        .content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; }
+        .memory-content { padding: 14px; }
+        #layoutSection.reallocated {
+            border-color: var(--reallocate);
+            box-shadow: 0 0 0 1px rgba(201, 79, 93, .18);
+        }
+        .reallocation-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border: 1px solid rgba(201, 79, 93, .72);
+            border-radius: 5px;
+            background: #f9e2e5;
+            color: #8a2935;
+        }
+        .reallocation-banner[hidden] { display: none; }
+        .reallocation-banner::before {
+            content: "!";
+            display: grid;
+            width: 22px;
+            height: 22px;
+            place-items: center;
+            border-radius: 50%;
+            background: var(--reallocate);
+            color: #fff;
+            font-weight: 800;
+        }
+        .reallocation-banner strong { color: #72212b; }
+        .reallocation-banner .delta {
+            margin-left: auto;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: rgba(201, 79, 93, .13);
+            color: #8a2935;
+            font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+        .memory-viewport {
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: #fff;
+            scrollbar-color: #9a9a9a #eceef3;
+            scrollbar-gutter: stable;
+        }
+        .memory-viewport.reallocated {
+            border-color: var(--reallocate);
+            box-shadow: inset 0 0 0 1px rgba(201, 79, 93, .22);
+        }
+        .memory-track {
+            position: relative;
+            height: 96px;
+            min-width: 100%;
+            overflow: hidden;
+        }
+        .memory-ruler {
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 25px;
+            border-bottom: 1px solid var(--border);
+            color: var(--muted);
+            font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
+            pointer-events: none;
+        }
+        .memory-tick {
+            position: absolute;
+            top: 0;
+            height: 25px;
+            padding: 4px 0 0 4px;
+            border-left: 1px solid #d9d9d9;
+        }
+        .block {
+            position: absolute;
+            top: 25px;
+            bottom: 0;
+            min-width: 1px;
+            border-right: 1px solid rgba(0, 0, 0, .45);
+            overflow: hidden;
+            padding: 7px 5px;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: #292929;
+            cursor: pointer;
+        }
+        .block:hover, .block.selected {
+            z-index: 2;
+            outline: 2px solid var(--sidebar-control-active);
+            outline-offset: -2px;
+            filter: brightness(1.12);
+        }
+        .block.allocated, .swatch.allocated { background: var(--allocated); }
+        .block.retired, .swatch.retired { background: var(--retired); color: #522229; }
+        .block.free, .swatch.free { background: var(--free); color: var(--muted); }
+        .block small { display: block; margin-top: 5px; opacity: .72; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .legend { display: flex; gap: 18px; margin-top: 10px; color: var(--muted); }
+        .legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+        .metric { padding: 9px 10px; border-top: 2px solid var(--accent); background: var(--panel-raised); }
+        .metric span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+        .metric strong { font-size: 16px; font-weight: 500; }
+        .metric .metric-delta { display: inline; margin-left: 7px; color: var(--reallocate); font-size: 11px; text-transform: none; }
+        .allocation-inspector {
+            min-height: 48px;
+            display: grid;
+            grid-template-columns: minmax(140px, 1fr) repeat(4, auto);
+            align-items: center;
+            gap: 18px;
+            margin: 10px 0;
+            padding: 8px 10px;
+            border: 1px solid #e2e3e7;
+            border-radius: 2px;
+            background: var(--panel-raised);
+        }
+        .allocation-inspector .name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+        .allocation-inspector .value { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .allocation-list { margin-top: 12px; border-top: 1px solid var(--border); }
+        .allocation-row {
+            display: grid;
+            grid-template-columns: 12px minmax(130px, 1fr) 92px 118px 92px 72px;
+            align-items: center;
+            gap: 10px;
+            min-height: 32px;
+            padding: 5px 8px;
+            border-bottom: 1px solid #ececef;
+            cursor: pointer;
+        }
+        .allocation-row:hover { background: #eef1fc; }
+        .allocation-row.selected { background: #dce3fb; }
+        .allocation-row.header { min-height: 27px; color: var(--muted); font-size: 10px; text-transform: uppercase; cursor: default; }
+        .allocation-row.header:hover { background: transparent; }
+        .allocation-row .swatch { width: 9px; height: 18px; border-radius: 2px; }
+        .allocation-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .allocation-row code { color: var(--muted); font-size: 11px; }
+        .details { min-height: 280px; }
+        .details-body { padding: 12px; }
+        .event-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .badge { border-radius: 10px; padding: 2px 7px; background: #e5e9fb; color: #3f4cbe; font-size: 11px; }
+        .badge.reallocated { background: #f5dadd; color: #9b3440; }
+        .change-group { margin: 12px 0; }
+        .change-group h3 { margin: 0 0 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+        .change {
+            display: grid;
+            grid-template-columns: max-content minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+            padding: 3px 0;
+        }
+        .change code {
+            min-width: 92px;
+            max-width: 150px;
+            color: var(--muted);
+            overflow-wrap: anywhere;
+        }
+        .change > span { min-width: 0; overflow-wrap: anywhere; }
+        .empty { color: var(--muted); padding: 18px 0; text-align: center; }
+        @media (max-width: 1180px) { .content-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<header>
+    <h1>uboviewer</h1>
+    <div class="tool-subtitle">Filament UBO Profiler</div>
+    <div class="sidebar-section">
+        <span class="sidebar-label">Engine</span>
+        <span id="status" class="status">Waiting for engine</span>
+    </div>
+    <div class="sidebar-section">
+        <span class="sidebar-label">Timeline scale</span>
+        <div class="timeline-controls">
+            <button id="zoomOut" title="Zoom out">−</button>
+            <button id="zoomIn" title="Zoom in">+</button>
+        </div>
+        <button id="pause">Pause</button>
+    </div>
+</header>
+<main>
+    <section>
+        <div class="section-title">Allocation events <span class="hint">wheel to zoom · drag to pan · click a marker</span></div>
+        <canvas id="timeline"></canvas>
+    </section>
+    <div class="content-grid">
+        <section id="layoutSection">
+            <div class="section-title">
+                UBO layout <span id="frameLabel" class="hint">No event selected</span>
+                <span class="hint">Readable mode: scroll horizontally</span>
+                <span class="spacer"></span>
+                <span class="layout-controls">
+                    <button id="layoutZoomOut" title="Zoom layout out">−</button>
+                    <button id="layoutZoomIn" title="Zoom layout in">+</button>
+                    <button id="layoutFit">Fit</button>
+                    <button id="layoutReadable" class="active">Readable</button>
+                </span>
+            </div>
+            <div class="memory-content">
+                <div id="reallocationBanner" class="reallocation-banner" hidden></div>
+                <div id="summary" class="summary"></div>
+                <div id="memoryViewport" class="memory-viewport">
+                    <div id="memoryTrack" class="memory-track"><div class="empty">Waiting for allocation data</div></div>
+                </div>
+                <div id="allocationInspector" class="allocation-inspector"><span class="hint">Hover or click an allocation to inspect it</span></div>
+                <div class="legend">
+                    <span><i style="background:var(--allocated)"></i>Allocated</span>
+                    <span><i style="background:var(--retired)"></i>Retired / GPU locked</span>
+                    <span><i style="background:var(--free)"></i>Free</span>
+                </div>
+                <div id="allocationList" class="allocation-list"></div>
+            </div>
+        </section>
+        <section class="details">
+            <div class="section-title">Frame changes</div>
+            <div id="details" class="details-body"><div class="empty">Select an event</div></div>
+        </section>
+    </div>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

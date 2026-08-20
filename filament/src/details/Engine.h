@@ -116,6 +116,10 @@ class Renderer;
 class MaterialParser;
 class TextureCacheDisposer;
 
+namespace uboviewer {
+class DebugServer;
+}
+
 namespace backend {
 class Driver;
 class Program;
@@ -813,6 +817,7 @@ public:
         } vulkan;
         matdbg::DebugServer* server = nullptr;
         FgviewerManager* fgviewer = nullptr;
+        uboviewer::DebugServer* uboviewer = nullptr;
     } debug;
 };
 

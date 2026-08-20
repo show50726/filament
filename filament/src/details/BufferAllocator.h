@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <map>
+#include <vector>
 
 
 namespace filament {
@@ -51,6 +52,11 @@ public:
         [[nodiscard]] bool isFree() const noexcept {
             return !isAllocated && gpuUseCount == 0;
         }
+    };
+
+    struct DebugAllocation {
+        AllocationId id;
+        Slot slot;
     };
 
     // `slotSize` is derived from the GPU's uniform buffer offset alignment requirement,
@@ -93,6 +99,10 @@ public:
     [[nodiscard]] allocation_size_t alignUp(allocation_size_t size) const noexcept;
 
     [[nodiscard]] allocation_size_t getAllocationSize(AllocationId id) const;
+
+    // Returns the allocator's physical blocks, including allocated, retired, and free regions.
+    // Intended for diagnostics; callers must obey the allocator's single-threaded contract.
+    [[nodiscard]] std::vector<DebugAllocation> getDebugAllocations() const;
 
     [[nodiscard]] static bool isValid(AllocationId id);
 

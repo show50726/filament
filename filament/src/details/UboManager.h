@@ -19,11 +19,16 @@
 
 #include "details/BufferAllocator.h"
 
+#if FILAMENT_ENABLE_UBOVIEWER
+#include <uboviewer/UboInfo.h>
+#endif
+
 #include <private/backend/DriverApi.h>
 
 #include <backend/DriverApiForward.h>
 #include <backend/Handle.h>
 
+#include <cstdint>
 #include <functional>
 #include <vector>
 
@@ -123,6 +128,10 @@ public:
     // reallocated to a bigger size at the next frame.
     [[nodiscard]] BufferAllocator::allocation_size_t getTotalSize() const noexcept;
 
+#if FILAMENT_ENABLE_UBOVIEWER
+    [[nodiscard]] uboviewer::UboInfo getDebugInfo() const;
+#endif
+
     // For testing
     [[nodiscard]] backend::MemoryMappedBufferHandle getMemoryMappedBufferHandle() const noexcept {
         return mMemoryMappedBufferHandle;
@@ -159,6 +168,8 @@ private:
     FenceManager mFenceManager;
     BufferAllocator mAllocator;
     std::vector<BufferAllocator::AllocationId> mFreedAllocations;
+    uint64_t mFrame = 0;
+    bool mReallocatedThisFrame = false;
 };
 
 } // namespace filament

@@ -85,6 +85,8 @@ option(FILAMENT_SUPPORTS_OSMESA "Enable OSMesa (headless GL context) for Filamen
 
 option(FILAMENT_ENABLE_FGVIEWER "Enable the frame graph viewer" OFF)
 
+option(FILAMENT_ENABLE_UBOVIEWER "Enable the UBO allocation viewer" OFF)
+
 option(FILAMENT_USE_ABSEIL_LOGGING "Use Abseil to log, may increase binary size" OFF)
 
 option(FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT "Enable GCC support (unsupported)" OFF)
@@ -970,6 +972,10 @@ endif()
 
 if (FILAMENT_ENABLE_FGVIEWER)
     add_subdirectory(${LIBRARIES}/fgviewer)
+endif()
+
+if (FILAMENT_ENABLE_UBOVIEWER)
+    add_subdirectory(${LIBRARIES}/uboviewer)
 endif()
 
 if (FILAMENT_SUPPORTS_WEBP_TEXTURES)

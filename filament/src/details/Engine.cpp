@@ -58,6 +58,10 @@
 #include <filament/Engine.h>
 #include <filament/MaterialEnums.h>
 
+#if FILAMENT_ENABLE_UBOVIEWER
+#include <uboviewer/DebugServer.h>
+#endif
+
 #include <private/backend/PlatformFactory.h>
 
 #include <backend/DriverEnums.h>
@@ -117,7 +121,7 @@ using namespace filaflat;
 
 namespace {
 
-#if FILAMENT_ENABLE_FGVIEWER || FILAMENT_ENABLE_MATDBG
+#if FILAMENT_ENABLE_FGVIEWER || FILAMENT_ENABLE_MATDBG || FILAMENT_ENABLE_UBOVIEWER
 utils::CString getPortString(std::string_view serviceType) {
     #ifndef __ANDROID__
     char const* portString = getenv(serviceType.data());
@@ -127,6 +131,8 @@ utils::CString getPortString(std::string_view serviceType) {
             return "8081";
         } else if (serviceType == "FILAMENT_FGVIEWER_PORT") {
             return "8085";
+        } else if (serviceType == "FILAMENT_UBOVIEWER_PORT") {
+            return "8086";
         }
         return nullptr;
     }();
@@ -136,7 +142,7 @@ utils::CString getPortString(std::string_view serviceType) {
     }
     return {};
 }
-#endif // FILAMENT_ENABLE_FGVIEWER || FILAMENT_ENABLE_MATDBG
+#endif // FILAMENT_ENABLE_FGVIEWER || FILAMENT_ENABLE_MATDBG || FILAMENT_ENABLE_UBOVIEWER
 
 Platform::DriverConfig getDriverConfig(FEngine* instance) {
     Platform::DriverConfig const driverConfig{
@@ -757,6 +763,11 @@ void FEngine::prepare(DriverApi& driver) {
     if (useUboBatching) {
         assert_invariant(mUboManager != nullptr);
         mUboManager->beginFrame(driver);
+#if FILAMENT_ENABLE_UBOVIEWER
+        if (debug.uboviewer) {
+            debug.uboviewer->publish(mUboManager->getDebugInfo());
+        }
+#endif
     }
 
     UboManager* uboManager = mUboManager;
@@ -953,6 +964,16 @@ int FEngine::loop() {
     }
 #endif
 
+#if FILAMENT_ENABLE_UBOVIEWER
+    if (auto portString = getPortString("FILAMENT_UBOVIEWER_PORT"); !portString.empty()) {
+        debug.uboviewer = new uboviewer::DebugServer(atoi(portString.c_str()));
+        if (!debug.uboviewer->isReady()) {
+            delete debug.uboviewer;
+            debug.uboviewer = nullptr;
+        }
+    }
+#endif
+
     while (true) {
         if (!execute()) {
             break;
@@ -967,6 +988,11 @@ int FEngine::loop() {
 #if FILAMENT_ENABLE_FGVIEWER
     if (debug.fgviewer) {
         delete debug.fgviewer;
+    }
+#endif
+#if FILAMENT_ENABLE_UBOVIEWER
+    if (debug.uboviewer) {
+        delete debug.uboviewer;
     }
 #endif
 
