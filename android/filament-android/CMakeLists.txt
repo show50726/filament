@@ -70,6 +70,12 @@ add_library(zstd STATIC IMPORTED)
 set_target_properties(zstd PROPERTIES IMPORTED_LOCATION
         ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libzstd.a)
 
+if (FILAMENT_ENABLE_FGVIEWER OR FILAMENT_ENABLE_UBOVIEWER)
+    add_library(civetweb STATIC IMPORTED)
+    set_target_properties(civetweb PROPERTIES IMPORTED_LOCATION
+            ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libcivetweb.a)
+endif()
+
 if (FILAMENT_ENABLE_FGVIEWER)
     add_library(fgviewer STATIC IMPORTED)
     set_target_properties(fgviewer PROPERTIES IMPORTED_LOCATION
@@ -169,6 +175,8 @@ target_link_libraries(filament-jni
 
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_FGVIEWER},ON>:fgviewer>
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_UBOVIEWER},ON>:uboviewer>
+    PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_FGVIEWER},ON>:civetweb>
+    PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_UBOVIEWER},ON>:civetweb>
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_MATDBG},ON>:matdbg>
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_MATDBG},ON>:filamat>
     PRIVATE $<$<STREQUAL:${FILAMENT_SUPPORTS_VULKAN},ON>:bluevk>
