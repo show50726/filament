@@ -17,6 +17,9 @@
 // com.google.android.filament.fgviewer
 //     When set, enables fgviewer
 //
+// com.google.android.filament.uboviewer
+//     When set, enables uboviewer
+//
 // com.google.android.filament.matdbg
 //     When set, enables matdbg
 //
@@ -81,6 +84,10 @@ buildscript {
                  .gradleProperty("com.google.android.filament.fgviewer")
                  .isPresent()
 
+    def uboviewer = providers
+                  .gradleProperty("com.google.android.filament.uboviewer")
+                  .isPresent()
+
     def matdbg = providers
             .gradleProperty("com.google.android.filament.matdbg")
             .isPresent()
@@ -142,6 +149,7 @@ buildscript {
         "-DFILAMENT_SUPPORTS_VULKAN=${excludeVulkan ? 'OFF' : 'ON'}".toString(),
         "-DFILAMENT_SUPPORTS_WEBGPU=${includeWebGPU ? 'ON' : 'OFF'}".toString(),
         "-DFILAMENT_ENABLE_FGVIEWER=${fgviewer ? 'ON' : 'OFF'}".toString(),
+        "-DFILAMENT_ENABLE_UBOVIEWER=${uboviewer ? 'ON' : 'OFF'}".toString(),
         "-DFILAMENT_ENABLE_MATDBG=${matdbg ? 'ON' : 'OFF'}".toString(),
         "-DFILAMENT_DISABLE_MATOPT=${matnopt ? 'ON' : 'OFF'}".toString(),
         "-DFILAMENT_DEBUG_MUTEX=${mutexdebug ? 'ON' : 'OFF'}".toString()

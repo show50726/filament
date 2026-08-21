@@ -3,6 +3,7 @@ project(filament-android)
 
 option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)
 option(FILAMENT_ENABLE_FGVIEWER "Enables Frame Graph Viewer" OFF)
+option(FILAMENT_ENABLE_UBOVIEWER "Enables UBO allocation viewer" OFF)
 option(FILAMENT_ENABLE_MATDBG "Enables Material debugger" OFF)
 option(FILAMENT_DISABLE_MATOPT "Disables material optimizations" OFF)
 option(FILAMENT_SUPPORTS_WEBGPU "Enables WebGPU on Android" OFF)
@@ -73,6 +74,12 @@ if (FILAMENT_ENABLE_FGVIEWER)
     add_library(fgviewer STATIC IMPORTED)
     set_target_properties(fgviewer PROPERTIES IMPORTED_LOCATION
             ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libfgviewer.a)
+endif()
+
+if (FILAMENT_ENABLE_UBOVIEWER)
+    add_library(uboviewer STATIC IMPORTED)
+    set_target_properties(uboviewer PROPERTIES IMPORTED_LOCATION
+            ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libuboviewer.a)
 endif()
 
 if (FILAMENT_ENABLE_MATDBG)
@@ -161,6 +168,7 @@ target_link_libraries(filament-jni
     PUBLIC geometry
 
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_FGVIEWER},ON>:fgviewer>
+    PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_UBOVIEWER},ON>:uboviewer>
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_MATDBG},ON>:matdbg>
     PRIVATE $<$<STREQUAL:${FILAMENT_ENABLE_MATDBG},ON>:filamat>
     PRIVATE $<$<STREQUAL:${FILAMENT_SUPPORTS_VULKAN},ON>:bluevk>

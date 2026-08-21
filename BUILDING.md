@@ -65,6 +65,7 @@ The script offers more features described by executing `build.sh -h`.
 For more specialized options, please also consider the following pages:
  - `-d`: [`matdbg`](https://google.github.io/filament/dup/matdbg.html)
  - `-t`: [`fgviewer`](https://google.github.io/filament/dup/fgviewer.html)
+ - `-o`: [`uboviewer`](https://google.github.io/filament/dup/uboviewer.html)
  - `-b` and `-y`: [ASAN/UBSAN builds](https://google.github.io/filament/notes/asan_ubsan.html)
 
 ## Filament-specific CMake Options

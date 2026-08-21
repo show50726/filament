@@ -25,6 +25,8 @@ function print_help {
     echo "        Enable matdbg."
     echo "    -t"
     echo "        Enable fgviewer."
+    echo "    -o"
+    echo "        Enable uboviewer."
     echo "    -u"
     echo "        Enable utils::Mutex debugging (lock-order inversion and self-deadlock detection)."
     echo "    -f"
@@ -163,6 +165,27 @@ function print_fgviewer_help {
     echo ""
 }
 
+function print_uboviewer_help {
+    echo "uboviewer is enabled in the build, but some extra steps are needed."
+    echo ""
+    echo "FOR DESKTOP BUILDS:"
+    echo ""
+    echo "Please set the port environment variable before launching. e.g., on macOS do:"
+    echo "   export FILAMENT_UBOVIEWER_PORT=8086"
+    echo ""
+    echo "FOR ANDROID BUILDS:"
+    echo ""
+    echo "1) For Android Studio builds, make sure to set:"
+    echo "       -Pcom.google.android.filament.uboviewer"
+    echo "   option in Preferences > Build > Compiler > Command line options."
+    echo ""
+    echo "2) The port number is hardcoded to 8086 so you will need to do:"
+    echo "       adb forward tcp:8086 tcp:8086"
+    echo ""
+    echo "3) Be sure to enable INTERNET permission in your app's manifest file."
+    echo ""
+}
+
 # Unless explicitly specified, NDK version will be selected as highest available version within same major release chain
 FILAMENT_NDK_VERSION=$(cat `dirname $0`/build/common/versions | grep GITHUB_NDK_VERSION | sed s/GITHUB_NDK_VERSION=//g | cut -f 1 -d ".")
 
@@ -210,6 +233,8 @@ MATDBG_OPTION="-DFILAMENT_ENABLE_MATDBG=OFF"
 MATDBG_GRADLE_OPTION=""
 FGVIEWER_OPTION="-DFILAMENT_ENABLE_FGVIEWER=OFF"
 FGVIEWER_GRADLE_OPTION=""
+UBOVIEWER_OPTION="-DFILAMENT_ENABLE_UBOVIEWER=OFF"
+UBOVIEWER_GRADLE_OPTION=""
 MUTEX_DEBUG_OPTION="-DFILAMENT_DEBUG_MUTEX=OFF"
 MUTEX_DEBUG_GRADLE_OPTION=""
 
@@ -320,6 +345,7 @@ function build_desktop_target {
             -DCMAKE_INSTALL_PREFIX="../${lc_target}/filament" \
             ${EGL_ON_LINUX_OPTION} \
             ${FGVIEWER_OPTION} \
+            ${UBOVIEWER_OPTION} \
             ${WEBGPU_OPTION} \
             ${MATDBG_OPTION} \
             ${MATOPT_OPTION} \
@@ -469,6 +495,7 @@ function build_android_target {
             -DCMAKE_INSTALL_PREFIX="../android-${lc_target}/filament" \
             -DCMAKE_TOOLCHAIN_FILE="../../build/toolchain-${arch}-linux-android.cmake" \
             ${FGVIEWER_OPTION} \
+            ${UBOVIEWER_OPTION} \
             ${MATDBG_OPTION} \
             ${MATOPT_OPTION} \
             ${VULKAN_ANDROID_OPTION} \
@@ -590,6 +617,7 @@ function build_android {
             ${WEBGPU_ANDROID_GRADLE_OPTION} \
             ${MATDBG_GRADLE_OPTION} \
             ${FGVIEWER_GRADLE_OPTION} \
+            ${UBOVIEWER_GRADLE_OPTION} \
             ${MATOPT_GRADLE_OPTION} \
             ${MUTEX_DEBUG_GRADLE_OPTION} \
             :filament-android:assembleDebug \
@@ -646,6 +674,7 @@ function build_android {
             ${WEBGPU_ANDROID_GRADLE_OPTION} \
             ${MATDBG_GRADLE_OPTION} \
             ${FGVIEWER_GRADLE_OPTION} \
+            ${UBOVIEWER_GRADLE_OPTION} \
             ${MATOPT_GRADLE_OPTION} \
             ${MUTEX_DEBUG_GRADLE_OPTION} \
             :filament-android:assembleRelease \
@@ -717,6 +746,7 @@ function build_ios_target {
             -DIOS=1 \
             -DCMAKE_TOOLCHAIN_FILE=../../third_party/clang/iOS.cmake \
             ${FGVIEWER_OPTION} \
+            ${UBOVIEWER_OPTION} \
             ${WEBGPU_OPTION} \
             ${MATDBG_OPTION} \
             ${MATOPT_OPTION} \
@@ -898,7 +928,7 @@ function check_debug_release_build {
 
 pushd "$(dirname "$0")" > /dev/null
 
-while getopts ":hacCfgDimp:q:vWslwedtk:bVx:S:X:Py:ETu" opt; do
+while getopts ":hacCfgDimp:q:vWslwedtok:bVx:S:X:Py:ETu" opt; do
     case ${opt} in
         h)
             print_help
@@ -923,6 +953,11 @@ while getopts ":hacCfgDimp:q:vWslwedtk:bVx:S:X:Py:ETu" opt; do
             PRINT_FGVIEWER_HELP=true
             FGVIEWER_OPTION="-DFILAMENT_ENABLE_FGVIEWER=ON"
             FGVIEWER_GRADLE_OPTION="-Pcom.google.android.filament.fgviewer"
+            ;;
+        o)
+            PRINT_UBOVIEWER_HELP=true
+            UBOVIEWER_OPTION="-DFILAMENT_ENABLE_UBOVIEWER=ON"
+            UBOVIEWER_GRADLE_OPTION="-Pcom.google.android.filament.uboviewer"
             ;;
         u)
             MUTEX_DEBUG_OPTION="-DFILAMENT_DEBUG_MUTEX=ON"
@@ -1182,4 +1217,8 @@ fi
 
 if [[ "${PRINT_FGVIEWER_HELP}" == "true" ]]; then
     print_fgviewer_help
+fi
+
+if [[ "${PRINT_UBOVIEWER_HELP}" == "true" ]]; then
+    print_uboviewer_help
 fi

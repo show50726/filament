@@ -3,6 +3,7 @@ project(filament-utils-android)
 
 option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)
 option(FILAMENT_ENABLE_FGVIEWER "Enables Frame Graph Viewer" OFF)
+option(FILAMENT_ENABLE_UBOVIEWER "Enables UBO allocation viewer" OFF)
 option(FILAMENT_ENABLE_MATDBG "Enables Material debugger" OFF)
 option(FILAMENT_DISABLE_MATOPT "Disables material optimizations" OFF)
 option(FILAMENT_SUPPORTS_WEBGPU "Enables WebGPU on Android" OFF)
