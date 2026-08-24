@@ -38,7 +38,7 @@ vec4 fixupAlpha(vec4 color) {
 vec4 evaluateMaterial(const MaterialInputs material) {
     vec4 color = material.baseColor;
 
-#if defined(VARIANT_HAS_DIRECTIONAL_LIGHTING)
+    if (RUNTIME_CONFIG_HAS_DIRECTIONAL_LIGHTING) {
 #if defined(VARIANT_HAS_SHADOWING)
     float visibility = 1.0;
     int cascade = getShadowCascade();
@@ -49,7 +49,7 @@ vec4 evaluateMaterial(const MaterialInputs material) {
         visibility = shadow(true, sampler0_shadowMap, cascade, shadowPosition, 0.0);
 #if defined(MATERIAL_HAS_SHADOW_STRENGTH)
         applyShadowStrength(visibility, material.shadowStrength);
-#endif
+#endif // MATERIAL_HAS_SHADOW_STRENGTH
 #if defined (FILAMENT_SHADOW_FAR_ATTENUATION)
         // shadow far attenuation
         highp vec3 v = getWorldPosition() - getWorldCameraPosition();
@@ -57,7 +57,7 @@ vec4 evaluateMaterial(const MaterialInputs material) {
         highp float z = dot(transpose(getViewFromWorldMatrix())[2].xyz, v);
         highp vec2 p = frameUniforms.shadowFarAttenuationParams;
         visibility = 1.0 - ((1.0 - visibility) * saturate(p.x - z * z * p.y));
-#endif
+#endif // FILAMENT_SHADOW_FAR_ATTENUATION
     }
     if ((frameUniforms.directionalShadows & 0x2) != 0 && visibility > 0.0) {
         if ((object_uniforms_flagsChannels & FILAMENT_OBJECT_CONTACT_SHADOWS_BIT) != 0) {
@@ -67,10 +67,12 @@ vec4 evaluateMaterial(const MaterialInputs material) {
     color *= 1.0 - visibility;
 #else
     color = vec4(0.0);
-#endif
-#elif defined(MATERIAL_HAS_SHADOW_MULTIPLIER)
+#endif // VARIANT_HAS_SHADOWING
+    } else {
+#if defined(MATERIAL_HAS_SHADOW_MULTIPLIER)
     color = vec4(0.0);
 #endif
+    }
 
     addEmissive(material, color);
 
