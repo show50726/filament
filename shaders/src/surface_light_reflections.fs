@@ -274,9 +274,11 @@ bool traceScreenSpaceRayHierarchical(const highp vec3 vsOrigin, const highp vec3
         }
 
         if (mip == 0 && rayZMax >= sceneZMax - vsZThickness && rayZMin <= sceneZMax) {
-            highp float rayZDelta = rayZ1 - rayZ0;
-            highp float hitFraction = abs(rayZDelta) > 0.00001 ?
-                    saturate((sceneZMax - rayZ0) / rayZDelta) : 0.0;
+            // Q and k are linear in screen space, but view-space depth Q.z / k is not.
+            // Solve Q(t).z = sceneZMax * k(t) before interpolating the hit point.
+            highp float hitDenominator = (nextQ.z - Q.z) - sceneZMax * (nextK - k);
+            highp float hitFraction = hitDenominator != 0.0 ?
+                    saturate((sceneZMax * k - Q.z) / hitDenominator) : 0.0;
             highp vec3 hitQ = mix(Q, nextQ, hitFraction);
             highp float hitK = mix(k, nextK, hitFraction);
             vsHitPoint = hitQ * (1.0 / hitK);

@@ -36,7 +36,9 @@ fragment {
         highp ivec2 sourceSize = textureSize(materialParams_depth, 0);
         highp ivec2 destinationSize = max(sourceSize / 2, ivec2(1));
         highp ivec2 begin = coord * sourceSize / destinationSize;
-        highp ivec2 end = (coord + 1) * sourceSize / destinationSize;
+        // Include every source texel overlapping this cell's normalized extent. Odd sizes
+        // need overlapping footprints so that traversal can safely skip the entire cell.
+        highp ivec2 end = ((coord + 1) * sourceSize + destinationSize - 1) / destinationSize;
 
         highp float nearestDepth = 0.0;
         for (int y = 0; y < 3; y++) {
