@@ -7,8 +7,8 @@ material {
     depthWrite : false,
     depthCulling : false,
     parameters : [
-        { type : sampler2d, name : accumulation },
-        { type : sampler2d, name : revealage }
+        { type : sampler2d, precision : high, name : accumulation },
+        { type : sampler2d, precision : high, name : revealage }
     ],
     variables : [
         vertex
@@ -25,11 +25,16 @@ vertex {
 fragment {
     void postProcess(inout PostProcessInputs postProcess) {
         highp vec2 uv = variable_vertex.xy;
-        vec4 accum = texture(materialParams_accumulation, uv);
-        float reveal = exp(texture(materialParams_revealage, uv).r);
-        vec3 color = accum.rgb / max(accum.a, 1e-5);
-        color *= (1.0 - reveal);
-
-        postProcess.color = vec4(color, 1.0 - reveal);
+        highp vec4 accum = texture(materialParams_accumulation, uv);
+        highp float weight = texture(materialParams_revealage, uv).r;
+        highp float coverage = 1.0 - clamp(accum.a, 0.0, 1.0);
+        highp vec3 color = vec3(0.0);
+        if (weight > 0.0 && coverage > 0.0) {
+            // Undo the radiance scaling used by surface_main. The finite clamp
+            // also defines graceful saturation beyond the FP16 overlap budget.
+            color = min(accum.rgb, vec3(65504.0)) / max(weight, 1e-8);
+            color = min(color * 256.0, vec3(65504.0)) * coverage;
+        }
+        postProcess.color = vec4(color, coverage);
     }
 }

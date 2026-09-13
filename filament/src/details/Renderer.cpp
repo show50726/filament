@@ -26,7 +26,6 @@
 
 #include "details/Engine.h"
 #include "details/Fence.h"
-#include "details/MaterialInstance.h"
 #include "details/Scene.h"
 #include "details/SwapChain.h"
 #include "details/View.h"
@@ -69,6 +68,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <thread>
@@ -90,6 +90,26 @@ using namespace utils;
 namespace filament {
 
 using namespace backend;
+
+// View-only checks do not inspect geometry. Command generation evaluates visible materials.
+static View::OitStatus evaluateOitConfiguration(FEngine& engine, FView const& view) {
+    using Status = View::OitStatus;
+    if (!view.isOitEnabled()) return Status::DISABLED;
+    if (engine.getBackend() != Backend::OPENGL ||
+            !engine.hasFeatureLevel(FeatureLevel::FEATURE_LEVEL_1) ||
+            !engine.getDriverApi().isRenderTargetFormatSupported(TextureFormat::RGBA16F) ||
+            !engine.getDriverApi().isRenderTargetFormatSupported(TextureFormat::R16F)) {
+        return Status::UNSUPPORTED_DEVICE;
+    }
+    auto const& msaa = view.getMultiSampleAntiAliasingOptions();
+    if (msaa.enabled && msaa.sampleCount > 1) return Status::MULTISAMPLE;
+    if (view.hasStereo()) return Status::STEREO;
+    if (view.isStencilBufferEnabled() || view.getRenderTarget() ||
+            view.getChannelDepthClearMask().any()) {
+        return Status::UNSUPPORTED_VIEW;
+    }
+    return Status::NOT_EVALUATED;
+}
 
 FRenderer::FRenderer(FEngine& engine) :
         mEngine(engine),
@@ -765,6 +785,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     ppm.resetForRender();
     ppm.setFrameUniforms(driver, view.getFrameUniforms());
 
+
     // DEBUG: driver commands must all happen from the same thread. Enforce that on debug builds.
     driver.debugThreading();
 
@@ -834,33 +855,10 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // whether the backend supports subpasses (or if they are disabled in the debugRegistry).
     const bool isSubpassPossible = msaaSampleCount <= 1 && hasColorGrading &&
                                    !bloomOptions.enabled && !dofOptions.enabled &&
-                                   !taaOptions.enabled && !view.isOitEnabled();
+                                   !taaOptions.enabled;
 
     // whether we're scaled at all
     bool scaled = any(notEqual(scale, float2(1.0f)));
-
-    // asSubpass is disabled with TAA (although it's supported) because performance was degraded
-    // on qualcomm hardware -- we might need a backend dependent toggle at some point
-    const PostProcessManager::ColorGradingConfig colorGradingConfig{
-            .asSubpass =
-                    isSubpassPossible &&
-                    mIsFrameBufferFetchSupported &&
-                    !engine.debug.renderer.disable_subpasses,
-            .customResolve =
-                    msaaSampleCount > 1 &&
-                    mIsFrameBufferFetchMultiSampleSupported &&
-                    msaaOptions.customResolve &&
-                    hasColorGrading &&
-                    !engine.debug.renderer.disable_subpasses,
-            .translucent = needsAlphaChannel,
-            .outputLuminance = hasFXAA || scaled, // ignored by translucent variants (false)
-            .dithering = hasDithering,
-            .ldrFormat = (hasColorGrading && (hasFXAA || scaled)) ?
-                    TextureFormat::RGBA8 : getLdrFormat(needsAlphaChannel)
-    };
-
-    // by construction (msaaSampleCount) both asSubpass and customResolve can't be true
-    assert_invariant(colorGradingConfig.asSubpass + colorGradingConfig.customResolve < 2);
 
     // vp is the user defined viewport within the View
     filament::Viewport const& vp = view.getViewport();
@@ -885,7 +883,8 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // this case, we would need an extra blit to "resolve" the buffer padding (because there are no
     // other pass that can do it as a side effect). In this case, it is better to skip the padding,
     // which won't be helping much.
-    const bool noBufferPadding = (isSubpassPossible &&
+    // Effective OIT is known after culling; reserve padding conservatively for requests.
+    const bool noBufferPadding = (isSubpassPossible && !view.isOitEnabled() &&
             !hasFXAA && !scaled) || engine.debug.renderer.disable_buffer_padding;
 
     // guardBand must be a multiple of 16 to guarantee the same exact rendering up to 4 mip levels.
@@ -983,6 +982,9 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
 
     auto [bias, derivativeScale] = prepareUpscaler(scale, taaOptions, dsrOptions);
     view.prepare(engine, driver, arena, svp, taaCameraInfo, getShaderUserTime(), needsAlphaChannel);
+    // Geometry eligibility is collected later by the color command jobs.
+    view.setOitStatus(evaluateOitConfiguration(engine, view));
+
     view.prepareLodBias(bias, derivativeScale);
     view.prepareSSAO(aoOptions);
     view.prepareSSR(engine, cameraInfo, ssrConfig.lodOffset, ssReflectionsOptions);
@@ -1238,36 +1240,6 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
         return desc;
     }();
 
-    // a non-drawing pass to prepare everything that need to be before the color passes execute
-    fg.addPass<FrameGraph::Empty>("Prepare Color Passes",
-            [](FrameGraph::Builder& builder) {
-                // FIXME: use a dummy resource instead
-                builder.sideEffect();
-            },
-            [=, &arena, &js, &view, &ppm](auto&, auto&, DriverApi& driver) {
-                // prepare color grading as subpass material
-                if (colorGradingConfig.asSubpass) {
-                    ppm.colorGradingPrepareSubpass(driver,
-                            colorGrading, colorGradingConfig, vignetteOptions,
-                            colorBufferDesc.width, colorBufferDesc.height);
-                } else if (colorGradingConfig.customResolve) {
-                    ppm.customResolvePrepareSubpass(driver,
-                            PostProcessManager::CustomResolveOp::COMPRESS);
-                }
-
-                if (view.getChannelDepthClearMask().any()) {
-                    Variant::type_t variant = isRenderingMultiview ? Variant::STE : 0;
-                    ppm.clearAncillaryBuffersPrepare(driver, variant);
-                }
-
-                // We use a framegraph pass to wait for froxelization to finish (so it can be done
-                // in parallel with .compile()
-                if (auto sync = view.getFroxelizerSync()) {
-                    js.waitAndRelease(sync);
-                    view.commitFroxels(driver, arena);
-                }
-            });
-
     // --------------------------------------------------------------------------------------------
     // Color passes
 
@@ -1299,10 +1271,6 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
             });
     });
 
-    // color-grading as subpass is done either by the color pass or the TAA pass if any
-    auto colorGradingConfigForColor = colorGradingConfig;
-    colorGradingConfigForColor.asSubpass = colorGradingConfigForColor.asSubpass && !taaOptions.enabled;
-
     if (config.fogAsPostProcess) {
         // append for command at the end of the opaque pass
 
@@ -1317,6 +1285,91 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                     ppm.fog(driver);
                 });
     }
+
+    RenderPass::CommandTypeFlags flags = RenderPass::CommandTypeFlags::COLOR;
+
+    if (view.getOitStatus() == View::OitStatus::NOT_EVALUATED) {
+        flags |= RenderPass::CommandTypeFlags::OIT;
+    }
+
+    passBuilder.commandTypeFlags(flags);
+
+
+    // RenderPass::IS_INSTANCED_STEREOSCOPIC only applies to the color pass
+    if (view.hasStereo() &&
+        engine.getConfig().stereoscopicType == StereoscopicType::INSTANCED) {
+        renderFlags |= RenderPass::IS_INSTANCED_STEREOSCOPIC;
+        passBuilder.renderFlags(renderFlags);
+    }
+
+    // Generate once, retaining ordinary commands until every job has reported eligibility.
+    // Reserve one callback for color grading or custom resolve, chosen after the jobs join.
+    RenderPass pass{ passBuilder.buildUnprepared(engine, driver, 1) };
+    if (view.getOitStatus() == View::OitStatus::NOT_EVALUATED) {
+        uint8_t const oitFlags = pass.getOitFlags();
+        view.setOitStatus(oitFlags & RenderPass::OIT_REFRACTION ? View::OitStatus::REFRACTION :
+                oitFlags & RenderPass::OIT_ORDERING ? View::OitStatus::ORDERING :
+                oitFlags & RenderPass::OIT_CANDIDATE ? View::OitStatus::ENABLED :
+                View::OitStatus::NO_TRANSPARENT_OBJECTS);
+    }
+    bool const oitEnabled = view.getOitStatus() == View::OitStatus::ENABLED;
+
+    // asSubpass is disabled with TAA (although it's supported) because performance was degraded
+    // on qualcomm hardware -- we might need a backend dependent toggle at some point
+    const PostProcessManager::ColorGradingConfig colorGradingConfig{
+            .asSubpass =
+                    isSubpassPossible && !oitEnabled &&
+                    mIsFrameBufferFetchSupported &&
+                    !engine.debug.renderer.disable_subpasses,
+            .customResolve =
+                    msaaSampleCount > 1 &&
+                    mIsFrameBufferFetchMultiSampleSupported &&
+                    msaaOptions.customResolve &&
+                    hasColorGrading &&
+                    !engine.debug.renderer.disable_subpasses,
+            .translucent = needsAlphaChannel,
+            .outputLuminance = hasFXAA || scaled, // ignored by translucent variants (false)
+            .dithering = hasDithering,
+            .ldrFormat = (hasColorGrading && (hasFXAA || scaled)) ?
+                    TextureFormat::RGBA8 : getLdrFormat(needsAlphaChannel)
+    };
+
+    // by construction (msaaSampleCount) both asSubpass and customResolve can't be true
+    assert_invariant(colorGradingConfig.asSubpass + colorGradingConfig.customResolve < 2);
+
+    // color-grading as subpass is done either by the color pass or the TAA pass if any
+    auto colorGradingConfigForColor = colorGradingConfig;
+    colorGradingConfigForColor.asSubpass = colorGradingConfigForColor.asSubpass && !taaOptions.enabled;
+
+    // a non-drawing pass to prepare everything that need to be before the color passes execute
+    fg.addPass<FrameGraph::Empty>("Prepare Color Passes",
+            [](FrameGraph::Builder& builder) {
+                // FIXME: use a dummy resource instead
+                builder.sideEffect();
+            },
+            [=, &arena, &js, &view, &ppm](auto&, auto&, DriverApi& driver) {
+                // prepare color grading as subpass material
+                if (colorGradingConfig.asSubpass) {
+                    ppm.colorGradingPrepareSubpass(driver,
+                            colorGrading, colorGradingConfig, vignetteOptions,
+                            colorBufferDesc.width, colorBufferDesc.height);
+                } else if (colorGradingConfig.customResolve) {
+                    ppm.customResolvePrepareSubpass(driver,
+                            PostProcessManager::CustomResolveOp::COMPRESS);
+                }
+
+                if (view.getChannelDepthClearMask().any()) {
+                    Variant::type_t variant = isRenderingMultiview ? Variant::STE : 0;
+                    ppm.clearAncillaryBuffersPrepare(driver, variant);
+                }
+
+                // We use a framegraph pass to wait for froxelization to finish (so it can be done
+                // in parallel with .compile()
+                if (auto sync = view.getFroxelizerSync()) {
+                    js.waitAndRelease(sync);
+                    view.commitFroxels(driver, arena);
+                }
+            });
 
     if (colorGradingConfigForColor.asSubpass) {
         // append color grading subpass after all other passes
@@ -1336,24 +1389,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 });
     }
 
-    RenderPass::CommandTypeFlags flags = RenderPass::CommandTypeFlags::COLOR;
-
-    if (view.isOitEnabled()) {
-        flags |= RenderPass::CommandTypeFlags::FILTER_TRANSLUCENT_OBJECTS;
-    }
-
-    passBuilder.commandTypeFlags(flags);
-
-
-    // RenderPass::IS_INSTANCED_STEREOSCOPIC only applies to the color pass
-    if (view.hasStereo() &&
-        engine.getConfig().stereoscopicType == StereoscopicType::INSTANCED) {
-        renderFlags |= RenderPass::IS_INSTANCED_STEREOSCOPIC;
-        passBuilder.renderFlags(renderFlags);
-    }
-
-    // create the pass, which generates all its commands (this is a heavy operation)
-    RenderPass const pass{ passBuilder.build(engine, driver) };
+    pass.complete(engine, driver, passBuilder);
 
     // now that we have the commands we can figure out if we have refraction commands
     auto* const firstRefractionCommand = [&view](RenderPass const& pass) {
@@ -1372,16 +1408,19 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // FIXME: we probably should take the dynamic scaling into account too
     // if MSAA is enabled, we end-up rendering in an intermediate buffer. This is the only case where
     // "!hasPostProcess" doesn't guarantee rendering into the swapchain.
-    const bool useIntermediateBuffer = hasPostProcess || msaaOptions.enabled ||
+    const bool useIntermediateBuffer = hasPostProcess || oitEnabled || msaaOptions.enabled ||
             ssReflectionsOptions.enabled || hasScreenSpaceRefraction ||
             (isRenderingMultiview && engine.debug.stereo.
             combine_multiview_images);
 
-    // this is slightly ugly, but conceptually `pass` is const; it's just that we can't set
-    // the scissor viewport during construction
-    const_cast<RenderPass&>(pass).setScissorViewport(useIntermediateBuffer ? xvp : vp);
+    pass.setScissorViewport(useIntermediateBuffer ? xvp : vp);
 
-    const_cast<RenderPass&>(pass).finalize(engine, driver);
+    pass.finalize(engine, driver);
+
+    auto const* oitBegin = oitEnabled ? std::lower_bound(pass.begin(), pass.end(),
+            RenderPass::CHANNEL_MASK | uint64_t(RenderPass::Pass::BLENDED),
+            [](RenderPass::Command const& command, uint64_t key) { return command.key < key; }) :
+            pass.end();
 
     // the color pass itself + color-grading as subpass if needed
     auto colorPassOutput = RendererUtils::colorPass(fg, "Color Pass", mEngine, view, {
@@ -1390,7 +1429,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 .ssr = ssrConfig.ssr,
                 .structure = structure
             },
-            colorBufferDesc, config, colorGradingConfigForColor, pass.getExecutor());
+            colorBufferDesc, config, colorGradingConfigForColor, pass.getExecutor(pass.begin(), oitBegin));
 
     if (UTILS_UNLIKELY(hasScreenSpaceRefraction)) {
         // This cancels the colorPass() call above if refraction is active.
@@ -1404,11 +1443,21 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
              pass, firstRefractionCommand);
     }
 
-    if (view.isOitEnabled()) {
-        auto oitOutput =
-                ppm.oitPass(fg, passBuilder, colorPassOutput.depth, svp.width, svp.height, 1.0f);
-        colorPassOutput.linearColor =
-                ppm.oitResolve(fg, oitOutput, colorPassOutput.linearColor, colorPassOutput.depth);
+    if (oitEnabled) {
+        if (oitBegin != pass.end()) {
+            auto oitOutput = ppm.oitPass(fg, view, pass.getExecutor(oitBegin, pass.end()),
+                    pass.getExecutor(oitBegin, pass.end()), {
+                    .depth = colorPassOutput.depth,
+                    .shadows = blackboard.get<FrameGraphTexture>("shadows"),
+                    .ssao = blackboard.get<FrameGraphTexture>("ssao"),
+                    .structure = structure,
+                    .ssr = ssrConfig.ssr
+                }, svp.width, svp.height);
+            colorPassOutput.linearColor = ppm.oitResolve(fg, oitOutput,
+                    colorPassOutput.linearColor, colorPassOutput.depth);
+        } else {
+            view.setOitStatus(View::OitStatus::NO_TRANSPARENT_OBJECTS);
+        }
     }
 
     if (colorGradingConfig.customResolve) {
@@ -1626,7 +1675,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
         if (blendModeTranslucent ||
             xvp != svp ||
             (inputIsColorPass &&
-                    (msaaSampleCount > 1 ||
+                    (msaaSampleCount > 1 || oitEnabled ||
                     colorGradingConfig.asSubpass ||
                     hasScreenSpaceRefraction ||
                     ssReflectionsOptions.enabled))) {

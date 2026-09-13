@@ -115,6 +115,8 @@ struct App {
 
     MaterialProvider* materials;
     MaterialSource materialSource = JITSHADER;
+    bool oitTestMaterials = false;
+    View::OitStatus lastOitTestStatus = View::OitStatus::NOT_EVALUATED;
 
     gltfio::ResourceLoader* resourceLoader = nullptr;
     gltfio::TextureProvider* stbDecoder = nullptr;
@@ -436,7 +438,12 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
 #if defined(__EMSCRIPTEN__)
     app->materialSource = UBERSHADER;
 #else
-    app->materialSource = config.getBool("ubershader") ? UBERSHADER : JITSHADER;
+    app->oitTestMaterials = config.getBool("oit-test-materials");
+    app->materialSource = config.getBool("ubershader") && !app->oitTestMaterials
+            ? UBERSHADER : JITSHADER;
+    if (app->oitTestMaterials) {
+        std::cout << "OIT test materials: BLEND uses TRANSPARENT (JIT)." << std::endl;
+    }
 #endif
     app->actualSize = config.getBool("actual-size");
     app->recomputeAabb = config.getBool("recompute-aabb");
@@ -569,11 +576,11 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
 
         app->asset->releaseSourceData();
 
-        // Enable stencil writes on all material instances.
+        // Stencil writes are only needed while visualizing overdraw.
         const size_t matInstanceCount = app->instance->getMaterialInstanceCount();
         MaterialInstance* const* const instances = app->instance->getMaterialInstances();
         for (int mi = 0; mi < matInstanceCount; mi++) {
-            instances[mi]->setStencilWrite(true);
+            instances[mi]->setStencilWrite(app->viewer->getSettings().view.stencilBufferEnabled);
             instances[mi]->setStencilOpDepthStencilPass(MaterialInstance::StencilOperation::INCR);
         }
         setupIBL();
@@ -662,7 +669,8 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
                 UBERARCHIVE_DEFAULT_SIZE);
 #else
         app->materials = (app->materialSource == JITSHADER)
-                                 ? createJitShaderProvider(engine, OPTIMIZE_MATERIALS, {})
+                                 ? createJitShaderProvider(engine, OPTIMIZE_MATERIALS, {},
+                                           app->oitTestMaterials)
                                  : createUbershaderProvider(engine, UBERARCHIVE_DEFAULT_DATA,
                                            UBERARCHIVE_DEFAULT_SIZE);
 #endif
@@ -887,7 +895,11 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
 #endif
                 const auto overdrawVisibilityBit = (1u << App::Scene::OVERDRAW_VISIBILITY_LAYER);
                 bool visualizeOverdraw = view->getVisibleLayers() & overdrawVisibilityBit;
-                ImGui::Checkbox("Visualize overdraw", &visualizeOverdraw);
+                if (ImGui::Checkbox("Visualize overdraw", &visualizeOverdraw)) {
+                    for (size_t i = 0; i < app->instance->getMaterialInstanceCount(); ++i) {
+                        app->instance->getMaterialInstances()[i]->setStencilWrite(visualizeOverdraw);
+                    }
+                }
                 view->setVisibleLayers(overdrawVisibilityBit,
                         (uint8_t)visualizeOverdraw << App::Scene::OVERDRAW_VISIBILITY_LAYER);
                 app->viewer->getSettings().view.stencilBufferEnabled = visualizeOverdraw;
@@ -1119,6 +1131,12 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
     };
 
     auto postRender = [app](Engine* engine, View* view, Scene* scene, Renderer* renderer) {
+        if (app->oitTestMaterials && app->lastOitTestStatus != view->getOitStatus()) {
+            app->lastOitTestStatus = view->getOitStatus();
+            std::cout << "OIT test: requested=" << view->isOitEnabled()
+                      << " effective=" << (view->getOitStatus() == View::OitStatus::ENABLED)
+                      << " status=" << int(view->getOitStatus()) << std::endl;
+        }
         if (app->screenshot) {
             char filenameBuf[64];
             const char* const ext = app->screenshotAsPPM ? ".ppm" : ".tif";
@@ -1185,6 +1203,8 @@ std::unique_ptr<FilamentApp2> createSampleApp(SampleConfig config,
 
 samples::SampleParameters createAppParameters() {
     return {
+        samples::Parameter::makeBool("oit-test-materials", 0,
+                "Test only: load BLEND as TRANSPARENT using JIT; toggle OIT in the UI", false),
         samples::Parameter::makeBool("ubershader", 'u', "Enable ubershader", false),
         samples::Parameter::makeBool("actual-size", 's', "Set window size to actual asset size",
                 false),

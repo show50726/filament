@@ -1,0 +1,66 @@
+[
+  {
+    "name": "oit-off",
+    "base": {
+      "view.oitEnabled": false,
+      "view.msaa.enabled": false,
+      "view.taa.enabled": false,
+      "view.antiAliasing": "NONE",
+      "view.postProcessingEnabled": true,
+      "camera.enabled": true,
+      "camera.center": [
+        0,
+        0,
+        16
+      ],
+      "camera.lookAt": [
+        0,
+        0,
+        0
+      ],
+      "camera.focalLength": 33,
+      "camera.horizontalFov": 40,
+      "viewer.autoScaleEnabled": false,
+      "viewer.skyboxEnabled": false,
+      "viewer.groundPlaneEnabled": false,
+      "viewer.backgroundColor": [
+        0.025,
+        0.03,
+        0.045
+      ],
+      "view.dithering": "NONE"
+    }
+  },
+  {
+    "name": "oit-on",
+    "base": {
+      "view.oitEnabled": true,
+      "view.msaa.enabled": false,
+      "view.taa.enabled": false,
+      "view.antiAliasing": "NONE",
+      "view.postProcessingEnabled": true,
+      "camera.enabled": true,
+      "camera.center": [
+        0,
+        0,
+        16
+      ],
+      "camera.lookAt": [
+        0,
+        0,
+        0
+      ],
+      "camera.focalLength": 33,
+      "camera.horizontalFov": 40,
+      "viewer.autoScaleEnabled": false,
+      "viewer.skyboxEnabled": false,
+      "viewer.groundPlaneEnabled": false,
+      "viewer.backgroundColor": [
+        0.025,
+        0.03,
+        0.045
+      ],
+      "view.dithering": "NONE"
+    }
+  }
+]

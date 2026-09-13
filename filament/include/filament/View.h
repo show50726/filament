@@ -779,14 +779,33 @@ public:
     bool isStencilBufferEnabled() const noexcept;
 
     /**
-     * Enables or disables Order Independent Transparency (OIT). Disabled by default.
+     * Requests weighted blended order-independent transparency. Disabled by default.
+     * Eligible TRANSPARENT materials use OIT with depth writes disabled. FADE and
+     * other blend modes, and transparency with special depth/stencil state, remain
+     * in the color pass before OIT composition. Material instance state is unchanged.
+     * Unsupported View configurations, visible refraction or explicit ordering
+     * use ordinary transparency for the entire View. Query getOitStatus() after rendering.
      *
      * @param enabled true enables OIT, false disables it.
      */
     void setOitEnabled(bool enabled) noexcept;
 
     /**
-     * Returns true if OIT is enabled.
+     * Effective result of the most recent render. Fallback reasons are ordered
+     * by priority, independent of scene iteration order. Eligibility considers
+     * this View's visible renderables after culling.
+     */
+    enum class OitStatus : uint8_t {
+        DISABLED, NOT_EVALUATED, UNSUPPORTED_DEVICE, MULTISAMPLE, STEREO,
+        UNSUPPORTED_VIEW, REFRACTION, BLENDING, ORDERING, DEPTH_STENCIL,
+        NO_TRANSPARENT_OBJECTS, ENABLED
+    };
+
+    /** Last evaluated result; changing the request resets it to NOT_EVALUATED or DISABLED. */
+    OitStatus getOitStatus() const noexcept;
+
+    /**
+     * Returns the requested OIT setting, not whether the last frame used OIT.
      * See setOitEnabled() for more information.
      */
     bool isOitEnabled() const noexcept;

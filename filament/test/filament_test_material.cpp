@@ -397,7 +397,7 @@ TEST(MaterialVariant, ExtraDirectionalLightsRequireDirectionalLighting) {
 
     auto const validKeys = DynamicSpecConstKey::getValidKeys(
             Variant{}, MaterialDomain::SURFACE, true);
-    EXPECT_EQ(validKeys.size, 6);
+    EXPECT_EQ(validKeys.size, 18);
     for (auto const key : validKeys) {
         EXPECT_FALSE(key.hasExtraDirectionalLights() && !key.hasDirectionalLighting());
     }

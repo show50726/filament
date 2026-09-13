@@ -60,6 +60,7 @@ public class View {
         static final AntiAliasing[] sAntiAliasingValues = AntiAliasing.values();
         static final BlendMode[] sBlendModeValues = BlendMode.values();
         static final Dithering[] sDitheringValues = Dithering.values();
+        static final OitStatus[] sOitStatusValues = OitStatus.values();
         static final ShadowType[] sShadowTypeValues = ShadowType.values();
     }
 
@@ -147,6 +148,31 @@ public class View {
         PCSS,
         /** EVSM with soft shadows and contact hardening */
         PCFd;
+
+        /** @return the value of this enum constant as used by the native Filament engine. */
+        public int toFilamentNative() { return ordinal(); }
+    }
+
+    /**
+     * Effective result of the most recent render.
+     *
+     * <p>Fallback reasons are ordered
+     * by priority, independent of scene iteration order. Eligibility considers
+     * this View's visible renderables after culling.</p>
+     */
+    public enum OitStatus {
+        DISABLED,
+        NOT_EVALUATED,
+        UNSUPPORTED_DEVICE,
+        MULTISAMPLE,
+        STEREO,
+        UNSUPPORTED_VIEW,
+        REFRACTION,
+        BLENDING,
+        ORDERING,
+        DEPTH_STENCIL,
+        NO_TRANSPARENT_OBJECTS,
+        ENABLED;
 
         /** @return the value of this enum constant as used by the native Filament engine. */
         public int toFilamentNative() { return ordinal(); }
@@ -1218,6 +1244,36 @@ public class View {
      */
     public boolean isStencilBufferEnabled() {
         return nIsStencilBufferEnabled(getNativeObject());
+    }
+
+    /**
+     * Requests weighted blended order-independent transparency.
+     *
+     * <p>Disabled by default.
+     * Eligible TRANSPARENT materials use OIT with depth writes disabled. FADE and
+     * other blend modes, and transparency with special depth/stencil state, remain
+     * in the color pass before OIT composition. Material instance state is unchanged.
+     * Unsupported View configurations, visible refraction or explicit ordering
+     * use ordinary transparency for the entire View. Query getOitStatus() after rendering.</p>
+     *
+     * @param enabled true enables OIT, false disables it.
+     */
+    public void setOitEnabled(boolean enabled) {
+        nSetOitEnabled(getNativeObject(), enabled);
+    }
+
+    /** Last evaluated result; changing the request resets it to NOT_EVALUATED or DISABLED. */
+    public OitStatus getOitStatus() {
+        return EnumCache.sOitStatusValues[nGetOitStatus(getNativeObject())];
+    }
+
+    /**
+     * Returns the requested OIT setting, not whether the last frame used OIT.
+     *
+     * <p>See setOitEnabled() for more information.</p>
+     */
+    public boolean isOitEnabled() {
+        return nIsOitEnabled(getNativeObject());
     }
 
     /**
@@ -2385,6 +2441,9 @@ public class View {
     private static native boolean nIsTransparentPickingEnabled(long nativeView);
     private static native void nSetStencilBufferEnabled(long nativeView, boolean enabled);
     private static native boolean nIsStencilBufferEnabled(long nativeView);
+    private static native void nSetOitEnabled(long nativeView, boolean enabled);
+    private static native int nGetOitStatus(long nativeView);
+    private static native boolean nIsOitEnabled(long nativeView);
     private static native void nSetStereoscopicOptions(long nativeView, boolean enabled);
     private static native void nSetFrustumCullingEnabled(long nativeView, boolean culling);
     private static native boolean nIsFrustumCullingEnabled(long nativeView);

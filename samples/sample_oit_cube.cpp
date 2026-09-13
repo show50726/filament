@@ -16,7 +16,11 @@
 
 #include "common/arguments.h"
 
-#include <cstddef>
+#include "generated/resources/resources.h"
+
+#include <filamentapp/Config.h>
+#include <filamentapp/FilamentApp.h>
+
 #include <filament/Box.h>
 #include <filament/Camera.h>
 #include <filament/Engine.h>
@@ -30,20 +34,15 @@
 #include <filament/View.h>
 
 #include <utils/EntityManager.h>
+#include <utils/getopt.h>
 #include <utils/Path.h>
 
-#include <filamentapp/Config.h>
-#include <filamentapp/FilamentApp.h>
-
-#include <utils/getopt.h>
+#include <imgui.h>
 
 #include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <vector>
-
-#include "generated/resources/resources.h"
-
-#include <imgui.h>
 
 using namespace filament;
 using namespace filament::math;
@@ -108,60 +107,17 @@ static const float3 CUBE_TANGENTS[6] = {
 static const uint16_t CUBE_INDICES[36] = { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8,
     12, 13, 14, 14, 15, 12, 16, 17, 18, 18, 19, 16, 20, 21, 22, 22, 23, 20 };
 
-static void printUsage(char* name) {
-    std::string exec_name(utils::Path(name).getName());
-    std::string usage(
-            "EXEC renders a simple OIT example\n"
-            "Usage:\n"
-            "    EXEC [options]\n"
-            "Options:\n"
-            "   --help, -h\n"
-            "       Prints this message\n\n"
-            "API_USAGE"
-    );
-    const std::string from("EXEC");
-    while (true) {
-        size_t pos = usage.find(from);
-        if (pos == std::string::npos) break;
-        usage.replace(pos, from.length(), exec_name);
-    }
-    const std::string apiUsage("API_USAGE");
-    while (true) {
-        size_t pos = usage.find(apiUsage);
-        if (pos == std::string::npos) break;
-        usage.replace(pos, apiUsage.length(), samples::getBackendAPIArgumentsUsage());
-    }
-    std::cout << usage;
-}
-
-static int handleCommandLineArguments(int argc, char* argv[], App* app) {
-    static constexpr const char* OPTSTR = "ha:s";
-    static const struct option OPTIONS[] = { { "help", getopt::no_argument, nullptr, 'h' },
-        { "api", getopt::required_argument, nullptr, 'a' },
-        { nullptr, 0, nullptr, 0 } };
-    int opt;
-    int option_index = 0;
-    while ((opt = getopt_long(argc, argv, OPTSTR, OPTIONS, &option_index)) >= 0) {
-        std::string arg(optarg ? optarg : "");
-        switch (opt) {
-            default:
-            case 'h':
-                printUsage(argv[0]);
-                exit(0);
-            case 'a':
-                app->config.backend = samples::parseArgumentsForBackend(arg);
-                break;
-        }
-    }
-    return optind;
-}
-
 int main(int argc, char** argv) {
     App app;
     app.config.title = "sample_oit";
     app.config.samples = 1; // Keep MSAA off for OIT.
-    app.config.iblDirectory = FilamentApp::getRootAssetsPath() + IBL_FOLDER;
-    handleCommandLineArguments(argc, argv, &app);
+    app.config.iblDirectory = utils::CString(
+            (samples::getDefaultAssetPath() + IBL_FOLDER).getPath().c_str());
+    SampleConfig arguments;
+    arguments.backend = app.config.backend;
+    samples::handleCommandLineArguments(argc, argv, &arguments,
+            { .sampleDescription = "Renders an OIT transparency example." });
+    app.config.backend = arguments.backend;
 
     auto setup = [&app](Engine* engine, View* view, Scene* scene) {
         auto& tcm = engine->getTransformManager();

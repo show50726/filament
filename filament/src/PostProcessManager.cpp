@@ -36,6 +36,7 @@
 #include "details/MaterialInstance.h"
 #include "details/Texture.h"
 #include "details/VertexBuffer.h"
+#include "details/View.h"
 
 #include "ds/DescriptorSet.h"
 #include "ds/SsrPassDescriptorSet.h"
@@ -743,63 +744,54 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::transparentPicking(FrameGrap
 }
 
 PostProcessManager::OitPassOutput PostProcessManager::oitPass(FrameGraph& fg,
-        RenderPassBuilder const& passBuilder, FrameGraphId<FrameGraphTexture> depth, uint32_t width,
-        uint32_t height, float const scale) noexcept {
-
-    width = std::max(1u, uint32_t(std::ceil(float(width) * scale)));
-    height = std::max(1u, uint32_t(std::ceil(float(height) * scale)));
-
-    struct OitData {
-        FrameGraphId<FrameGraphTexture> accumulation;
-        FrameGraphId<FrameGraphTexture> revealage;
-        FrameGraphId<FrameGraphTexture> depth;
+        FView& view, RenderPass::Executor accumulationExecutor, RenderPass::Executor weightExecutor,
+        OitPassInput const& input, uint32_t width, uint32_t height) noexcept {
+    struct OitData : OitPassInput {
+        FrameGraphId<FrameGraphTexture> color;
     };
 
-    auto& oitPass = fg.addPass<OitData>(
-            "OIT Pass",
-            [&](FrameGraph::Builder& builder, auto& data) {
-                data.accumulation = builder.createTexture("OIT Accumulation",
-                        { .width = width, .height = height, .format = TextureFormat::RGBA16F });
-                data.revealage = builder.createTexture("OIT Revealage",
-                        { .width = width, .height = height, .format = TextureFormat::RGBA16F });
-
-                data.accumulation = builder.write(data.accumulation,
-                        FrameGraphTexture::Usage::COLOR_ATTACHMENT);
-                data.revealage =
-                        builder.write(data.revealage, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
-                data.depth = builder.read(depth, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
-
-                builder.declareRenderPass("OIT Target",
-                        { .attachments = { .color = { data.accumulation, data.revealage },
-                              .depth = data.depth },
-                            .clearColor = { 0.0f, 0.0f, 0.0f, 0.0f }, // Accumulation clear
-                            .clearFlags = TargetBufferFlags::COLOR0 | TargetBufferFlags::COLOR1 });
-            },
-            [=, this, passBuilder = passBuilder](FrameGraphResources const& resources, auto const&,
-                    DriverApi& driver) mutable {
-                Variant oitVariant(Variant::OIT);
-
-                getStructureDescriptorSet().bind(driver);
-
-                auto [target, params] = resources.getRenderPassInfo();
-
-                passBuilder.variant(Variant(passBuilder.variant().key | oitVariant.key));
-                passBuilder.commandTypeFlags(RenderPass::CommandTypeFlags::COLOR |
-                                             RenderPass::CommandTypeFlags::FILTER_OPAQUE_OBJECTS);
-
-                RenderPass pass{ passBuilder.build(mEngine, driver) };
-                pass.finalize(mEngine, driver);
-
-                driver.beginRenderPass(target, params);
-                pass.getExecutor().execute(mEngine, driver);
-                driver.endRenderPass();
-                unbindAllDescriptorSets(driver);
-            });
-
-    fg.getBlackboard()["oit accum"] = oitPass->accumulation;
-    fg.getBlackboard()["oit revealAge"] = oitPass->revealage;
-
-    return { oitPass->accumulation, oitPass->revealage };
+    // Replay the same immutable command range. Each pass has one output and one color attachment.
+    auto addPass = [&](bool weight, RenderPass::Executor executor) {
+        auto& pass = fg.addPass<OitData>(weight ? "OIT Weight" : "OIT Accumulation",
+                [&](FrameGraph::Builder& builder, auto& data) {
+                    data.color = builder.createTexture(
+                            weight ? StaticString("OIT Weight") : StaticString("OIT Accumulation"),
+                            { .width = width, .height = height,
+                                .format = weight ? TextureFormat::R16F : TextureFormat::RGBA16F });
+                    data.color = builder.write(data.color, FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                    data.depth = builder.read(input.depth, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
+                    if (input.shadows) data.shadows = builder.sample(input.shadows);
+                    if (input.ssao) data.ssao = builder.sample(input.ssao);
+                    if (input.structure) data.structure = builder.sample(input.structure);
+                    if (input.ssr) data.ssr = builder.sample(input.ssr);
+                    builder.declareRenderPass(
+                            weight ? StaticString("OIT Weight Target") : StaticString("OIT Accumulation Target"),
+                            { .attachments = { .color = { data.color }, .depth = data.depth },
+                                // RGB sums start at zero; accumulated transmittance starts at one.
+                                .clearColor = { 0.0f, 0.0f, 0.0f, 1.0f },
+                                .clearFlags = TargetBufferFlags::COLOR0 });
+                },
+                [this, &view, weight, executor = std::move(executor)](
+                        FrameGraphResources const& resources, OitData const& data, DriverApi& driver) {
+                    view.prepareSSAO(data.ssao ? resources.getTexture(data.ssao) : mEngine.getOneTextureArray());
+                    view.prepareSSR(data.ssr ? resources.getTexture(data.ssr) : mEngine.getOneTextureArray());
+                    view.prepareStructure(data.structure ? resources.getTexture(data.structure) : mEngine.getOneTexture());
+                    view.prepareShadowMapping(mEngine, data.shadows ? resources.getTexture(data.shadows) :
+                            (view.getShadowType() == ShadowType::PCF ? mEngine.getOneTextureArrayDepth() :
+                                    mEngine.getOneTextureArray()));
+                    view.commitUniforms(driver);
+                    view.commitDescriptorSet(driver);
+                    auto [target, params] = resources.getRenderPassInfo();
+                    driver.beginRenderPass(target, params);
+                    executor.execute(mEngine, driver, weight);
+                    driver.endRenderPass();
+                    unbindAllDescriptorSets(driver);
+                });
+        return pass->color;
+    };
+    auto accumulation = addPass(false, std::move(accumulationExecutor));
+    auto weight = addPass(true, std::move(weightExecutor));
+    return { accumulation, weight };
 }
 
 FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
@@ -832,8 +824,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::oitResolve(FrameGraph& fg,
                 auto revealage = resources.getTexture(data.revealage);
 
                 auto& material = getPostProcessMaterial("oitResolve");
-                auto ma = material.getMaterial(mEngine, driver);
-                FMaterialInstance* mi = getMaterialInstance(ma);
+                FMaterialInstance* mi = getMaterialInstance(mEngine, driver, material);
 
                 mi->setParameter("accumulation", accumulation, {});
                 mi->setParameter("revealage", revealage, {});

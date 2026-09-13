@@ -41,6 +41,21 @@ struct DynamicSpecConstKey {
     static constexpr type_t DYNAMIC_LIGHTING = 0x1;
     static constexpr type_t EXTRA_DIRECTIONAL_LIGHTS = 0x2;
     static constexpr type_t DIRECTIONAL_LIGHTING = 0x4;
+    static constexpr type_t OIT_ACCUMULATION = 0x8;
+    static constexpr type_t OIT_WEIGHT = 0x10;
+    static constexpr type_t OIT_MASK = OIT_ACCUMULATION | OIT_WEIGHT;
+
+    constexpr bool hasOitAccumulation() const noexcept { return key & OIT_ACCUMULATION; }
+    constexpr bool hasOitWeight() const noexcept { return key & OIT_WEIGHT; }
+    constexpr bool hasOit() const noexcept { return key & OIT_MASK; }
+    constexpr void setOitWeight() noexcept {
+        key = (key & ~OIT_MASK) | OIT_WEIGHT;
+    }
+
+    static constexpr bool canSupportOit(Variant variant, MaterialDomain domain) noexcept {
+        return domain == MaterialDomain::SURFACE &&
+                Variant::isValidStandardVariant(variant) && !Variant::isStereoVariant(variant);
+    }
 
     constexpr bool operator==(DynamicSpecConstKey rhs) const noexcept {
         return key == rhs.key;
@@ -119,7 +134,9 @@ struct DynamicSpecConstKey {
     static constexpr bool isValidProgramSpecKey(Variant const variant,
             DynamicSpecConstKey const specKey, MaterialDomain const materialDomain,
             bool const isLit) noexcept {
-        return (!specKey.hasDynamicLighting() ||
+        return (specKey.key & OIT_MASK) != OIT_MASK &&
+               (!specKey.hasOit() || canSupportOit(variant, materialDomain)) &&
+               (!specKey.hasDynamicLighting() ||
                        canSupportDynamicLighting(variant, materialDomain, isLit)) &&
                (!specKey.hasExtraDirectionalLights() ||
                        (specKey.hasDirectionalLighting() &&
@@ -131,6 +148,9 @@ struct DynamicSpecConstKey {
 
     static constexpr DynamicSpecConstKey filterProgramSpecKey(Variant const variant,
             DynamicSpecConstKey specKey, MaterialDomain const materialDomain, bool const isLit) noexcept {
+        if (!canSupportOit(variant, materialDomain)) {
+            specKey.key &= ~OIT_MASK;
+        }
         if (!canSupportDynamicLighting(variant, materialDomain, isLit)) {
             specKey.setDynamicLighting(false);
         }

@@ -210,6 +210,16 @@ MaterialProvider* createJitShaderProvider(Engine* engine, bool optimizeShaders =
         utils::FixedCapacityVector<char const*> const& variantFilters = {});
 
 /**
+ * Testing overload: optionally map glTF BLEND to TRANSPARENT instead of FADE.
+ * This changes glTF lighting semantics and is intended for OIT comparisons only.
+ * The override is fixed for the lifetime of the provider and its material cache.
+ */
+UTILS_PUBLIC
+MaterialProvider* createJitShaderProvider(Engine* engine, bool optimizeShaders,
+        utils::FixedCapacityVector<char const*> const& variantFilters,
+        bool transparentBlendForTesting);
+
+/**
  * Creates a material provider that loads a small set of pre-built materials.
  *
  * @return New material provider that can quickly load a material from a cache.

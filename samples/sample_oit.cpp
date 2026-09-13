@@ -37,9 +37,9 @@
 #include <filament/View.h>
 
 #include <utils/EntityManager.h>
-#include <utils/getopt.h>
 #include <utils/Path.h>
 
+#include <getopt/getopt.h>
 #include <imgui.h>
 
 #include <iostream>
@@ -126,6 +126,8 @@ int main(int argc, char** argv) {
         // Create two transparent renderables.
         for (int i = 0; i < 2; ++i) {
             auto mi = app.transparentMaterial->createInstance();
+            mi->setStencilWrite(true);
+            mi->setStencilOpDepthStencilPass(MaterialInstance::StencilOperation::INCR);
             app.materialInstances.push_back(mi);
 
             auto renderable = em.create();

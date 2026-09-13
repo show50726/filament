@@ -19,6 +19,7 @@
 
 #include "FrameHistory.h"
 #include "MaterialInstanceManager.h"
+#include "RenderPass.h"
 
 #include "ds/PostProcessDescriptorSet.h"
 #include "ds/SsrPassDescriptorSet.h"
@@ -63,6 +64,7 @@ class FColorGrading;
 class FEngine;
 class FMaterial;
 class FMaterialInstance;
+class FView;
 class FrameGraph;
 class RenderPass;
 class RenderPassBuilder;
@@ -117,9 +119,15 @@ public:
         FrameGraphId<FrameGraphTexture> accumulation;
         FrameGraphId<FrameGraphTexture> revealage;
     };
-    OitPassOutput oitPass(FrameGraph& fg, RenderPassBuilder const& passBuilder,
-            FrameGraphId<FrameGraphTexture> depth, uint32_t width, uint32_t height,
-            float scale) noexcept;
+    struct OitPassInput {
+        FrameGraphId<FrameGraphTexture> depth;
+        FrameGraphId<FrameGraphTexture> shadows;
+        FrameGraphId<FrameGraphTexture> ssao;
+        FrameGraphId<FrameGraphTexture> structure;
+        FrameGraphId<FrameGraphTexture> ssr;
+    };
+    OitPassOutput oitPass(FrameGraph& fg, FView& view, RenderPass::Executor accumulationExecutor,
+            RenderPass::Executor weightExecutor, OitPassInput const& input, uint32_t width, uint32_t height) noexcept;
 
     FrameGraphId<FrameGraphTexture> oitResolve(FrameGraph& fg, OitPassOutput const& oit,
             FrameGraphId<FrameGraphTexture> color, FrameGraphId<FrameGraphTexture> depth) noexcept;

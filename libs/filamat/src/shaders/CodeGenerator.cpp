@@ -367,6 +367,13 @@ utils::io::sstream& CodeGenerator::generateCommonProlog(utils::io::sstream& out,
                 litVariants);
     }
 
+    generateSpecializationConstant(out, "RUNTIME_CONFIG_OIT_ACCUMULATION",
+            CONFIG_MAX_RESERVED_SPEC_CONSTANTS +
+                    +DynamicSpecializationConstants::RUNTIME_CONFIG_OIT_ACCUMULATION, false);
+    generateSpecializationConstant(out, "RUNTIME_CONFIG_OIT_WEIGHT",
+            CONFIG_MAX_RESERVED_SPEC_CONSTANTS +
+                    +DynamicSpecializationConstants::RUNTIME_CONFIG_OIT_WEIGHT, false);
+
     out << '\n';
     out << SHADERS_COMMON_DEFINES_GLSL_DATA;
 

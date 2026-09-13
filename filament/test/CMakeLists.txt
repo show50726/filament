@@ -55,6 +55,16 @@ list(APPEND RESGEN_SOURCE ${DUMMY_SRC})
 # ==================================================================================================
 
 if (FILAMENT_BUILD_TESTING)
+    add_executable(test_oit oit_rendering_test.cpp)
+    target_link_libraries(test_oit PRIVATE filamat filament gtest)
+    target_compile_options(test_oit PRIVATE ${COMPILER_FLAGS})
+    set_target_properties(test_oit PROPERTIES FOLDER Tests)
+    add_executable(benchmark_oit oit_benchmark.cpp)
+    target_link_libraries(benchmark_oit PRIVATE filamat filament)
+    target_compile_options(benchmark_oit PRIVATE ${COMPILER_FLAGS})
+    target_compile_definitions(benchmark_oit PRIVATE FILAMENT_OIT_HAS_STATUS)
+    set_target_properties(benchmark_oit PROPERTIES FOLDER Tests)
+
     # The following tests rely on private APIs that are stripped
     # away in Release builds
     if (TNT_DEV)

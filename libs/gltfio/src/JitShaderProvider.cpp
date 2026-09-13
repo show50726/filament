@@ -39,7 +39,7 @@ namespace {
 class JitShaderProvider : public MaterialProvider {
 public:
     explicit JitShaderProvider(Engine* engine, bool optimizeShaders,
-            utils::FixedCapacityVector<char const*> const& variantFilters);
+            utils::FixedCapacityVector<char const*> const& variantFilters, bool transparentBlendForTesting);
     ~JitShaderProvider() override;
 
     MaterialInstance* createMaterialInstance(MaterialKey* config, UvMap* uvmap,
@@ -61,13 +61,15 @@ private:
     std::vector<Material*> mMaterials;
     Engine* const mEngine;
     const bool mOptimizeShaders;
+    const bool mTransparentBlendForTesting;
     filament::UserVariantFilterMask mVariantFilter{};
 };
 
 JitShaderProvider::JitShaderProvider(Engine* engine, bool optimizeShaders,
-        utils::FixedCapacityVector<char const*> const& variantFilters)
+        utils::FixedCapacityVector<char const*> const& variantFilters, bool transparentBlendForTesting)
     : mEngine(engine),
-      mOptimizeShaders(optimizeShaders) {
+      mOptimizeShaders(optimizeShaders),
+      mTransparentBlendForTesting(transparentBlendForTesting) {
 
     // Note that this is the same as the list in tools/matc/src/ParametersProcessor.cpp
     static const std::unordered_map<std::string, filament::UserVariantFilterBit> strToEnum  = [] {
@@ -382,7 +384,8 @@ std::string shaderFromKey(const MaterialKey& config) {
 }
 
 Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap& uvmap,
-        const char* name, bool optimizeShaders, filament::UserVariantFilterMask variantFilter) {
+        const char* name, bool optimizeShaders, filament::UserVariantFilterMask variantFilter,
+        bool transparentBlendForTesting) {
     std::string shader = shaderFromKey(config);
     processShaderString(&shader, uvmap, config);
     MaterialBuilder builder;
@@ -560,7 +563,8 @@ Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap&
             builder.blending(MaterialBuilder::BlendingMode::MASKED);
             break;
         case AlphaMode::BLEND:
-            builder.blending(MaterialBuilder::BlendingMode::FADE);
+            builder.blending(transparentBlendForTesting ? MaterialBuilder::BlendingMode::TRANSPARENT
+                    : MaterialBuilder::BlendingMode::FADE);
             break;
         default:
             // Ignore
@@ -638,7 +642,8 @@ Material* JitShaderProvider::getMaterial(MaterialKey* config, UvMap* uvmap, cons
 #endif
 
         Material* mat =
-                createMaterial(mEngine, *config, *uvmap, label, optimizeShaders, mVariantFilter);
+                createMaterial(mEngine, *config, *uvmap, label, optimizeShaders, mVariantFilter,
+                        mTransparentBlendForTesting);
         mCache.emplace(std::make_pair(*config, mat));
         mMaterials.push_back(mat);
         return mat;
@@ -657,7 +662,14 @@ namespace filament::gltfio {
 
 MaterialProvider* createJitShaderProvider(Engine* engine, bool optimizeShaders,
         utils::FixedCapacityVector<char const*> const& variantFilters) {
-    return new JitShaderProvider(engine, optimizeShaders, variantFilters);
+    return new JitShaderProvider(engine, optimizeShaders, variantFilters, false);
+}
+
+MaterialProvider* createJitShaderProvider(Engine* engine, bool optimizeShaders,
+        utils::FixedCapacityVector<char const*> const& variantFilters,
+        bool transparentBlendForTesting) {
+    return new JitShaderProvider(engine, optimizeShaders, variantFilters,
+            transparentBlendForTesting);
 }
 
 } // namespace filament::gltfio

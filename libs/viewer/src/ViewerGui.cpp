@@ -789,7 +789,23 @@ void ViewerGui::updateUserInterface() {
 
     if (ImGui::CollapsingHeader("View")) {
         ImGui::Indent();
-        ImGui::Checkbox("OIT", &mSettings.view.oitEnabled);
+        ImGui::Checkbox("Request OIT", &mSettings.view.oitEnabled);
+        char const* oitStatus = "Unknown";
+        switch (mView->getOitStatus()) {
+            case View::OitStatus::DISABLED: oitStatus = "DISABLED"; break;
+            case View::OitStatus::NOT_EVALUATED: oitStatus = "NOT_EVALUATED"; break;
+            case View::OitStatus::UNSUPPORTED_DEVICE: oitStatus = "UNSUPPORTED_DEVICE"; break;
+            case View::OitStatus::MULTISAMPLE: oitStatus = "MULTISAMPLE"; break;
+            case View::OitStatus::STEREO: oitStatus = "STEREO"; break;
+            case View::OitStatus::UNSUPPORTED_VIEW: oitStatus = "UNSUPPORTED_VIEW"; break;
+            case View::OitStatus::REFRACTION: oitStatus = "REFRACTION"; break;
+            case View::OitStatus::BLENDING: oitStatus = "BLENDING"; break;
+            case View::OitStatus::ORDERING: oitStatus = "ORDERING"; break;
+            case View::OitStatus::DEPTH_STENCIL: oitStatus = "DEPTH_STENCIL"; break;
+            case View::OitStatus::NO_TRANSPARENT_OBJECTS: oitStatus = "NO_TRANSPARENT_OBJECTS"; break;
+            case View::OitStatus::ENABLED: oitStatus = "ENABLED"; break;
+        }
+        ImGui::Text("OIT result: %s", oitStatus);
 
         ImGui::Checkbox("Post-processing", &mSettings.view.postProcessingEnabled);
         ImGui::Indent();

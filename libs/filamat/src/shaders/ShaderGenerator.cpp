@@ -76,9 +76,6 @@ void ShaderGenerator::generateSurfaceMaterialVariantDefines(io::sstream& out,
             }
             break;
         case ShaderStage::FRAGMENT:
-            if (filament::Variant::isOITVariant(variant)) {
-                CodeGenerator::generateDefine(out, "VARIANT_HAS_OIT");
-            }
             if (filament::Variant::isFogVariant(variant)) {
                 CodeGenerator::generateDefine(out, "VARIANT_HAS_FOG");
             }

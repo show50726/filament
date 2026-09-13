@@ -1831,7 +1831,7 @@ FixedCapacityVector<Variant> FEngine::getMaterialCompileVariants(
 FixedCapacityVector<DynamicSpecConstKey> FEngine::getMaterialCompileDynamicSpecConstKey(
         FView const* view, FMaterial const* material) noexcept {
     // Will add more as we turn more variants into spec constants
-    auto keys = FixedCapacityVector<DynamicSpecConstKey>::with_capacity(1);
+    auto keys = FixedCapacityVector<DynamicSpecConstKey>::with_capacity(3);
     DynamicSpecConstKey baseKey;
     const bool isMaterialLit = material->getDefinition().isVariantLit;
     baseKey.setDynamicLighting(isMaterialLit && view->hasDynamicLighting());
@@ -1839,6 +1839,13 @@ FixedCapacityVector<DynamicSpecConstKey> FEngine::getMaterialCompileDynamicSpecC
     baseKey.setDirectionalLighting(isMaterialLit && view->hasDirectionalLighting());
 
     keys.push_back(baseKey);
+    if (view->isOitEnabled() && material->getBlendingMode() == BlendingMode::TRANSPARENT &&
+            material->getRefractionMode() == RefractionMode::NONE) {
+        baseKey.key |= DynamicSpecConstKey::OIT_ACCUMULATION;
+        keys.push_back(baseKey);
+        baseKey.setOitWeight();
+        keys.push_back(baseKey);
+    }
 
     return keys;
 }

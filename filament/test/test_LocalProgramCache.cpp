@@ -43,7 +43,7 @@ constexpr std::size_t SURFACE_SIZE = 1u << (VARIANT_BITS + DYNAMIC_SPEC_CONST_KE
 constexpr std::size_t POST_PROCESS_SIZE =
         1u << (POST_PROCESS_VARIANT_BITS + DYNAMIC_SPEC_CONST_KEY_BITS);
 
-void mapInvalidKey(uint8_t variantKey, std::size_t size) noexcept {
+void mapInvalidKey(Variant::type_t variantKey, std::size_t size) noexcept {
     Variant variant{};
     variant.key = variantKey;
     (void) LocalProgramCache::mapCacheEntryKey(variant, DynamicSpecConstKey{ 0 }, size);
@@ -68,9 +68,44 @@ filamat::Package buildPostProcessMaterial(Engine& engine) {
 
 TEST(LocalProgramCache, SurfaceBoundary) {
     Variant variant{};
-    variant.key = 0x7f;
+    variant.key = VARIANT_COUNT - 1;
     EXPECT_EQ(LocalProgramCache::mapCacheEntryKey(
-                      variant, DynamicSpecConstKey{ 7 }, SURFACE_SIZE), 1023u);
+                      variant, DynamicSpecConstKey{ DYNAMIC_SPEC_CONST_KEY_COUNT - 1 }, SURFACE_SIZE), SURFACE_SIZE - 1);
+}
+
+TEST(LocalProgramCache, OitRetainsIndependentLightingSpecializations) {
+    Variant const base(Variant::SRE | Variant::S2D | Variant::FOG);
+    auto const keys = DynamicSpecConstKey::getValidKeys(base, MaterialDomain::SURFACE, true);
+    ASSERT_EQ(keys.size, 18);
+    std::vector<bool> occupied(SURFACE_SIZE, false);
+    for (auto const spec : keys) {
+        EXPECT_FALSE(spec.hasOitAccumulation() && spec.hasOitWeight());
+        EXPECT_EQ(DynamicSpecConstKey::filterProgramSpecKey(
+                base, spec, MaterialDomain::SURFACE, true), spec);
+        auto const index = LocalProgramCache::mapCacheEntryKey(base, spec, SURFACE_SIZE);
+        ASSERT_LT(index, occupied.size());
+        EXPECT_FALSE(occupied[index]);
+        occupied[index] = true;
+    }
+}
+
+TEST(LocalProgramCache, OitRejectsIncompatibleSpecializations) {
+    for (auto bits : { DynamicSpecConstKey::OIT_ACCUMULATION, DynamicSpecConstKey::OIT_WEIGHT }) {
+        DynamicSpecConstKey const key(bits);
+        EXPECT_TRUE(DynamicSpecConstKey::isValidProgramSpecKey(
+                Variant{}, key, MaterialDomain::SURFACE, false));
+        for (Variant variant : { Variant(Variant::DEP), Variant(Variant::STE),
+                Variant(Variant::SPECIAL_SSR_VARIANT) }) {
+            EXPECT_FALSE(DynamicSpecConstKey::isValidProgramSpecKey(
+                    variant, key, MaterialDomain::SURFACE, true));
+            EXPECT_FALSE(DynamicSpecConstKey::filterProgramSpecKey(
+                    variant, key, MaterialDomain::SURFACE, true).hasOit());
+        }
+        EXPECT_FALSE(DynamicSpecConstKey::isValidProgramSpecKey(
+                Variant{}, key, MaterialDomain::POST_PROCESS, false));
+    }
+    EXPECT_FALSE(DynamicSpecConstKey::isValidProgramSpecKey(Variant{},
+            DynamicSpecConstKey(DynamicSpecConstKey::OIT_MASK), MaterialDomain::SURFACE, true));
 }
 
 TEST(LocalProgramCache, PostProcessBoundaries) {
@@ -79,11 +114,11 @@ TEST(LocalProgramCache, PostProcessBoundaries) {
                       variant, DynamicSpecConstKey{ 0 }, POST_PROCESS_SIZE), 0u);
     variant.key = 1;
     EXPECT_EQ(LocalProgramCache::mapCacheEntryKey(
-                      variant, DynamicSpecConstKey{ 0 }, POST_PROCESS_SIZE), 8u);
+                      variant, DynamicSpecConstKey{ 0 }, POST_PROCESS_SIZE), DYNAMIC_SPEC_CONST_KEY_COUNT);
 }
 
 TEST(LocalProgramCacheDeathTest, RejectsOverflow) {
-    EXPECT_DEATH(mapInvalidKey(0x80, SURFACE_SIZE), "");
+    EXPECT_DEATH(mapInvalidKey(VARIANT_COUNT, SURFACE_SIZE), "");
     EXPECT_DEATH(mapInvalidKey(2, POST_PROCESS_SIZE), "");
     EXPECT_DEATH(mapInvalidKey(Variant::DEP, POST_PROCESS_SIZE), "");
 }
@@ -99,7 +134,7 @@ TEST(LocalProgramCache, DepthIgnoresSpecialization) {
     ASSERT_TRUE(Variant::isValidDepthVariant(variant));
     for (uint16_t key = 0; key < DYNAMIC_SPEC_CONST_KEY_COUNT; ++key) {
         EXPECT_EQ(LocalProgramCache::mapCacheEntryKey(
-                          variant, DynamicSpecConstKey{ key }, SURFACE_SIZE), 128u);
+                          variant, DynamicSpecConstKey{ key }, SURFACE_SIZE), Variant::DEP * DYNAMIC_SPEC_CONST_KEY_COUNT);
     }
 }
 

@@ -548,6 +548,24 @@ Java_com_google_android_filament_View_nIsStencilBufferEnabled(JNIEnv *env, jclas
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_View_nSetOitEnabled(JNIEnv *env, jclass clazz, jlong nativeView, jboolean enabled) {
+    View* const that = (View*) nativeView;
+    that->setOitEnabled((bool)enabled);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_google_android_filament_View_nGetOitStatus(JNIEnv *env, jclass clazz, jlong nativeView) {
+    View const * const that = (View const *) nativeView;
+    return (jint)that->getOitStatus();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_google_android_filament_View_nIsOitEnabled(JNIEnv *env, jclass clazz, jlong nativeView) {
+    View const * const that = (View const *) nativeView;
+    return (jboolean)that->isOitEnabled();
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_View_nSetStereoscopicOptions(JNIEnv *env, jclass clazz, jlong nativeView, jboolean enabled) {
     View* const that = (View*) nativeView;
     View::StereoscopicOptions options;

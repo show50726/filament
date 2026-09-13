@@ -63,6 +63,7 @@ public:
     enum class ParseResult {
         SUCCESS,
         ERROR_MISSING_BACKEND,
+        ERROR_VERSION,
         ERROR_OTHER
     };
 

@@ -717,6 +717,21 @@ export class RenderTarget {
     public static Builder() : RenderTarget$Builder;
 }
 
+export enum View$OitStatus {
+    DISABLED,
+    NOT_EVALUATED,
+    UNSUPPORTED_DEVICE,
+    MULTISAMPLE,
+    STEREO,
+    UNSUPPORTED_VIEW,
+    REFRACTION,
+    BLENDING,
+    ORDERING,
+    DEPTH_STENCIL,
+    NO_TRANSPARENT_OBJECTS,
+    ENABLED
+}
+
 export class View {
     public pick(x: number, y: number, cb: PickCallback): void;
     public setCamera(camera: Camera): void;
@@ -740,6 +755,9 @@ export class View {
     public getAmbientOcclusion(): View$AmbientOcclusion;
     public setBlendMode(mode: View$BlendMode): void;
     public getBlendMode(): View$BlendMode;
+    public setOitEnabled(enabled: boolean): void;
+    public isOitEnabled(): boolean;
+    public getOitStatus(): View$OitStatus;
     public setPostProcessingEnabled(enabled: boolean): void;
     public setAntiAliasing(antialiasing: View$AntiAliasing): void;
     public setStencilBufferEnabled(enabled: boolean): void;

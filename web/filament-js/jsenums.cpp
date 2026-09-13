@@ -142,6 +142,21 @@ enum_<RenderableManager::PrimitiveType>("RenderableManager$PrimitiveType")
     .value("TRIANGLES", RenderableManager::PrimitiveType::TRIANGLES)
     .value("TRIANGLE_STRIP", RenderableManager::PrimitiveType::TRIANGLE_STRIP);
 
+    enum_<View::OitStatus>("View$OitStatus")
+        .value("DISABLED", View::OitStatus::DISABLED)
+        .value("NOT_EVALUATED", View::OitStatus::NOT_EVALUATED)
+        .value("UNSUPPORTED_DEVICE", View::OitStatus::UNSUPPORTED_DEVICE)
+        .value("MULTISAMPLE", View::OitStatus::MULTISAMPLE)
+        .value("STEREO", View::OitStatus::STEREO)
+        .value("UNSUPPORTED_VIEW", View::OitStatus::UNSUPPORTED_VIEW)
+        .value("REFRACTION", View::OitStatus::REFRACTION)
+        .value("BLENDING", View::OitStatus::BLENDING)
+        .value("ORDERING", View::OitStatus::ORDERING)
+        .value("DEPTH_STENCIL", View::OitStatus::DEPTH_STENCIL)
+        .value("NO_TRANSPARENT_OBJECTS", View::OitStatus::NO_TRANSPARENT_OBJECTS)
+        .value("ENABLED", View::OitStatus::ENABLED)
+        ;
+
 enum_<View::AmbientOcclusion>("View$AmbientOcclusion")
     .value("NONE", View::AmbientOcclusion::NONE)
     .value("SSAO", View::AmbientOcclusion::SSAO);

@@ -52,6 +52,7 @@
 #include <utils/Slice.h>
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -89,6 +90,12 @@ RenderPass RenderPassBuilder::build(FEngine const& engine, backend::DriverApi& d
     return RenderPass{ engine, driver, *this };
 }
 
+RenderPass RenderPassBuilder::buildUnprepared(FEngine const& engine,
+        backend::DriverApi& driver, uint32_t const extraCustomCommands) const {
+    assert_invariant(mRenderableSoa);
+    return RenderPass{ engine, driver, *this, extraCustomCommands, true };
+}
+
 // ------------------------------------------------------------------------------------------------
 
 void RenderPass::BufferObjectHandleDeleter::operator()(BufferObjectHandle handle) const noexcept {
@@ -106,7 +113,8 @@ void RenderPass::DescriptorSetHandleDeleter::operator()(DescriptorSetHandle hand
 // ------------------------------------------------------------------------------------------------
 
 RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
-        RenderPassBuilder const& builder) noexcept
+        RenderPassBuilder const& builder, uint32_t const extraCustomCommands,
+        bool const deferCompletion) noexcept
         : mRenderableSoa(*builder.mRenderableSoa),
           mColorPassDescriptorSet(builder.mColorPassDescriptorSet) {
 
@@ -121,12 +129,13 @@ RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
     commandCount *= uint32_t(colorPass * 2 + depthPass);
     commandCount += 1; // for the sentinel
 
-    uint32_t const customCommandCount =
+    size_t const customCommandCount =
             builder.mCustomCommands.has_value() ? builder.mCustomCommands->size() : 0;
 
     // FIXME: builder.mArena must be thread safe eventually
-    Command* const commandBegin = builder.mArena.alloc<Command>(commandCount + customCommandCount);
-    Command* commandEnd = commandBegin + (commandCount + customCommandCount);
+    Command* const commandBegin = builder.mArena.alloc<Command>(
+            commandCount + customCommandCount + extraCustomCommands);
+    mCommandCapacityEnd = commandBegin + commandCount + customCommandCount + extraCustomCommands;
     assert_invariant(commandBegin);
 
     // FIXME: builder.mArena must be thread safe eventually
@@ -139,23 +148,102 @@ RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
         }
     }
 
-    appendCommands(engine, driver, { commandBegin, commandCount },
-            builder.mVisibleRenderables,
-            builder.mCommandTypeFlags,
-            builder.mFlags,
-            builder.mVisibilityMask,
-            builder.mVariant,
-            builder.mDynamicSpecConstKey,
-            builder.mCameraPosition,
-            builder.mCameraForwardVector);
+    // Select once per pass; ordinary command jobs contain no OIT collection code.
+    if (bool(builder.mCommandTypeFlags & CommandTypeFlags::OIT)) {
+        mOitFlags = appendCommands<true>(engine, { commandBegin, commandCount },
+                builder.mVisibleRenderables,
+                builder.mCommandTypeFlags,
+                builder.mFlags,
+                builder.mVisibilityMask,
+                builder.mVariant,
+                builder.mDynamicSpecConstKey,
+                builder.mCameraPosition,
+                builder.mCameraForwardVector);
+    } else {
+        appendCommands<false>(engine, { commandBegin, commandCount },
+                builder.mVisibleRenderables,
+                builder.mCommandTypeFlags,
+                builder.mFlags,
+                builder.mVisibilityMask,
+                builder.mVariant,
+                builder.mDynamicSpecConstKey,
+                builder.mCameraPosition,
+                builder.mCameraForwardVector);
+    }
 
+    mCommandBegin = commandBegin;
+    mCommandEnd = commandBegin + commandCount;
+    if (!deferCompletion) {
+        complete(engine, driver, builder);
+    }
+}
+
+void RenderPass::complete(FEngine const& engine, DriverApi& driver,
+        RenderPassBuilder const& builder) noexcept {
+    assert_invariant(!mCompleted);
+    Command* const commandBegin = const_cast<Command*>(mCommandBegin);
+    Command* commandEnd = const_cast<Command*>(mCommandEnd);
+    assert_invariant(builder.mArena.getAllocator().isHeapAllocation(commandBegin) ||
+            builder.mArena.getAllocator().getCurrent() == mCommandCapacityEnd);
+    bool const useOit = mOitFlags == OIT_CANDIDATE;
+
+    // Jobs preserve ordinary raster state and ordering, marking candidates in the program key.
+    // Resolve OIT only after joining all jobs, in the existing program preparation traversal.
+    auto preparePrograms = [&driver, commandBegin, commandEnd]<bool oitPass, bool clearOit>() {
+        for (Command* first = commandBegin; first != commandEnd; ++first) {
+            if (UTILS_LIKELY((first->key & CUSTOM_MASK) == uint64_t(CustomCommand::PASS))) {
+                auto& info = first->info;
+                if constexpr (oitPass) {
+                    if (info.dynamicSpecConstKey.hasOitAccumulation()) {
+                        info.rasterState.depthWrite = false;
+                        info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
+                        info.rasterState.blendFunctionSrcAlpha = BlendFunction::ZERO;
+                        info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
+                        info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE_MINUS_SRC_ALPHA;
+                        // Keep both two-sided contributions and sort the OIT range by material.
+                        first->key = (first->key & BLEND_TWO_PASS_MASK) | CHANNEL_MASK |
+                                uint64_t(Pass::BLENDED) | uint64_t(CustomCommand::PASS) |
+                                ((info.mi->getSortingKey() | makeField(info.materialVariant.key,
+                                        MATERIAL_VARIANT_KEY_MASK, MATERIAL_VARIANT_KEY_SHIFT)) << 1u);
+                    }
+                }
+                if constexpr (clearOit) {
+                    // Restore candidates to ordinary keys before preparing fallback programs.
+                    info.dynamicSpecConstKey.key &= ~DynamicSpecConstKey::OIT_ACCUMULATION;
+                }
+                info.mi->prepareProgram(driver, info.materialVariant,
+                        info.dynamicSpecConstKey, CompilerPriorityQueue::CRITICAL);
+                if constexpr (oitPass) {
+                    if (info.dynamicSpecConstKey.hasOitAccumulation()) {
+                        auto weightKey = info.dynamicSpecConstKey;
+                        weightKey.setOitWeight();
+                        info.mi->prepareProgram(driver, info.materialVariant,
+                                weightKey, CompilerPriorityQueue::CRITICAL);
+                    }
+                }
+            }
+        }
+    };
+    if (useOit) {
+        preparePrograms.operator()<true, false>();
+    } else if (mOitFlags & OIT_CANDIDATE) {
+        preparePrograms.operator()<false, true>();
+    } else {
+        preparePrograms.operator()<false, false>();
+    }
+
+    size_t const customCommandCount =
+            builder.mCustomCommands.has_value() ? builder.mCustomCommands->size() : 0;
+    assert_invariant(customCommandCount <= mCommandCapacityEnd - commandEnd);
     if (builder.mCustomCommands.has_value()) {
         mCustomCommands.reserve(customCommandCount);
-        Command* p = commandBegin + commandCount;
+        Command* p = commandEnd;
         for (auto const& [channel, passId, command, order, fn]: builder.mCustomCommands.value()) {
             appendCustomCommand(p++, channel, passId, command, order, fn);
         }
     }
+
+    commandEnd += customCommandCount;
 
     // sort commands once we're done adding commands
     commandEnd = resize(builder.mArena,
@@ -173,6 +261,7 @@ RenderPass::RenderPass(FEngine const& engine, backend::DriverApi& driver,
     // these are `const` from this point on...
     mCommandBegin = commandBegin;
     mCommandEnd = commandEnd;
+    mCompleted = true;
 }
 
 // this destructor is actually heavy because it inlines ~vector<>
@@ -183,7 +272,21 @@ RenderPass::Command* RenderPass::resize(Arena& arena, Command* const last) noexc
     return last;
 }
 
-void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& driver,
+bool RenderPass::isOitMaterial(FMaterialInstance const& mi) noexcept {
+    auto const& material = *mi.getMaterial();
+    auto const stencil = mi.getStencilState();
+    return material.getFeatureLevel() > FeatureLevel::FEATURE_LEVEL_0 &&
+            material.getBlendingMode() == BlendingMode::TRANSPARENT &&
+            material.getRefractionMode() == RefractionMode::NONE &&
+            mi.getTransparencyMode() != TransparencyMode::TWO_PASSES_ONE_SIDE &&
+            mi.getDepthFunc() == RasterState::DepthFunc::GE &&
+            !material.getRasterState().alphaToCoverage &&
+            !stencil.stencilWrite && stencil.front.stencilFunc == SamplerCompareFunc::A &&
+            stencil.back.stencilFunc == SamplerCompareFunc::A;
+}
+
+template<bool collectOit>
+uint8_t RenderPass::appendCommands(FEngine const& engine,
         Slice<Command> commands,
         Range<uint32_t> const visibleRenderables,
         CommandTypeFlags const commandTypeFlags,
@@ -204,7 +307,7 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
         assert_invariant(commands.size() == 1);
         Command* curr = commands.data();
         curr->key = uint64_t(Pass::SENTINEL);
-        return;
+        return 0;
     }
 
     JobSystem& js = engine.getJobSystem();
@@ -217,39 +320,49 @@ void RenderPass::appendCommands(FEngine const& engine, backend::DriverApi& drive
 
     auto stereoscopicEyeCount = engine.getConfig().stereoscopicEyeCount;
 
-    auto work = [commandTypeFlags, curr, &soa,
-                 variant, specKey, renderFlags, visibilityMask,
-                 cameraPosition, cameraForwardVector, stereoscopicEyeCount]
+    auto generate = [commandTypeFlags, curr, &soa,
+                     variant, specKey, renderFlags, visibilityMask,
+                     cameraPosition, cameraForwardVector, stereoscopicEyeCount]
             (uint32_t const startIndex, uint32_t const indexCount) {
-        generateCommands(commandTypeFlags, curr,
+        return generateCommands<collectOit>(commandTypeFlags, curr,
                 soa, { startIndex, startIndex + indexCount },
                 variant, specKey, renderFlags, visibilityMask,
                 cameraPosition, cameraForwardVector, stereoscopicEyeCount);
     };
 
+    uint8_t result = 0;
     if (visibleRenderables.size() <= JOBS_PARALLEL_FOR_COMMANDS_COUNT) {
-        work(visibleRenderables.first, visibleRenderables.size());
-    } else {
+        // No atomic reduction is needed when generation runs on the calling thread.
+        if constexpr (collectOit) {
+            result = generate(visibleRenderables.first, visibleRenderables.size());
+        } else {
+            generate(visibleRenderables.first, visibleRenderables.size());
+        }
+    } else if constexpr (collectOit) {
+        std::atomic<uint8_t> oitFlags{ 0 };
+        auto work = [&generate, &oitFlags](uint32_t startIndex, uint32_t indexCount) {
+            uint8_t const flags = generate(startIndex, indexCount);
+            if (flags) {
+                oitFlags.fetch_or(flags, std::memory_order_relaxed);
+            }
+        };
         auto* jobCommandsParallel = parallel_for(js, nullptr,
                 visibleRenderables.first, uint32_t(visibleRenderables.size()),
                 std::cref(work), jobs::CountSplitter<JOBS_PARALLEL_FOR_COMMANDS_COUNT>());
         js.runAndWait(jobCommandsParallel);
+        result = oitFlags.load(std::memory_order_relaxed);
+    } else {
+        auto* jobCommandsParallel = parallel_for(js, nullptr,
+                visibleRenderables.first, uint32_t(visibleRenderables.size()),
+                std::cref(generate), jobs::CountSplitter<JOBS_PARALLEL_FOR_COMMANDS_COUNT>());
+        js.runAndWait(jobCommandsParallel);
     }
 
-    // Always add an "eof" command
-    // "eof" command. These commands are guaranteed to be sorted last in the
-    // command buffer.
+    // The sentinel sorts after every draw and custom command.
     curr[commandCount - 1].key = uint64_t(Pass::SENTINEL);
-
-    // Go over all the commands and call prepareProgram().
-    // This must be done from the main thread.
-    for (Command const* first = curr, *last = curr + commandCount ; first != last ; ++first) {
-        if (UTILS_LIKELY((first->key & CUSTOM_MASK) == uint64_t(CustomCommand::PASS))) {
-            first->info.mi->prepareProgram(driver, first->info.materialVariant,
-                    first->info.dynamicSpecConstKey, CompilerPriorityQueue::CRITICAL);
-        }
-    }
+    return result;
 }
+
 
 void RenderPass::appendCustomCommand(Command* commands,
         uint8_t channel, Pass pass, CustomCommand custom, uint32_t const order,
@@ -361,6 +474,7 @@ RenderPass::Command* RenderPass::instanceify(
 
 
 void RenderPass::finalize(FEngine const& engine, DriverApi& driver) {
+    assert_invariant(mCompleted);
     mFinalized = true;
     if (UTILS_UNLIKELY(!mInstancingStagingBuffer.empty())) {
         auto const* p = mInstancingStagingBuffer.data();
@@ -456,17 +570,14 @@ void RenderPass::setupColorCommand(Command& cmdDraw, Variant variant, DynamicSpe
             variant, specKey, ma->getMaterialDomain(), ma->isVariantLit());
     // we keep "RasterState::colorWrite" to the value set by material (could be disabled)
 
-    // if (Variant::isOITVariant(variant)) {
-    //     cmdDraw.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
-    //     cmdDraw.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
-    // }
+
 }
 
 /* static */
+template<bool collectOit>
 UTILS_NOINLINE
-void RenderPass::generateCommands(CommandTypeFlags commandTypeFlags, Command* const commands,
+std::conditional_t<collectOit, uint8_t, void> RenderPass::generateCommands(
+        CommandTypeFlags commandTypeFlags, Command* const commands,
         FScene::RenderableSoa const& soa, Range<uint32_t> const range,
         Variant const variant, DynamicSpecConstKey const specKey, RenderFlags const renderFlags,
         FScene::VisibleMaskType const visibilityMask,
@@ -499,18 +610,23 @@ void RenderPass::generateCommands(CommandTypeFlags commandTypeFlags, Command* co
      *  easier to debug and doesn't impact performance (it's just a predicted jump).
      */
 
+    uint8_t oitFlags = 0;
     switch (commandTypeFlags & (CommandTypeFlags::COLOR | CommandTypeFlags::DEPTH)) {
         case CommandTypeFlags::COLOR:
-            curr = generateCommandsImpl<CommandTypeFlags::COLOR>(commandTypeFlags, curr,
-                    soa, range,
-                    variant, specKey, renderFlags, visibilityMask, cameraPosition, cameraForward,
-                    instancedStereoEyeCount);
+            if constexpr (collectOit) {
+                curr = generateCommandsImpl<CommandTypeFlags::COLOR>(commandTypeFlags, curr,
+                        soa, range, variant, specKey, renderFlags, visibilityMask,
+                        cameraPosition, cameraForward, instancedStereoEyeCount, oitFlags);
+            } else {
+                curr = generateCommandsImpl<CommandTypeFlags::COLOR>(commandTypeFlags, curr,
+                        soa, range, variant, specKey, renderFlags, visibilityMask,
+                        cameraPosition, cameraForward, instancedStereoEyeCount);
+            }
             break;
         case CommandTypeFlags::DEPTH:
             curr = generateCommandsImpl<CommandTypeFlags::DEPTH>(commandTypeFlags, curr,
-                    soa, range,
-                    variant, specKey, renderFlags, visibilityMask, cameraPosition, cameraForward,
-                    instancedStereoEyeCount);
+                    soa, range, variant, specKey, renderFlags, visibilityMask,
+                    cameraPosition, cameraForward, instancedStereoEyeCount);
             break;
         default:
             // we should never end-up here
@@ -524,16 +640,24 @@ void RenderPass::generateCommands(CommandTypeFlags commandTypeFlags, Command* co
         curr->key = uint64_t(Pass::SENTINEL);
         ++curr;
     }
+    if constexpr (collectOit) {
+        return oitFlags;
+    }
 }
 
 /* static */
-template<RenderPass::CommandTypeFlags commandTypeFlags>
+template<RenderPass::CommandTypeFlags commandTypeFlags, typename... OitFlags>
 UTILS_NOINLINE
 RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlags,
         Command* UTILS_RESTRICT curr,
         FScene::RenderableSoa const& UTILS_RESTRICT soa, Range<uint32_t> range,
         Variant const variant, DynamicSpecConstKey const specKey, RenderFlags renderFlags, FScene::VisibleMaskType visibilityMask,
-        float3 cameraPosition, float3 cameraForward, uint8_t instancedStereoEyeCount) noexcept {
+        float3 cameraPosition, float3 cameraForward, uint8_t instancedStereoEyeCount,
+        OitFlags&... oitFlags) noexcept {
+
+    // An empty pack preserves the ordinary job ABI: no OIT output argument or scratch byte.
+    static_assert(sizeof...(OitFlags) <= 1);
+    constexpr bool collectOit = sizeof...(OitFlags) == 1;
 
     constexpr bool isColorPass  = bool(commandTypeFlags & CommandTypeFlags::COLOR);
     constexpr bool isDepthPass  = bool(commandTypeFlags & CommandTypeFlags::DEPTH);
@@ -592,6 +716,12 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
         // Check if this renderable passes the visibilityMask.
         if (UTILS_UNLIKELY(!(soaVisibilityMask[i] & visibilityMask))) {
             continue;
+        }
+
+        if constexpr (collectOit) {
+            if (soaVisibility[i].channel != RenderableManager::Builder::DEFAULT_CHANNEL) {
+                ((oitFlags |= OIT_ORDERING), ...);
+            }
         }
 
         // Signed distance from camera plane to object's center. Positive distances are in front of
@@ -714,34 +844,36 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
                 setupColorCommand(cmd, renderableVariant, specKey, mi,
                         inverseFrontFaces, hasDepthClamp);
 
-                if (UTILS_UNLIKELY(Variant::isOITVariant(variant))) {
-                    cmd.info.rasterState.depthWrite = false;
-                    cmd.info.rasterState.blendFunctionSrcRGB = BlendFunction::ONE;
-                    cmd.info.rasterState.blendFunctionSrcAlpha = BlendFunction::ONE;
-                    cmd.info.rasterState.blendFunctionDstRGB = BlendFunction::ONE;
-                    cmd.info.rasterState.blendFunctionDstAlpha = BlendFunction::ONE;
+                if constexpr (collectOit) {
+                    if (mi->getCullingMode() != CullingMode::FRONT_AND_BACK) {
+                        if (ma->getRefractionMode() != RefractionMode::NONE) {
+                            ((oitFlags |= OIT_REFRACTION), ...);
+                        }
+                        if (ma->getBlendingMode() == BlendingMode::TRANSPARENT) {
+                            if (soaVisibility[i].priority != 4 || primitive.getBlendOrder() ||
+                                    primitive.isGlobalBlendOrderEnabled()) {
+                                ((oitFlags |= OIT_ORDERING), ...);
+                            }
+                            if (isOitMaterial(*mi)) {
+                                cmd.info.dynamicSpecConstKey.key |=
+                                        DynamicSpecConstKey::OIT_ACCUMULATION;
+                                ((oitFlags |= OIT_CANDIDATE), ...);
+                            }
+                        }
+                    }
                 }
 
                 const bool blendPass = Pass(cmd.key & PASS_MASK) == Pass::BLENDED;
                 if (blendPass) {
-                    // TODO: at least for transparent objects, AABB should be per primitive
-                    //       but that would break the "local" blend-order, which relies on
-                    //       all primitives having the same Z
-                    // blend pass:
-                    //   This will sort back-to-front for blended, and honor explicit ordering
-                    //   for a given Z value, or globally.
+                    // Preserve back-to-front and explicit ordering until OIT eligibility is known.
+                    // TODO: transparent bounds should be per primitive, but local blend order
+                    // currently relies on all primitives of a renderable having the same Z.
                     cmd.key &= ~BLEND_ORDER_MASK;
                     cmd.key &= ~BLEND_DISTANCE_MASK;
-                    // write the distance
-                    cmd.key |= makeField(~distanceBits,
-                            BLEND_DISTANCE_MASK, BLEND_DISTANCE_SHIFT);
-                    // clear the distance if global ordering is enabled
-                    cmd.key &= ~select(primitive.isGlobalBlendOrderEnabled(),
-                            BLEND_DISTANCE_MASK);
-                    // write blend order
+                    cmd.key |= makeField(~distanceBits, BLEND_DISTANCE_MASK, BLEND_DISTANCE_SHIFT);
+                    cmd.key &= ~select(primitive.isGlobalBlendOrderEnabled(), BLEND_DISTANCE_MASK);
                     cmd.key |= makeField(primitive.getBlendOrder(),
                             BLEND_ORDER_MASK, BLEND_ORDER_SHIFT);
-
 
                     const TransparencyMode mode = mi->getTransparencyMode();
 
@@ -801,11 +933,13 @@ RenderPass::Command* RenderPass::generateCommandsImpl(CommandTypeFlags extraFlag
                 *curr = cmd;
                 // cancel command if both front and back faces are culled
                 curr->key |= select(mi->getCullingMode() == CullingMode::FRONT_AND_BACK);
-                if (mi->getMaterial()->getBlendingMode() != BlendingMode::OPAQUE) {
+                if (mi->getMaterial()->getBlendingMode() != BlendingMode::OPAQUE &&
+                        mi->getMaterial()->getBlendingMode() != BlendingMode::MASKED) {
                     curr->key |= select(filterTranslucentObjects);
                 }
 
-                if (mi->getMaterial()->getBlendingMode() == BlendingMode::OPAQUE) {
+                if (mi->getMaterial()->getBlendingMode() == BlendingMode::OPAQUE ||
+                        mi->getMaterial()->getBlendingMode() == BlendingMode::MASKED) {
                     // cancel command if asked to filter opaque objects
                     curr->key |= select(filterOpaqueObjects);
                 }
@@ -870,8 +1004,9 @@ void RenderPass::Executor::overrideScissor(backend::Viewport const& scissor) noe
     mScissor = scissor;
 }
 
-void RenderPass::Executor::execute(FEngine const& engine, DriverApi& driver) const noexcept {
-    execute(engine, driver, mCommands.begin(), mCommands.end());
+void RenderPass::Executor::execute(FEngine const& engine, DriverApi& driver,
+        bool const oitWeight) const noexcept {
+    execute(engine, driver, mCommands.begin(), mCommands.end(), oitWeight);
 }
 
 UTILS_NOINLINE // no need to be inlined
@@ -925,7 +1060,7 @@ backend::Viewport RenderPass::Executor::applyScissorViewport(
 
 UTILS_NOINLINE // no need to be inlined
 void RenderPass::Executor::execute(FEngine const& engine, DriverApi& driver,
-        Command const* first, Command const* last) const noexcept {
+        Command const* first, Command const* last, bool const oitWeight) const noexcept {
 
     FILAMENT_TRACING_CALL(FILAMENT_TRACING_CATEGORY_FILAMENT);
     FILAMENT_TRACING_CONTEXT(FILAMENT_TRACING_CATEGORY_FILAMENT);
@@ -1119,7 +1254,12 @@ void RenderPass::Executor::execute(FEngine const& engine, DriverApi& driver,
                     mi->use(driver, info.materialVariant);
                 }
 
-                pipeline.program = mi->getProgram(info.materialVariant, info.dynamicSpecConstKey);
+                auto specKey = info.dynamicSpecConstKey;
+                if (oitWeight) {
+                    assert_invariant(specKey.hasOitAccumulation());
+                    specKey.setOitWeight();
+                }
+                pipeline.program = mi->getProgram(info.materialVariant, specKey);
 
                 if (UTILS_UNLIKELY(memcmp(&pipeline, &currentPipeline, sizeof(PipelineState)) != 0)) {
                     currentPipeline = pipeline;

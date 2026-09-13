@@ -346,6 +346,8 @@ static int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ViewSett
             i = parse(tokens, i + 1, jsonChunk, &out->guardBand);
         } else if (compare(tok, jsonChunk, "vsmShadowOptions") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->vsmShadowOptions);
+        } else if (compare(tok, jsonChunk, "oitEnabled") == 0) {
+            i = parse(tokens, i + 1, jsonChunk, &out->oitEnabled);
         } else if (compare(tok, jsonChunk, "postProcessingEnabled") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->postProcessingEnabled);
         } else if (compare(tok, jsonChunk, "stereoscopicOptions") == 0) {
@@ -1382,6 +1384,7 @@ static std::ostream& operator<<(std::ostream& out, const ViewSettings& in) {
         << "\"vsmShadowOptions\": " << (in.vsmShadowOptions) << ",\n"
         << "\"guardBand\": " << (in.guardBand) << ",\n"
         << "\"stereoscopicOptions\": " << (in.stereoscopicOptions) << ",\n"
+        << "\"oitEnabled\": " << to_string(in.oitEnabled) << ",\n"
         << "\"postProcessingEnabled\": " << to_string(in.postProcessingEnabled) << "\n"
         << "}";
 }

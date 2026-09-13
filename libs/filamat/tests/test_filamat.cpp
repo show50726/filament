@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "MaterialVariants.h"
+
 #include "sca/ASTHelpers.h"
 #include "sca/GLSLTools.h"
 
@@ -34,7 +36,19 @@ using namespace ASTHelpers;
 using namespace filamat;
 using namespace filament::backend;
 
-static testing::AssertionResult PropertyListsMatch(const MaterialBuilder::PropertyList& expected,
+TEST(MaterialVariants, OitDoesNotExpandMaterialVariants) {
+    static_assert(sizeof(filament::Variant::type_t) == 1);
+    EXPECT_EQ(filament::VARIANT_BITS, 7u);
+    for (bool lit : { false, true }) {
+        auto const variants = determineSurfaceVariants(0, lit, false);
+        EXPECT_EQ(variants.size(), lit ? 26u : 18u);
+        for (auto const& entry : variants) {
+            EXPECT_LT(entry.variant.key, 128u);
+        }
+    }
+}
+
+static ::testing::AssertionResult PropertyListsMatch(const MaterialBuilder::PropertyList& expected,
         const MaterialBuilder::PropertyList& actual) {
     for (size_t i = 0; i < MaterialBuilder::MATERIAL_PROPERTIES_COUNT; i++) {
         if (expected[i] != actual[i]) {

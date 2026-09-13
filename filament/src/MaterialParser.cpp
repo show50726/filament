@@ -158,6 +158,15 @@ MaterialParser::ParseResult MaterialParser::parse() noexcept {
         return ParseResult::ERROR_OTHER;
     }
 
+    // Check before interpreting shader indices, whose width is version-dependent.
+    uint32_t version = 0;
+    if (!getMaterialVersion(&version)) {
+        return ParseResult::ERROR_OTHER;
+    }
+    if (version != MATERIAL_VERSION) {
+        return ParseResult::ERROR_VERSION;
+    }
+
     using MaybeShaderLanguageAndChunks =
             std::optional<std::tuple<ShaderLanguage, ChunkType, ChunkType>>;
     auto chooseLanguage = [this, &cc]() -> MaybeShaderLanguageAndChunks {

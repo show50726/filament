@@ -257,7 +257,14 @@ public:
 
     bool isStencilBufferEnabled() const noexcept { return mStencilBufferEnabled; }
 
-    void setOitEnabled(bool const enabled) noexcept { mOitEnabled = enabled; }
+    void setOitEnabled(bool const enabled) noexcept {
+        if (mOitEnabled == enabled) return;
+        mOitEnabled = enabled;
+        mOitStatus = enabled ? OitStatus::NOT_EVALUATED : OitStatus::DISABLED;
+    }
+
+    OitStatus getOitStatus() const noexcept { return mOitStatus; }
+    void setOitStatus(OitStatus status) noexcept { mOitStatus = status; }
 
     bool isOitEnabled() const noexcept { return mOitEnabled; }
 
@@ -634,6 +641,7 @@ private:
     bool mHasPostProcessPass = true;
     bool mStencilBufferEnabled = false;
     bool mOitEnabled = false;
+    OitStatus mOitStatus = OitStatus::DISABLED;
     AmbientOcclusionOptions mAmbientOcclusionOptions{};
     ShadowType mShadowType = ShadowType::PCF;
     VsmShadowOptions mVsmShadowOptions; // FIXME: this should probably be per-light

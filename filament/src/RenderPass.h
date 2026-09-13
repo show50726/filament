@@ -65,6 +65,16 @@ struct PerRenderableData;
 
 class RenderPass {
 public:
+    // Collected by command jobs; a single byte is enough for the View decision.
+    static constexpr uint8_t OIT_CANDIDATE = 0x1;
+    static constexpr uint8_t OIT_REFRACTION = 0x2;
+    static constexpr uint8_t OIT_ORDERING = 0x4;
+
+    uint8_t getOitFlags() const noexcept { return mOitFlags; }
+
+    // OIT owns depth writes; other special depth/stencil semantics stay in color.
+    static bool isOitMaterial(FMaterialInstance const& mi) noexcept;
+
     /*
      *   Command key encoding
      *   --------------------
@@ -137,11 +147,11 @@ public:
     static constexpr uint64_t BLEND_TWO_PASS_MASK           = 0x1llu;
     static constexpr unsigned BLEND_TWO_PASS_SHIFT          = 0;
 
-    static constexpr uint64_t MATERIAL_INSTANCE_ID_MASK = 0x000003FFllu;
+    static constexpr uint64_t MATERIAL_INSTANCE_ID_MASK = 0x00000FFFllu;
     static constexpr unsigned MATERIAL_INSTANCE_ID_SHIFT    = 0;
 
-    static constexpr uint64_t MATERIAL_VARIANT_KEY_MASK = 0x000FFC00llu;
-    static constexpr unsigned MATERIAL_VARIANT_KEY_SHIFT = 10;
+    static constexpr uint64_t MATERIAL_VARIANT_KEY_MASK = 0x000FF000llu;
+    static constexpr unsigned MATERIAL_VARIANT_KEY_SHIFT = 12;
 
     static constexpr uint64_t MATERIAL_ID_MASK              = 0xFFF00000llu;
     static constexpr unsigned MATERIAL_ID_SHIFT             = 20;
@@ -177,8 +187,8 @@ public:
     static constexpr uint64_t CUSTOM_INDEX_MASK             = 0x00000000FFFFFFFFllu;
     static constexpr unsigned CUSTOM_INDEX_SHIFT            = 0;
 
-    // we assume Variant fits in 8-bits.
-    // static_assert(sizeof(Variant::type_t) == 1);
+    // The sorting key reserves eight bits for the material variant.
+    static_assert(sizeof(Variant::type_t) == 1);
 
     enum class Pass : uint64_t {    // 6-bits max
         DEPTH    = uint64_t(0x00) << PASS_SHIFT,
@@ -206,6 +216,7 @@ public:
         // alpha-blended objects are not rendered in the depth buffer
         FILTER_TRANSLUCENT_OBJECTS = 0x10,
         FILTER_OPAQUE_OBJECTS = 0x20,
+        OIT = 0x40,
 
         // generate commands for shadow map
         SHADOW = DEPTH | DEPTH_CONTAINS_SHADOW_CASTERS,
@@ -264,7 +275,7 @@ public:
         backend::RasterState rasterState;      // 4 bytes
 
         uint16_t instanceCount;                // 2 bytes [MSb: user]
-        Variant materialVariant;               // 2 bytes
+        Variant materialVariant;               // 1 byte
         backend::PrimitiveType type : 3;       // 1 byte       3 bits
         bool hasSkinning : 1;                  //              1 bit
         bool hasMorphing : 1;                  //              1 bit
@@ -272,6 +283,7 @@ public:
         bool isIndexed : 1;                    //              1 bit
 
         DynamicSpecConstKey dynamicSpecConstKey;            // 2 bytes
+        uint16_t rfu_padding;                               // 2 bytes
         uint32_t rfu[1];                                    // 4 bytes
     };
     static_assert(sizeof(PrimitiveInfo) == 56);
@@ -313,6 +325,12 @@ public:
 
     // allocated commands ARE NOT freed, they're owned by the Arena
     ~RenderPass() noexcept;
+
+    // Completes buildUnprepared() on the main thread: prepare programs, callbacks, sort, instanceify.
+    // No other command allocation may use builder's arena between generation and completion.
+    // Only custom commands may be added to builder during that interval, within the reservation.
+    void complete(FEngine const& engine, backend::DriverApi& driver,
+            RenderPassBuilder const& builder) noexcept;
 
     // this must be called before calling getExecutor(), but can't be called from within
     // a render pass
@@ -379,7 +397,7 @@ public:
         Executor(RenderPass const& pass, Command const* b, Command const* e) noexcept;
 
         void execute(FEngine const& engine, backend::DriverApi& driver,
-                Command const* first, Command const* last) const noexcept;
+                Command const* first, Command const* last, bool oitWeight) const noexcept;
 
         static backend::Viewport applyScissorViewport(
                 backend::Viewport const& scissorViewport,
@@ -404,7 +422,8 @@ public:
 
         void overrideScissor(backend::Viewport const& scissor) noexcept;
 
-        void execute(FEngine const& engine, backend::DriverApi& driver) const noexcept;
+        void execute(FEngine const& engine, backend::DriverApi& driver,
+                bool oitWeight = false) const noexcept;
     };
 
     // returns a new executor for this pass
@@ -419,12 +438,14 @@ public:
 private:
     friend class FRenderer;
     friend class RenderPassBuilder;
-    friend class RenderPassBuilder;
-    RenderPass(FEngine const& engine, backend::DriverApi& driver, RenderPassBuilder const& builder) noexcept;
+    RenderPass(FEngine const& engine, backend::DriverApi& driver,
+            RenderPassBuilder const& builder, uint32_t extraCustomCommands = 0,
+            bool deferCompletion = false) noexcept;
 
     // This is the main function of this class, this appends commands to the pass using
     // the current camera, geometry and flags set. This can be called multiple times if needed.
-    void appendCommands(FEngine const& engine, backend::DriverApi& driver,
+    template<bool collectOit>
+    uint8_t appendCommands(FEngine const& engine,
             utils::Slice<Command> commands,
             utils::Range<uint32_t> visibleRenderables,
             CommandTypeFlags commandTypeFlags,
@@ -457,18 +478,20 @@ private:
     static_assert(JOBS_PARALLEL_FOR_COMMANDS_SIZE % utils::CACHELINE_SIZE == 0,
             "Size of Commands jobs must be multiple of a cache-line size");
 
-    static inline void generateCommands(CommandTypeFlags commandTypeFlags, Command* commands,
+    template<bool collectOit>
+    static inline std::conditional_t<collectOit, uint8_t, void> generateCommands(
+            CommandTypeFlags commandTypeFlags, Command* commands,
             FScene::RenderableSoa const& soa, utils::Range<uint32_t> range, Variant variant,
             DynamicSpecConstKey specKey, RenderFlags renderFlags,
             FScene::VisibleMaskType visibilityMask, math::float3 cameraPosition,
             math::float3 cameraForward, uint8_t instancedStereoEyeCount) noexcept;
 
-    template<CommandTypeFlags commandTypeFlags>
+    template<CommandTypeFlags commandTypeFlags, typename... OitFlags>
     static Command* generateCommandsImpl(CommandTypeFlags extraFlags, Command* curr,
             FScene::RenderableSoa const& soa, utils::Range<uint32_t> range, Variant variant,
             DynamicSpecConstKey specKey, RenderFlags renderFlags,
             FScene::VisibleMaskType visibilityMask, math::float3 cameraPosition,
-            math::float3 cameraForward, uint8_t instancedStereoEyeCount) noexcept;
+            math::float3 cameraForward, uint8_t instancedStereoEyeCount, OitFlags&... oitFlags) noexcept;
 
     static void setupColorCommand(Command& cmdDraw, Variant variant, DynamicSpecConstKey specKey,
             FMaterialInstance const* mi, bool inverseFrontFaces, bool hasDepthClamp) noexcept;
@@ -485,6 +508,9 @@ private:
     mutable std::vector<Command*> mInstancingDescriptorSetPatch;
     BufferObjectSharedHandle mInstancedUboHandle; // ubo for instanced primitives
     DescriptorSetSharedHandle mInstancedDescriptorSetHandle; // a descriptor-set to hold the ubo
+    Command* mCommandCapacityEnd = nullptr;
+    uint8_t mOitFlags = 0;
+    bool mCompleted = false;
     bool mFinalized = false;
 
     // a vector for our custom commands
@@ -525,6 +551,11 @@ public:
 
     RenderPassBuilder& commandTypeFlags(RenderPass::CommandTypeFlags const commandTypeFlags) noexcept {
         mCommandTypeFlags = commandTypeFlags;
+        return *this;
+    }
+
+    RenderPassBuilder& clearCustomCommands() noexcept {
+        mCustomCommands.reset();
         return *this;
     }
 
@@ -593,6 +624,11 @@ public:
             const RenderPass::Executor::CustomCommandFn& command);
 
     RenderPass build(FEngine const& engine, backend::DriverApi& driver) const;
+
+    // Generate only. Reserve room for callbacks selected after the OIT decision.
+    // Call complete() before allocating another RenderPass from this builder's arena.
+    RenderPass buildUnprepared(FEngine const& engine, backend::DriverApi& driver,
+            uint32_t extraCustomCommands) const;
 };
 
 
