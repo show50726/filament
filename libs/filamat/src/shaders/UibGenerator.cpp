@@ -157,7 +157,7 @@ BufferInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             { "iblSH",                  9, Type::FLOAT3                  },
 
             // ------------------------------------------------------------------------------------
-            // Directional Lighting [variant: DIR]
+            // Directional Lighting (controlled via dynamic specialization constants)
             // ------------------------------------------------------------------------------------
             { "lightDirection",         0, Type::FLOAT3, Precision::HIGH },
             { "padding0",               0, Type::FLOAT                   },

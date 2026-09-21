@@ -88,28 +88,24 @@ TEST(Variant, PunctualShadowReceiversDoNotAliasSsr) {
     constexpr std::array<V::type_t, 2> FOG_STATES = { 0, V::FOG };
     constexpr std::array<V::type_t, 2> SKINNING_STATES = { 0, V::SKN };
     constexpr std::array<V::type_t, 2> STEREO_STATES = { 0, V::STE };
-    constexpr std::array<V::type_t, 2> DIRECTIONAL_STATES = { 0, V::DIR };
     constexpr UserVariantFilterMask SSR_FILTER = uint32_t(UserVariantFilterBit::SSR);
 
-    for (V::type_t const sampler : SAMPLERS) {
-        for (V::type_t const fog : FOG_STATES) {
-            for (V::type_t const skinning : SKINNING_STATES) {
-                for (V::type_t const stereo : STEREO_STATES) {
-                    for (V::type_t const directional : DIRECTIONAL_STATES) {
-                        V const requested(V::SRE | sampler | fog | skinning | stereo |
-                                directional);
-                        V const filtered = V::filterVariant(requested, true);
-                        V const expected(requested.key & ~V::DIR);
+    for (V::type_t const sampler: SAMPLERS) {
+        for (V::type_t const fog: FOG_STATES) {
+            for (V::type_t const skinning: SKINNING_STATES) {
+                for (V::type_t const stereo: STEREO_STATES) {
+                    V const requested(V::SRE | sampler | fog | skinning | stereo);
+                    V const filtered = V::filterVariant(requested, true);
+                    V const expected(requested.key);
 
-                        EXPECT_EQ(filtered, expected);
-                        EXPECT_TRUE(V::isValidStandardVariant(filtered));
-                        EXPECT_TRUE(V::isValidSurfaceVariant(filtered));
-                        EXPECT_FALSE(V::isSSRVariant(filtered));
-                        EXPECT_FALSE(V::isValidDepthVariant(filtered));
-                        EXPECT_TRUE(V::isShadowReceiverVariant(filtered));
-                        EXPECT_EQ(V::isShadowSampler2DVariant(filtered), sampler == V::S2D);
-                        EXPECT_EQ(V::filterUserVariant(filtered, SSR_FILTER), filtered);
-                    }
+                    EXPECT_EQ(filtered, expected);
+                    EXPECT_TRUE(V::isValidStandardVariant(filtered));
+                    EXPECT_TRUE(V::isValidSurfaceVariant(filtered));
+                    EXPECT_FALSE(V::isSSRVariant(filtered));
+                    EXPECT_FALSE(V::isValidDepthVariant(filtered));
+                    EXPECT_TRUE(V::isShadowReceiverVariant(filtered));
+                    EXPECT_EQ(V::isShadowSampler2DVariant(filtered), sampler == V::S2D);
+                    EXPECT_EQ(V::filterUserVariant(filtered, SSR_FILTER), filtered);
                 }
             }
         }
@@ -125,7 +121,7 @@ TEST(Variant, SpecialSsrVariantIsDistinctAndFilterable) {
 
     // Keep the SSR sentinel independent of lighting bits that can migrate to spec constants.
     EXPECT_EQ(V::SPECIAL_SSR_VARIANT, V::type_t(V::MNT | V::PCK | V::DEP));
-    EXPECT_EQ(V::SPECIAL_SSR_VARIANT & (V::DIR| V::SRE), 0u);
+    EXPECT_EQ(V::SPECIAL_SSR_VARIANT & (V::SRE), 0u);
 
     V const ssr(V::SPECIAL_SSR_VARIANT);
     EXPECT_TRUE(V::isSSRVariant(ssr));

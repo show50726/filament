@@ -303,15 +303,15 @@ public class Material {
 
     public static class UserVariantFilterBit {
         /** Directional lighting */
-        public static int DIRECTIONAL_LIGHTING = 0x01;
-
-        /** Dynamic lighting
-         * Since dynamic lighting was migrated to specialization constants, filtering this bit no
-         * longer affects the size of offline compiled materials (.filamat). However, we keep it
-         * for pruning unnecessary pipeline compilations at runtime.
-        */
-        public static int DYNAMIC_LIGHTING = 0x02;
-
+        public static final int DIRECTIONAL_LIGHTING = 0x1;
+        /**
+         * Dynamic lighting.
+         *
+         * <p>Since dynamic lighting was migrated to specialization constants, filtering this bit
+         * no longer affects the size of offline compiled materials (.filamat). However, we keep it
+         * for pruning unnecessary pipeline compilations at runtime.</p>
+         */
+        public static final int DYNAMIC_LIGHTING = 0x2;
         /** Shadow receiver */
         public static int SHADOW_RECEIVER = 0x04;
         /** Skinning */
@@ -867,12 +867,12 @@ public class Material {
     }
 
     /**
-     * 
+     *
      * Returns the name of the transform parameter associated with the given sampler parameter.
      * In the case the parameter doesn't have a transform name field, it will return an empty string.
-     * 
+     *
      * @param samplerName the name of the sampler parameter to query.
-     * 
+     *
      * @see
      * <a href="https://google.github.io/filament/Materials.html#materialdefinitions/materialblock/general:parameters">
      * General: parameters</a>

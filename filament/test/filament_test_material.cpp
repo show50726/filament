@@ -331,11 +331,9 @@ TEST(MaterialVariant, DynamicLightingSpecKeySupportsPunctualShadowReceivers) {
             Variant::SRE,
             Variant::SRE | Variant::FOG,
             Variant::SRE | Variant::SKN,
-            Variant::SRE | Variant::DIR,
             Variant::S2D | Variant::SRE,
             Variant::S2D | Variant::SRE | Variant::FOG,
             Variant::S2D | Variant::SRE | Variant::SKN,
-            Variant::S2D | Variant::SRE | Variant::DIR,
             Variant::S2D | Variant::SRE | Variant::STE,
     };
 

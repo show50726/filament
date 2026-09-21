@@ -137,7 +137,7 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     math::float4 iblSH[9];                      // actually float3 entries (std140 requires float4 alignment)
 
     // --------------------------------------------------------------------------------------------
-    // Directional Lighting [variant: DIR]
+    // Directional Lighting (controlled via dynamic specialization constants)
     // --------------------------------------------------------------------------------------------
     math::float3 lightDirection;                // directional light direction
     float padding0;

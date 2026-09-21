@@ -296,13 +296,24 @@ enum class Property : uint8_t {
 
 using UserVariantFilterMask = uint32_t;
 
-enum class UserVariantFilterBit : UserVariantFilterMask {
-    DIRECTIONAL_LIGHTING = 0x01, //!< Directional lighting
+enum class UTILS_APIGEN_FLAGS UserVariantFilterBit : UserVariantFilterMask {
+    /**
+     * Directional lighting
+     *
+     * \note Since directional lighting was migrated to specialization constants, filtering this bit
+     * no longer affects the size of offline compiled materials (.filamat). However, we keep it
+     * for pruning unnecessary pipeline compilations at runtime.
+     */
+    DIRECTIONAL_LIGHTING = 0x01,
 
-    //!< \note Since dynamic lighting was migrated to specialization constants, filtering this bit
-    //!< no longer affects the size of offline compiled materials (.filamat). However, we keep it
-    //!< for pruning unnecessary pipeline compilations at runtime.
-    DYNAMIC_LIGHTING = 0x02, //!< Dynamic lighting
+    /**
+     * Dynamic lighting
+     *
+     * \note Since dynamic lighting was migrated to specialization constants, filtering this bit
+     * no longer affects the size of offline compiled materials (.filamat). However, we keep it
+     * for pruning unnecessary pipeline compilations at runtime.
+     */
+    DYNAMIC_LIGHTING = 0x02,
 
     SHADOW_RECEIVER = 0x04,      //!< Shadow receiver
     SKINNING = 0x08,             //!< Skinning
