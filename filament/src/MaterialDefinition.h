@@ -22,6 +22,7 @@
 
 #include <private/filament/BufferInterfaceBlock.h>
 #include <private/filament/ConstantInfo.h>
+#include <private/filament/EngineEnums.h>
 #include <private/filament/SamplerInterfaceBlock.h>
 #include <private/filament/SubpassInfo.h>
 #include <private/filament/Variant.h>
