@@ -19,10 +19,8 @@
 
 #include <utils/FixedCapacityVector.h>
 
-#include <cstddef>
+#include <array>
 #include <cstdint>
-#include <functional>
-#include <map>
 #include <utility>
 
 
@@ -95,78 +93,45 @@ private:
     [[nodiscard]] allocation_size_t slotIndexFromOffset(allocation_size_t offset) const noexcept;
     [[nodiscard]] AllocationId calculateIdByOffset(allocation_size_t offset) const;
 
-    // Recycles the nodes of mFreeList. allocate() and freeSlot() insert and erase free-list
-    // entries all the time, and with the default allocator every insertion is a malloc/free
-    // pair. All nodes have the same size, so freed nodes are kept on an intrusive list and
-    // reused. Memory is only returned to the system when the pool is destroyed.
-    class FreeListNodePool {
-    public:
-        FreeListNodePool() noexcept = default;
-        FreeListNodePool(FreeListNodePool const&) = delete;
-        FreeListNodePool& operator=(FreeListNodePool const&) = delete;
-        ~FreeListNodePool() noexcept;
-
-        [[nodiscard]] void* alloc(size_t size);
-        void free(void* p, size_t size) noexcept;
-
-    private:
-        struct Link {
-            Link* next;
-        };
-
-        static constexpr size_t NODES_PER_CHUNK = 256;
-        static constexpr size_t ALIGNMENT = alignof(std::max_align_t);
-
-        size_t mNodeSize = 0;       // set by the first allocation
-        Link* mFreeNodes = nullptr; // recycled nodes
-        Link* mChunks = nullptr;    // all chunks, linked through their first bytes
-        char* mCurrent = nullptr;   // next unused node in the newest chunk
-        char* mEnd = nullptr;       // end of the newest chunk
-    };
-
-    // STL allocator that forwards to a FreeListNodePool.
-    template<typename T>
-    struct FreeListAllocator {
-        using value_type = T;
-
-        explicit FreeListAllocator(FreeListNodePool* pool) noexcept : pool(pool) {}
-
-        template<typename U>
-        FreeListAllocator(FreeListAllocator<U> const& rhs) noexcept : pool(rhs.pool) {} // NOLINT
-
-        [[nodiscard]] T* allocate(size_t n) {
-            static_assert(alignof(T) <= alignof(std::max_align_t));
-            return static_cast<T*>(pool->alloc(n * sizeof(T)));
-        }
-
-        void deallocate(T* p, size_t n) noexcept {
-            pool->free(p, n * sizeof(T));
-        }
-
-        template<typename U>
-        bool operator==(FreeListAllocator<U> const& rhs) const noexcept {
-            return pool == rhs.pool;
-        }
-
-        template<typename U>
-        bool operator!=(FreeListAllocator<U> const& rhs) const noexcept {
-            return pool != rhs.pool;
-        }
-
-        FreeListNodePool* pool;
-    };
-
-    struct InternalSlotNode;
-
-    using FreeList = std::multimap</*slot size*/ allocation_size_t, InternalSlotNode*,
-            std::less<allocation_size_t>,
-            FreeListAllocator<std::pair<const allocation_size_t, InternalSlotNode*>>>;
+    // Free blocks are kept in segregated bins (TLSF-style), indexed by their size in slots:
+    // - sizes below SL_COUNT slots each have their own bin;
+    // - larger sizes are split by their highest bit (first level), then into SL_COUNT linear
+    //   ranges (second level).
+    // Each bin is an intrusive doubly-linked list threaded through the head nodes of its free
+    // blocks, and two bitmaps record which bins are non-empty. Finding, inserting and removing
+    // a free block is O(1) and never allocates memory.
+    static constexpr uint32_t INVALID_INDEX = ~0u;
+    static constexpr uint32_t SL_BITS = 4;
+    static constexpr uint32_t SL_COUNT = 1u << SL_BITS;
+    // Enough first-level bins for any 32-bit slot count.
+    static constexpr uint32_t FL_COUNT = 32 - SL_BITS + 1;
 
     // Having an internal node type holding the base slot node and additional information.
     struct InternalSlotNode {
         Slot slot;
-        FreeList::iterator freeListIterator;
+        // Neighbors in the bin's free list, as node indices. Only valid for the head node of a
+        // free block.
+        uint32_t prevFree;
+        uint32_t nextFree;
     };
+
+    struct Bin {
+        uint32_t head = INVALID_INDEX; // oldest free block, allocated first
+        uint32_t tail = INVALID_INDEX; // newest free block
+    };
+
+    struct BinIndex {
+        uint32_t fl;
+        uint32_t sl;
+    };
+
+    [[nodiscard]] static BinIndex binIndexFromSlotCount(uint32_t slotCount) noexcept;
+
+    // Returns the head node index of a free block of at least `slotCount` slots, or
+    // INVALID_INDEX if there's none.
+    [[nodiscard]] uint32_t findFreeBlock(uint32_t slotCount) const noexcept;
+    void insertFreeBlock(uint32_t headIndex) noexcept;
+    void removeFreeBlock(uint32_t headIndex) noexcept;
 
     [[nodiscard]] InternalSlotNode* getNodeById(AllocationId id);
     [[nodiscard]] const InternalSlotNode* getNodeById(AllocationId id) const;
@@ -178,8 +143,9 @@ private:
     const allocation_size_t mSlotSize; // Size of a single slot in bytes
     const uint8_t mSlotSizeShift;
     utils::FixedCapacityVector<InternalSlotNode> mNodes;
-    FreeListNodePool mFreeListNodePool; // must outlive mFreeList
-    FreeList mFreeList;
+    uint32_t mFlBitmap = 0;                       // bit fl: some bin in mBins[fl] is non-empty
+    std::array<uint32_t, FL_COUNT> mSlBitmaps{};  // bit sl of [fl]: mBins[fl][sl] is non-empty
+    std::array<std::array<Bin, SL_COUNT>, FL_COUNT> mBins{};
     uint32_t mAllocationCount = 0;
 };
 

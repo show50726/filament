@@ -23,9 +23,6 @@
 #include <utils/debug.h>
 #include <utils/Panic.h>
 
-#include <algorithm>
-#include <new>
-
 namespace filament {
 namespace {
 
@@ -44,59 +41,100 @@ constexpr static uint8_t powerOfTwoShift(uint32_t n) noexcept {
 
 } // anonymous namespace
 
-BufferAllocator::FreeListNodePool::~FreeListNodePool() noexcept {
-    Link* chunk = mChunks;
-    while (chunk) {
-        Link* const next = chunk->next;
-        ::operator delete(chunk);
-        chunk = next;
+BufferAllocator::BinIndex BufferAllocator::binIndexFromSlotCount(uint32_t const slotCount) noexcept {
+    assert_invariant(slotCount > 0);
+    if (slotCount < SL_COUNT) {
+        return { 0, slotCount };
     }
+    uint32_t const msb = 31 - utils::clz(slotCount);
+    return { msb - SL_BITS + 1, (slotCount >> (msb - SL_BITS)) - SL_COUNT };
 }
 
-void* BufferAllocator::FreeListNodePool::alloc(size_t const size) {
-    if (UTILS_UNLIKELY(mNodeSize == 0)) {
-        // Round up so that every node stays aligned and can hold a Link while it's free.
-        mNodeSize = (std::max(size, sizeof(Link)) + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
+uint32_t BufferAllocator::findFreeBlock(uint32_t const slotCount) const noexcept {
+    auto const [fl, sl] = binIndexFromSlotCount(slotCount);
+
+    // A bin holds the sizes [lowerBound, lowerBound + span). Every block in the request's own
+    // bin is large enough only if the request is the bin's lower bound. Otherwise, start the
+    // search at the next bin. Bins below 2 * SL_COUNT slots hold a single size (span == 1).
+    uint32_t const span = (fl == 0) ? 1u : (1u << (fl - 1));
+    bool const wholeBinFits = (slotCount & (span - 1)) == 0;
+
+    // Smallest non-empty bin at or above the starting bin: O(1).
+    uint32_t foundFl = fl;
+    uint32_t slBitmap = mSlBitmaps[fl] & (~0u << (wholeBinFits ? sl : sl + 1));
+    if (!slBitmap) {
+        uint32_t const flBitmap = mFlBitmap & (~0u << (fl + 1));
+        if (flBitmap) {
+            foundFl = utils::ctz(flBitmap);
+            slBitmap = mSlBitmaps[foundFl];
+        }
+    }
+    if (slBitmap) {
+        return mBins[foundFl][utils::ctz(slBitmap)].head;
     }
 
-    // The container only allocates nodes of a single size. Anything larger isn't pooled.
-    if (UTILS_UNLIKELY(size > mNodeSize)) {
-        return ::operator new(size);
+    // No larger bin has a block, but the request's own bin may still hold one that fits. This
+    // linear scan only runs when the buffer is nearly full.
+    if (!wholeBinFits) {
+        for (uint32_t i = mBins[fl][sl].head; i != INVALID_INDEX; i = mNodes[i].nextFree) {
+            if ((mNodes[i].slot.slotSize >> mSlotSizeShift) >= slotCount) {
+                return i;
+            }
+        }
     }
-
-    if (mFreeNodes) {
-        Link* const node = mFreeNodes;
-        mFreeNodes = node->next;
-        return node;
-    }
-
-    if (UTILS_UNLIKELY(mCurrent == mEnd)) {
-        // The first ALIGNMENT bytes of a chunk link it to the previous chunk.
-        size_t const chunkSize = ALIGNMENT + NODES_PER_CHUNK * mNodeSize;
-        char* const chunk = static_cast<char*>(::operator new(chunkSize));
-        mChunks = new(chunk) Link{ mChunks };
-        mCurrent = chunk + ALIGNMENT;
-        mEnd = chunk + chunkSize;
-    }
-
-    void* const node = mCurrent;
-    mCurrent += mNodeSize;
-    return node;
+    return INVALID_INDEX;
 }
 
-void BufferAllocator::FreeListNodePool::free(void* const p, size_t const size) noexcept {
-    if (UTILS_UNLIKELY(size > mNodeSize)) {
-        ::operator delete(p);
-        return;
+void BufferAllocator::insertFreeBlock(uint32_t const headIndex) noexcept {
+    InternalSlotNode& node = mNodes[headIndex];
+    auto const [fl, sl] = binIndexFromSlotCount(node.slot.slotSize >> mSlotSizeShift);
+    Bin& bin = mBins[fl][sl];
+
+    // Append, so that blocks of the same size are reused in the order they were freed.
+    node.prevFree = bin.tail;
+    node.nextFree = INVALID_INDEX;
+    if (bin.tail != INVALID_INDEX) {
+        mNodes[bin.tail].nextFree = headIndex;
+    } else {
+        bin.head = headIndex;
     }
-    mFreeNodes = new(p) Link{ mFreeNodes };
+    bin.tail = headIndex;
+
+    mSlBitmaps[fl] |= 1u << sl;
+    mFlBitmap |= 1u << fl;
+}
+
+void BufferAllocator::removeFreeBlock(uint32_t const headIndex) noexcept {
+    InternalSlotNode const& node = mNodes[headIndex];
+    // Must be called before the block's size changes, since the size selects the bin.
+    auto const [fl, sl] = binIndexFromSlotCount(node.slot.slotSize >> mSlotSizeShift);
+    Bin& bin = mBins[fl][sl];
+
+    if (node.prevFree != INVALID_INDEX) {
+        mNodes[node.prevFree].nextFree = node.nextFree;
+    } else {
+        assert_invariant(bin.head == headIndex);
+        bin.head = node.nextFree;
+    }
+    if (node.nextFree != INVALID_INDEX) {
+        mNodes[node.nextFree].prevFree = node.prevFree;
+    } else {
+        assert_invariant(bin.tail == headIndex);
+        bin.tail = node.prevFree;
+    }
+
+    if (bin.head == INVALID_INDEX) {
+        mSlBitmaps[fl] &= ~(1u << sl);
+        if (!mSlBitmaps[fl]) {
+            mFlBitmap &= ~(1u << fl);
+        }
+    }
 }
 
 BufferAllocator::BufferAllocator(allocation_size_t totalSize, allocation_size_t slotSize)
     : mTotalSize(totalSize),
       mSlotSize(slotSize),
-      mSlotSizeShift(powerOfTwoShift(slotSize)),
-      mFreeList(FreeList::allocator_type(&mFreeListNodePool)) {
+      mSlotSizeShift(powerOfTwoShift(slotSize)) {
     assert_invariant(mSlotSize > 0);
     assert_invariant(isPowerOfTwo(mSlotSize));
 
@@ -107,7 +145,11 @@ void BufferAllocator::reset(allocation_size_t newTotalSize) {
     assert_invariant(newTotalSize % mSlotSize == 0);
 
     mTotalSize = newTotalSize;
-    mFreeList.clear();
+    mFlBitmap = 0;
+    mSlBitmaps.fill(0);
+    for (auto& bins : mBins) {
+        bins.fill(Bin{});
+    }
     mAllocationCount = 0;
 
     // Resize mNodes to the number of slots
@@ -121,7 +163,7 @@ void BufferAllocator::reset(allocation_size_t newTotalSize) {
     node->slot.offset = 0;
     node->slot.slotSize = mTotalSize;
     node->slot.isAllocated = false;
-    node->freeListIterator = mFreeList.emplace(mTotalSize, node);
+    insertFreeBlock(0);
 
     // Set the tail tag
     copySlotToTail(slotCount - 1, node);
@@ -134,16 +176,20 @@ std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
     }
 
     const allocation_size_t alignedSize = alignUp(size);
-    auto bestFitIter = mFreeList.lower_bound(alignedSize);
+    if (UTILS_UNLIKELY(alignedSize == 0 || alignedSize > mTotalSize)) {
+        // Larger than the whole buffer, or alignUp() overflowed.
+        return { REALLOCATION_REQUIRED, 0 };
+    }
+    const uint32_t headIndex = findFreeBlock(alignedSize >> mSlotSizeShift);
 
-    if (bestFitIter == mFreeList.end()) {
+    if (headIndex == INVALID_INDEX) {
         return { REALLOCATION_REQUIRED, 0 };
     }
 
-    InternalSlotNode* targetNode = bestFitIter->second;
+    InternalSlotNode* targetNode = &mNodes[headIndex];
     const allocation_size_t originalSlotSize = targetNode->slot.slotSize;
 
-    mFreeList.erase(bestFitIter);
+    removeFreeBlock(headIndex);
 
     const allocation_size_t remainingSize = targetNode->slot.slotSize - alignedSize;
     const allocation_size_t offset = targetNode->slot.offset;
@@ -167,7 +213,7 @@ std::pair<BufferAllocator::AllocationId, BufferAllocator::allocation_size_t>
         nextNode->slot.offset = offset + alignedSize;
         nextNode->slot.slotSize = remainingSize;
         nextNode->slot.isAllocated = false;
-        nextNode->freeListIterator = mFreeList.emplace(remainingSize, nextNode);
+        insertFreeBlock(uint32_t(nextSlotIndex));
 
         // Update the Tail of remaining free block
         const size_t nextEndSlotIndex =
@@ -230,7 +276,7 @@ void BufferAllocator::freeSlot(InternalSlotNode* node) {
             assert_invariant(prevHead->slot.offset == prev->slot.offset);
             assert_invariant(prevHead->slot.slotSize == prev->slot.slotSize);
 
-            mFreeList.erase(prevHead->freeListIterator);
+            removeFreeBlock(uint32_t(prevHeadIdx));
             prevHead->slot.slotSize += node->slot.slotSize;
             assert_invariant(prevHead->slot.slotSize % mSlotSize == 0);
 
@@ -247,7 +293,7 @@ void BufferAllocator::freeSlot(InternalSlotNode* node) {
         if (next->slot.isFree()) {
             // Merge with next
 
-            mFreeList.erase(next->freeListIterator);
+            removeFreeBlock(uint32_t(nextStartIdx));
             node->slot.slotSize += next->slot.slotSize;
             assert_invariant(node->slot.slotSize % mSlotSize == 0);
 
@@ -259,7 +305,7 @@ void BufferAllocator::freeSlot(InternalSlotNode* node) {
     assert_invariant(slotIndexFromOffset(node->slot.offset) == currentStartIdx);
 
     // Push merged free block to the list
-    node->freeListIterator = mFreeList.emplace(node->slot.slotSize, node);
+    insertFreeBlock(uint32_t(currentStartIdx));
 
     // Copy Head to Tail
     copySlotToTail(currentEndIdx, node);

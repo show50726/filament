@@ -313,8 +313,8 @@ TEST_F(BufferAllocatorTest, ValidId) {
 }
 
 TEST_F(BufferAllocatorTest, FreeListNodesAreRecycled) {
-    // Free-list nodes are recycled across allocate(), retire() and reset(). Use enough slots
-    // that the free list holds more entries than fit in one chunk of the node pool.
+    // Free blocks are added to and removed from the free list across allocate(), retire() and
+    // reset(). Use enough slots that the free list holds hundreds of blocks at once.
     constexpr BufferAllocator::allocation_size_t SLOT_COUNT = 1024;
     constexpr BufferAllocator::allocation_size_t LARGE_TOTAL_SIZE = SLOT_COUNT * SLOT_SIZE;
 
@@ -350,6 +350,40 @@ TEST_F(BufferAllocatorTest, FreeListNodesAreRecycled) {
         EXPECT_EQ(mAllocator.getAllocationSize(wholeId), totalSize);
         mAllocator.retire(wholeId);
     }
+}
+
+TEST_F(BufferAllocatorTest, FindsFittingBlockInRangeBin) {
+    // Sizes of 32 slots and more share bins with neighboring sizes. A free block that fits
+    // must be found even when it's in the same bin as the request and nothing larger is free.
+    constexpr BufferAllocator::allocation_size_t SLOT_COUNT = 64;
+    mAllocator.reset(SLOT_COUNT * SLOT_SIZE);
+
+    auto [a, aOffset] = mAllocator.allocate(33 * SLOT_SIZE);
+    auto [b, bOffset] = mAllocator.allocate(31 * SLOT_SIZE);
+    ASSERT_TRUE(BufferAllocator::isValid(a));
+    ASSERT_TRUE(BufferAllocator::isValid(b));
+    EXPECT_EQ(mAllocator.allocate(SLOT_SIZE).first, BufferAllocator::REALLOCATION_REQUIRED);
+
+    // The only free block has 33 slots, the same bin as a 33-slot request.
+    mAllocator.retire(a);
+    auto [c, cOffset] = mAllocator.allocate(33 * SLOT_SIZE);
+    ASSERT_TRUE(BufferAllocator::isValid(c));
+    EXPECT_EQ(cOffset, 0);
+    EXPECT_EQ(mAllocator.getAllocationSize(c), 33 * SLOT_SIZE);
+
+    // A 32-slot request is the lower bound of that bin, so the block is found directly and
+    // split.
+    mAllocator.retire(c);
+    auto [d, dOffset] = mAllocator.allocate(32 * SLOT_SIZE);
+    ASSERT_TRUE(BufferAllocator::isValid(d));
+    EXPECT_EQ(dOffset, 0);
+    auto [e, eOffset] = mAllocator.allocate(SLOT_SIZE);
+    ASSERT_TRUE(BufferAllocator::isValid(e));
+    EXPECT_EQ(eOffset, 32 * SLOT_SIZE);
+
+    // Requests larger than the buffer fail without touching the bins.
+    EXPECT_EQ(mAllocator.allocate(SLOT_COUNT * SLOT_SIZE + 1).first,
+            BufferAllocator::REALLOCATION_REQUIRED);
 }
 
 } // anonymous namespace
