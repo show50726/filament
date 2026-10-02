@@ -312,4 +312,44 @@ TEST_F(BufferAllocatorTest, ValidId) {
     EXPECT_TRUE(BufferAllocator::isValid(999));
 }
 
+TEST_F(BufferAllocatorTest, FreeListNodesAreRecycled) {
+    // Free-list nodes are recycled across allocate(), retire() and reset(). Use enough slots
+    // that the free list holds more entries than fit in one chunk of the node pool.
+    constexpr BufferAllocator::allocation_size_t SLOT_COUNT = 1024;
+    constexpr BufferAllocator::allocation_size_t LARGE_TOTAL_SIZE = SLOT_COUNT * SLOT_SIZE;
+
+    for (int cycle = 0; cycle < 4; ++cycle) {
+        mAllocator.reset(cycle % 2 ? TOTAL_SIZE : LARGE_TOTAL_SIZE);
+        const BufferAllocator::allocation_size_t totalSize = mAllocator.getTotalSize();
+        const BufferAllocator::allocation_size_t slotCount = totalSize / SLOT_SIZE;
+
+        std::vector<BufferAllocator::AllocationId> ids;
+        for (BufferAllocator::allocation_size_t i = 0; i < slotCount; ++i) {
+            auto [id, offset] = mAllocator.allocate(SLOT_SIZE);
+            ASSERT_TRUE(BufferAllocator::isValid(id));
+            EXPECT_EQ(offset, i * SLOT_SIZE);
+            ids.push_back(id);
+        }
+        EXPECT_EQ(mAllocator.allocate(SLOT_SIZE).first, BufferAllocator::REALLOCATION_REQUIRED);
+
+        // Retiring every other slot leaves slotCount / 2 separate free blocks.
+        for (size_t i = 0; i < ids.size(); i += 2) {
+            mAllocator.retire(ids[i]);
+        }
+        EXPECT_EQ(mAllocator.getAllocationCount(), slotCount / 2);
+
+        // Retiring the rest merges everything back into a single block.
+        for (size_t i = 1; i < ids.size(); i += 2) {
+            mAllocator.retire(ids[i]);
+        }
+        EXPECT_EQ(mAllocator.getAllocationCount(), 0);
+
+        auto [wholeId, wholeOffset] = mAllocator.allocate(totalSize);
+        ASSERT_TRUE(BufferAllocator::isValid(wholeId));
+        EXPECT_EQ(wholeOffset, 0);
+        EXPECT_EQ(mAllocator.getAllocationSize(wholeId), totalSize);
+        mAllocator.retire(wholeId);
+    }
+}
+
 } // anonymous namespace

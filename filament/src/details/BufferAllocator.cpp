@@ -23,6 +23,9 @@
 #include <utils/debug.h>
 #include <utils/Panic.h>
 
+#include <algorithm>
+#include <new>
+
 namespace filament {
 namespace {
 
@@ -41,10 +44,59 @@ constexpr static uint8_t powerOfTwoShift(uint32_t n) noexcept {
 
 } // anonymous namespace
 
+BufferAllocator::FreeListNodePool::~FreeListNodePool() noexcept {
+    Link* chunk = mChunks;
+    while (chunk) {
+        Link* const next = chunk->next;
+        ::operator delete(chunk);
+        chunk = next;
+    }
+}
+
+void* BufferAllocator::FreeListNodePool::alloc(size_t const size) {
+    if (UTILS_UNLIKELY(mNodeSize == 0)) {
+        // Round up so that every node stays aligned and can hold a Link while it's free.
+        mNodeSize = (std::max(size, sizeof(Link)) + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
+    }
+
+    // The container only allocates nodes of a single size. Anything larger isn't pooled.
+    if (UTILS_UNLIKELY(size > mNodeSize)) {
+        return ::operator new(size);
+    }
+
+    if (mFreeNodes) {
+        Link* const node = mFreeNodes;
+        mFreeNodes = node->next;
+        return node;
+    }
+
+    if (UTILS_UNLIKELY(mCurrent == mEnd)) {
+        // The first ALIGNMENT bytes of a chunk link it to the previous chunk.
+        size_t const chunkSize = ALIGNMENT + NODES_PER_CHUNK * mNodeSize;
+        char* const chunk = static_cast<char*>(::operator new(chunkSize));
+        mChunks = new(chunk) Link{ mChunks };
+        mCurrent = chunk + ALIGNMENT;
+        mEnd = chunk + chunkSize;
+    }
+
+    void* const node = mCurrent;
+    mCurrent += mNodeSize;
+    return node;
+}
+
+void BufferAllocator::FreeListNodePool::free(void* const p, size_t const size) noexcept {
+    if (UTILS_UNLIKELY(size > mNodeSize)) {
+        ::operator delete(p);
+        return;
+    }
+    mFreeNodes = new(p) Link{ mFreeNodes };
+}
+
 BufferAllocator::BufferAllocator(allocation_size_t totalSize, allocation_size_t slotSize)
     : mTotalSize(totalSize),
       mSlotSize(slotSize),
-      mSlotSizeShift(powerOfTwoShift(slotSize)) {
+      mSlotSizeShift(powerOfTwoShift(slotSize)),
+      mFreeList(FreeList::allocator_type(&mFreeListNodePool)) {
     assert_invariant(mSlotSize > 0);
     assert_invariant(isPowerOfTwo(mSlotSize));
 
