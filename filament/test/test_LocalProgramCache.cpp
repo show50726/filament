@@ -78,6 +78,11 @@ TEST(LocalProgramCache, SurfaceBoundary) {
                           DynamicSpecConstKey::type_t(DYNAMIC_SPEC_CONST_KEY_COUNT - 1) },
                       SURFACE_SIZE),
             SURFACE_SIZE - 1);
+    variant.key = static_cast<Variant::type_t>(VARIANT_COUNT - 1);
+    DynamicSpecConstKey const lastSpecKey{
+            static_cast<DynamicSpecConstKey::type_t>(DYNAMIC_SPEC_CONST_KEY_COUNT - 1) };
+    EXPECT_EQ(LocalProgramCache::mapCacheEntryKey(variant, lastSpecKey, SURFACE_SIZE),
+            SURFACE_SIZE - 1);
 }
 
 TEST(LocalProgramCache, PostProcessBoundaries) {
@@ -111,10 +116,10 @@ TEST(LocalProgramCache, DepthIgnoresSpecialization) {
     Variant variant{};
     variant.key = Variant::DEP;
     ASSERT_TRUE(Variant::isValidDepthVariant(variant));
-    constexpr std::size_t DEPTH_SLOT = std::size_t{ Variant::DEP } << DYNAMIC_SPEC_CONST_KEY_BITS;
+    constexpr std::size_t expected = std::size_t{ Variant::DEP } << DYNAMIC_SPEC_CONST_KEY_BITS;
     for (uint16_t key = 0; key < DYNAMIC_SPEC_CONST_KEY_COUNT; ++key) {
         EXPECT_EQ(LocalProgramCache::mapCacheEntryKey(
-                          variant, DynamicSpecConstKey{ key }, SURFACE_SIZE), DEPTH_SLOT);
+                          variant, DynamicSpecConstKey{ key }, SURFACE_SIZE), expected);
     }
 }
 
