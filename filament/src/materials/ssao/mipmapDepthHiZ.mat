@@ -1,0 +1,64 @@
+material {
+    name : mipmapDepthHiZ,
+    parameters : [
+        {
+            type : sampler2d,
+            name : depth,
+            precision: high,
+            filterable: false
+        }
+    ],
+    variables : [
+    ],
+    outputs : [
+        {
+            name : depth,
+            target : depth,
+            type : float
+        }
+    ],
+    domain : postprocess,
+    depthWrite : true,
+    depthCulling : false,
+    culling: none
+}
+
+fragment {
+    // Conservative hierarchical-Z mipmap reduction for Hi-Z ray tracing.
+    // Note: Filament uses a reversed-Z depth buffer (1.0 at the near plane, 0.0 at the far plane),
+    // so the conservative closest depth to the camera is the maximum raw depth value.
+    void postProcess(inout PostProcessInputs postProcess) {
+        ivec2 icoord = ivec2(gl_FragCoord.xy);
+        ivec2 baseCoord = 2 * icoord;
+        ivec2 prevDim = textureSize(materialParams_depth, 0);
+
+        highp float d00 = texelFetch(materialParams_depth, baseCoord + ivec2(0, 0), 0).r;
+        highp float d10 = texelFetch(materialParams_depth, baseCoord + ivec2(1, 0), 0).r;
+        highp float d01 = texelFetch(materialParams_depth, baseCoord + ivec2(0, 1), 0).r;
+        highp float d11 = texelFetch(materialParams_depth, baseCoord + ivec2(1, 1), 0).r;
+
+        highp float maxZ = max(max(d00, d10), max(d01, d11));
+
+        // If the previous mip level has odd width and/or height, include the extra column/row so
+        // that coarse UV cells conservatively bound all overlapping fine texels.
+        bool oddWidth = ((prevDim.x & 1) != 0) && (baseCoord.x + 2 < prevDim.x);
+        bool oddHeight = ((prevDim.y & 1) != 0) && (baseCoord.y + 2 < prevDim.y);
+
+        if (oddWidth) {
+            highp float d20 = texelFetch(materialParams_depth, baseCoord + ivec2(2, 0), 0).r;
+            highp float d21 = texelFetch(materialParams_depth, baseCoord + ivec2(2, 1), 0).r;
+            maxZ = max(maxZ, max(d20, d21));
+        }
+        if (oddHeight) {
+            highp float d02 = texelFetch(materialParams_depth, baseCoord + ivec2(0, 2), 0).r;
+            highp float d12 = texelFetch(materialParams_depth, baseCoord + ivec2(1, 2), 0).r;
+            maxZ = max(maxZ, max(d02, d12));
+        }
+        if (oddWidth && oddHeight) {
+            highp float d22 = texelFetch(materialParams_depth, baseCoord + ivec2(2, 2), 0).r;
+            maxZ = max(maxZ, d22);
+        }
+
+        postProcess.depth = maxZ;
+    }
+}

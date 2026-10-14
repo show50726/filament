@@ -57,6 +57,11 @@ enum_<View::TemporalAntiAliasingOptions::JitterPattern>("View$TemporalAntiAliasi
     .value("HALTON_23_X32", View::TemporalAntiAliasingOptions::JitterPattern::HALTON_23_X32)
     ;
 
+enum_<View::ScreenSpaceReflectionsOptions::TracingMode>("View$ScreenSpaceReflectionsOptions$TracingMode")
+    .value("LINEAR", View::ScreenSpaceReflectionsOptions::TracingMode::LINEAR)
+    .value("HI_Z", View::ScreenSpaceReflectionsOptions::TracingMode::HI_Z)
+    ;
+
 enum_<View::AntiAliasing>("View$AntiAliasing")
     .value("NONE", View::AntiAliasing::NONE)
     .value("FXAA", View::AntiAliasing::FXAA)
