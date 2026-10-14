@@ -680,6 +680,13 @@ struct TemporalAntiAliasingOptions {
  * @see #setScreenSpaceReflectionsOptions
  */
 struct ScreenSpaceReflectionsOptions {
+    enum class TracingMode : uint8_t {
+        /** use linear ray marching */
+        LINEAR,
+        /** use hierarchical Z-buffer ray tracing */
+        HI_Z,
+    };
+
     /** ray thickness, in world units */
     float thickness = 0.1f;
     /** bias, in world units, to prevent self-intersections */
@@ -688,6 +695,8 @@ struct ScreenSpaceReflectionsOptions {
     float maxDistance = 3.0f;
     /** stride, in texels, for samples along the ray. */
     float stride = 2.0f;
+    /** ray tracing method */
+    TracingMode tracingMode = TracingMode::LINEAR;
     bool enabled = false;
 };
 

@@ -1170,7 +1170,10 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     const auto [structure, picking_] = ppm.structure(fg,
             passBuilder, renderFlags, svp.width, svp.height, {
             .scale = aoOptions.resolution,
-            .picking = view.hasPicking() && !view.isTransparentPickingEnabled()
+            .picking = view.hasPicking() && !view.isTransparentPickingEnabled(),
+            .conservativeDepth = ssReflectionsOptions.enabled &&
+                    ssReflectionsOptions.tracingMode ==
+                            ScreenSpaceReflectionsOptions::TracingMode::HI_Z
     });
     auto picking = picking_;
 

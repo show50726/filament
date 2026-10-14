@@ -1250,6 +1250,7 @@ void FView::prepareSSR(FEngine& engine, CameraInfo const& cameraInfo,
     s.ssrThickness = options.thickness;
     s.ssrBias = options.bias;
     s.ssrStride = options.stride;
+    s.ssrTracingMode = uint32_t(options.tracingMode);
     s.refractionLodOffset = refractionLodOffset;
     s.ssrDistance = (options.enabled && !disableSSR) ? options.maxDistance : 0.0f;
 }

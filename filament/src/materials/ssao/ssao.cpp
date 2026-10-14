@@ -31,6 +31,7 @@ static const StaticMaterialInfo sMaterialList[] = {
     { "bilateralBlur",              MATERIAL(SSAO, BILATERALBLUR) },
     { "bilateralBlurBentNormals",   MATERIAL(SSAO, BILATERALBLURBENTNORMALS) },
     { "mipmapDepth",                MATERIAL(SSAO, MIPMAPDEPTH) },
+    { "mipmapDepthHiZ",             MATERIAL(SSAO, MIPMAPDEPTHHIZ) },
     { "sao",                        MATERIAL(SSAO, SAO) },
     { "saoBentNormals",             MATERIAL(SSAO, SAOBENTNORMALS) },
 #ifndef FILAMENT_DISABLE_GTAO

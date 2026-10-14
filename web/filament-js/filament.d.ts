@@ -2403,6 +2403,13 @@ export interface View$TemporalAntiAliasingOptions {
     exactLanczosSupport?: boolean;
 }
 
+export enum View$ScreenSpaceReflectionsOptions$TracingMode {
+    LINEAR, // /** use linear ray marching */
+
+    HI_Z, // /** use hierarchical Z-buffer ray tracing */
+
+}
+
 /**
  * Options for Screen-space Reflections.
  * @see #setScreenSpaceReflectionsOptions
@@ -2416,6 +2423,8 @@ export interface View$ScreenSpaceReflectionsOptions {
     maxDistance?: number;
     /** stride, in texels, for samples along the ray. */
     stride?: number;
+    /** ray tracing method */
+    tracingMode?: View$ScreenSpaceReflectionsOptions$TracingMode;
     enabled?: boolean;
 }
 
