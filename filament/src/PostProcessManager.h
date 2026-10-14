@@ -87,6 +87,7 @@ public:
     struct StructurePassConfig {
         float scale = 0.5f;
         bool picking{};
+        bool conservativeDepth{};
     };
 
     explicit PostProcessManager(FEngine& engine) noexcept;
