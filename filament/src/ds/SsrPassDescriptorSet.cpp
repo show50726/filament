@@ -80,7 +80,9 @@ void SsrPassDescriptorSet::prepareStructure(FEngine const& engine,
         Handle<HwTexture> structure) noexcept {
     // sampler must be NEAREST
     mDescriptorSet.setSampler(engine.getPerViewDescriptorSetLayoutSsrVariant(),
-            +PerViewBindingPoints::STRUCTURE, structure, SamplerParams{});
+            +PerViewBindingPoints::STRUCTURE, structure, SamplerParams{
+                .filterMin = SamplerMinFilter::NEAREST_MIPMAP_NEAREST
+            });
 }
 
 void SsrPassDescriptorSet::commit(FEngine& engine) noexcept {

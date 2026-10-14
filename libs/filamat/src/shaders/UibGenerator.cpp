@@ -215,6 +215,10 @@ BufferInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             { "ssrBias",                 0, Type::FLOAT                  },
             { "ssrDistance",             0, Type::FLOAT                  },
             { "ssrStride",               0, Type::FLOAT                  },
+            { "ssrTracingMode",          0, Type::UINT                   },
+            { "ssrReserved0",            0, Type::FLOAT                  },
+            { "ssrReserved1",            0, Type::FLOAT                  },
+            { "ssrReserved2",            0, Type::FLOAT                  },
 
             // --------------------------------------------------------------------------------------------
             // user defined global variables
