@@ -655,7 +655,7 @@ public class View {
      */
     public void setScreenSpaceReflectionsOptions(@NonNull ScreenSpaceReflectionsOptions options) {
         mScreenSpaceReflectionsOptions = options;
-        nSetScreenSpaceReflectionsOptions(getNativeObject(), options.thickness, options.bias, options.maxDistance, options.stride, options.enabled);
+        nSetScreenSpaceReflectionsOptions(getNativeObject(), options.thickness, options.bias, options.maxDistance, options.stride, options.tracingMode.toFilamentNative(), options.enabled);
     }
 
     /**
@@ -2283,6 +2283,15 @@ public class View {
      * @see #setScreenSpaceReflectionsOptions
      */
     public static class ScreenSpaceReflectionsOptions {
+        public enum TracingMode {
+            /** use linear ray marching */
+            LINEAR,
+            /** use hierarchical Z-buffer ray tracing */
+            HI_Z;
+
+            public int toFilamentNative() { return ordinal(); }
+        }
+
         /** ray thickness, in world units */
         public float thickness = 0.1f;
         /** bias, in world units, to prevent self-intersections */
@@ -2291,6 +2300,9 @@ public class View {
         public float maxDistance = 3.0f;
         /** stride, in texels, for samples along the ray. */
         public float stride = 2.0f;
+        /** ray tracing method */
+        @NonNull
+        public ScreenSpaceReflectionsOptions.TracingMode tracingMode = ScreenSpaceReflectionsOptions.TracingMode.LINEAR;
         public boolean enabled = false;
     }
 
@@ -2362,7 +2374,7 @@ public class View {
     private static native void nSetAntiAliasing(long nativeView, int type);
     private static native int nGetAntiAliasing(long nativeView);
     private static native void nSetTemporalAntiAliasingOptions(long nativeView, float filterWidth, float feedback, float lodBias, float sharpness, boolean enabled, float upscaling, boolean filterHistory, boolean filterInput, boolean useYCoCg, boolean hdr, int boxType, int boxClipping, int jitterPattern, float varianceGamma, boolean preventFlickering, boolean historyReprojection);
-    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, boolean enabled);
+    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, int tracingMode, boolean enabled);
     private static native void nSetGuardBandOptions(long nativeView, boolean enabled);
     private static native void nSetMultiSampleAntiAliasingOptions(long nativeView, boolean enabled, int sampleCount, boolean customResolve);
     private static native void nSetColorGrading(long nativeView, long nativeColorGrading);

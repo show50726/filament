@@ -654,7 +654,8 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
                 bindPerRenderableDescriptorSet(driver);
 
                 auto in = resources.getTexture(data.depth);
-                auto& material = getPostProcessMaterial("mipmapDepth");
+                auto& material = getPostProcessMaterial(
+                        config.conservativeDepth ? "mipmapDepthHiZ" : "mipmapDepth");
                 FMaterial const* const ma = material.getMaterial(mEngine);
                 FMaterialInstance* const mi = getMaterialInstance(driver, ma);
                 // Only the depth texture is changing in the material instance (no UBO updates),

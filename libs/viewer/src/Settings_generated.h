@@ -92,6 +92,9 @@ std::ostream& operator<<(std::ostream& out, TemporalAntiAliasingOptions::JitterP
 int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, TemporalAntiAliasingOptions* out);
 std::ostream& operator<<(std::ostream& out, const TemporalAntiAliasingOptions& in);
 
+int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceReflectionsOptions::TracingMode* out);
+std::ostream& operator<<(std::ostream& out, ScreenSpaceReflectionsOptions::TracingMode in);
+
 int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceReflectionsOptions* out);
 std::ostream& operator<<(std::ostream& out, const ScreenSpaceReflectionsOptions& in);
 

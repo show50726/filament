@@ -251,13 +251,14 @@ Java_com_google_android_filament_View_nSetTemporalAntiAliasingOptions(JNIEnv *en
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_google_android_filament_View_nSetScreenSpaceReflectionsOptions(JNIEnv *env, jclass clazz, jlong nativeView, jfloat thickness, jfloat bias, jfloat maxDistance, jfloat stride, jboolean enabled) {
+Java_com_google_android_filament_View_nSetScreenSpaceReflectionsOptions(JNIEnv *env, jclass clazz, jlong nativeView, jfloat thickness, jfloat bias, jfloat maxDistance, jfloat stride, jint tracingMode, jboolean enabled) {
     View* const that = (View*) nativeView;
     View::ScreenSpaceReflectionsOptions options;
     options.thickness = thickness;
     options.bias = bias;
     options.maxDistance = maxDistance;
     options.stride = stride;
+    options.tracingMode = (View::ScreenSpaceReflectionsOptions::TracingMode)tracingMode;
     options.enabled = (bool)enabled;
     that->setScreenSpaceReflectionsOptions(options);
 }
