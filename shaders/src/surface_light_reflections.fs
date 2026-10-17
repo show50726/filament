@@ -170,16 +170,25 @@ highp vec3 intersectDepthPlane(highp vec3 o, highp vec3 d, highp float t) {
 
 highp vec3 intersectCellBoundary(highp vec3 o, highp vec3 d, highp vec2 cell,
         highp vec2 cellCount, highp vec2 crossStep, highp vec2 crossOffset) {
-    highp vec2 index = cell + crossStep;
-    highp vec2 boundary = index / cellCount;
-    boundary += crossOffset;
+    highp vec2 cellSize = 1.0 / cellCount;
+    highp vec2 planes = cell / cellCount + cellSize * crossStep;
 
-    highp vec2 delta = boundary - o.xy;
-    delta.x = abs(d.x) > 1e-8 ? (delta.x / d.x) : 1e6;
-    delta.y = abs(d.y) > 1e-8 ? (delta.y / d.y) : 1e6;
-    highp float t = min(delta.x, delta.y);
+    highp vec2 solutions = (planes - o) / d.xy;
+    highp vec3 intersectionPos = o + d * min(solutions.x, solutions.y);
 
-    return intersectDepthPlane(o, d, t);
+    intersectionPos.xy += (solutions.x < solutions.y) ? vec2(crossOffset.x, 0.0) : vec2(0.0, crossOffset.y);
+    return intersectionPos;
+
+    //highp vec2 index = cell + crossStep;
+    //highp vec2 boundary = index / cellCount;
+    //boundary += crossOffset;
+
+    //highp vec2 delta = boundary - o.xy;
+    //delta.x = abs(d.x) > 1e-8 ? (delta.x / d.x) : 1e6;
+    //delta.y = abs(d.y) > 1e-8 ? (delta.y / d.y) : 1e6;
+    //highp float t = min(delta.x, delta.y);
+
+    //return intersectDepthPlane(o, d, t);
 }
 
 highp float getMinimumDepthPlane(const highp sampler2D vsZBuffer, highp vec2 p, int mipLevel,
@@ -201,18 +210,12 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
 
     // Compute the maximum distance to trace before the ray goes outside of the visible area [0, 1].
     highp vec3 dist = vec3(1.0);
-    if (abs(vReflDirInTS.x) > 1e-6) {
-        dist.x = (vReflDirInTS.x >= 0.0) ?
+    dist.x = (vReflDirInTS.x >= 0.0) ?
                 ((1.0 - samplePosInTS.x) / vReflDirInTS.x) : (-samplePosInTS.x / vReflDirInTS.x);
-    }
-    if (abs(vReflDirInTS.y) > 1e-6) {
-        dist.y = (vReflDirInTS.y >= 0.0) ?
+    dist.y = (vReflDirInTS.y >= 0.0) ?
                 ((1.0 - samplePosInTS.y) / vReflDirInTS.y) : (-samplePosInTS.y / vReflDirInTS.y);
-    }
-    if (abs(vReflDirInTS.z) > 1e-6) {
-        dist.z = (vReflDirInTS.z >= 0.0) ?
+    dist.z = (vReflDirInTS.z >= 0.0) ?
                 ((1.0 - samplePosInTS.z) / vReflDirInTS.z) : (-samplePosInTS.z / vReflDirInTS.z);
-    }
     highp float maxTraceDistance = clamp(min(min(dist.x, dist.y), dist.z), 0.0, 1.0);
 
     // Match the structure buffer mipmap count in PostProcessManager::structure().
@@ -242,20 +245,20 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
     highp float stepCount = 0.0;
     bool isBackwardRay = vReflDirInTS.z < 0.0;
     highp float rayDir = isBackwardRay ? -1.0 : 1.0;
-    highp float lastCellMinZ = 1.0;
+    //highp float lastCellMinZ = 1.0;
 
     while (level >= stopLevel &&
            (ray.z * rayDir) <= (maxZ * rayDir) &&
            stepCount < maxSteps) {
-        if (any(lessThan(ray.xy, vec2(0.0))) || any(greaterThan(ray.xy, vec2(1.0)))) {
-            break;
-        }
+        //if (any(lessThan(ray.xy, vec2(0.0))) || any(greaterThan(ray.xy, vec2(1.0)))) {
+        //    break;
+        //}
 
         highp vec2 cellCount = getCellCount(vsZBuffer, level);
         highp vec2 oldCellIdx = getCell(ray.xy, cellCount);
 
         highp float cellMinZ = getMinimumDepthPlane(vsZBuffer, ray.xy, level, cellCount);
-        lastCellMinZ = cellMinZ;
+        //lastCellMinZ = cellMinZ;
         highp vec3 tmpRay = ((cellMinZ > ray.z) && !isBackwardRay && (deltaZ > 1e-7)) ?
                 intersectDepthPlane(o, d, (cellMinZ - minZ) / deltaZ) : ray;
 
@@ -274,9 +277,9 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
         stepCount += 1.0;
     }
 
-    bool intersected = (level < stopLevel) &&
-            ((ray.z * rayDir) <= (maxZ * rayDir)) &&
-            (lastCellMinZ < 1.0);
+    bool intersected = (level < stopLevel);
+//            ((ray.z * rayDir) <= (maxZ * rayDir)) &&
+//            (lastCellMinZ < 1.0);
     hitPixel = ray.xy * res;
 
     // Reconstruct the 3D view-space hit point using the shared homogeneous endpoints (Q0, k0) and (Q1, k1).
