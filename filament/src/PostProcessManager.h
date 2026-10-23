@@ -88,6 +88,7 @@ public:
     struct StructurePassConfig {
         float scale = 0.5f;
         bool picking{};
+        bool generateMipmaps{};
         bool conservativeDepth{};
     };
 
@@ -113,6 +114,9 @@ public:
     StructurePassOutput structure(FrameGraph& fg,
             RenderPassBuilder const& passBuilder, uint8_t structureRenderFlags,
             uint32_t width, uint32_t height, StructurePassConfig const& config) noexcept;
+
+    FrameGraphId<FrameGraphTexture> generateHiZ(FrameGraph& fg,
+            FrameGraphId<FrameGraphTexture> input) noexcept;
 
     FrameGraphId<FrameGraphTexture> transparentPicking(FrameGraph& fg,
             RenderPassBuilder const& passBuilder, uint8_t structureRenderFlags,
@@ -504,6 +508,9 @@ public:
 
 private:
     UboManager* getUboManager() const noexcept;
+
+    void generateDepthMipmap(FrameGraph& fg, FrameGraphId<FrameGraphTexture> depth,
+            size_t levelCount, bool conservativeDepth) noexcept;
 
     backend::RenderPrimitiveHandle mFullScreenQuadRph;
     backend::VertexBufferInfoHandle mFullScreenQuadVbih;

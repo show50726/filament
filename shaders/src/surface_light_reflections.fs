@@ -374,6 +374,9 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
     highp vec2 res = vec2(textureSize(sampler0_structure, 0).xy);
 
     highp float maxSteps = float(max(res.x, res.y));
+    if (frameUniforms.ssrTracingMode == SSR_TRACING_MODE_HI_Z) {
+        maxSteps = min(maxSteps, float(frameUniforms.ssrMaxSteps));
+    }
 
     // Outputs from the traceScreenSpaceRay function.
     highp vec2 hitPixel;  // not currently used
