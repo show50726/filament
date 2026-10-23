@@ -204,7 +204,7 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     float ssrDistance;                  // ssr world raycast distance, 0 when ssr is off
     float ssrStride;                    // ssr texel stride, >= 1.0
     uint32_t ssrTracingMode;            // 0: linear, 1: hi-z
-    float ssrReserved0;
+    uint32_t ssrMaxSteps;               // maximum hi-z traversal iteration count
     float ssrReserved1;
     float ssrReserved2;
 

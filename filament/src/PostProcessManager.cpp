@@ -572,8 +572,9 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
     width  = std::max(32u, uint32_t(std::ceil(float(width) * scale)));
     height = std::max(32u, uint32_t(std::ceil(float(height) * scale)));
 
-    // We limit the lowest lod size to 32 pixels (which is where the -5 comes from)
-    const size_t levelCount = std::min(8, FTexture::maxLevelCount(width, height) - 5);
+    // We limit the lowest lod size to 32 pixels (which is where the -5 comes from).
+    const size_t levelCount = config.generateMipmaps ?
+            std::min(8, FTexture::maxLevelCount(width, height) - 5) : 1;
     assert_invariant(levelCount >= 1);
 
     // generate depth pass at the requested resolution
@@ -627,26 +628,30 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
 
     auto const depth = structurePass->depth;
 
-    /*
-     * create depth mipmap chain
-    */
+    if (levelCount > 1) {
+        generateDepthMipmap(fg, depth, levelCount, config.conservativeDepth);
+    }
 
-    struct StructureMipmapData {
+    return { depth, structurePass->picking };
+}
+
+void PostProcessManager::generateDepthMipmap(FrameGraph& fg,
+        FrameGraphId<FrameGraphTexture> const depth, size_t const levelCount,
+        bool const conservativeDepth) noexcept {
+    struct DepthMipmapData {
         FrameGraphId<FrameGraphTexture> depth;
     };
 
-    fg.addPass<StructureMipmapData>("StructureMipmap",
+    fg.addPass<DepthMipmapData>(conservativeDepth ? "SSR Hi-Z Mipmap" : "Structure Mipmap",
             [&](FrameGraph::Builder& builder, auto& data) {
-                if (levelCount > 1) {
-                    builder.reserveRenderTargets(levelCount - 1);
-                }
+                builder.reserveRenderTargets(levelCount - 1);
                 data.depth = builder.sample(depth);
                 for (size_t i = 1; i < levelCount; i++) {
-                    auto out = builder.createSubresource(data.depth, "Structure mip", {
+                    auto out = builder.createSubresource(data.depth, "Depth mip", {
                             .level = uint8_t(i)
                     });
                     out = builder.write(out, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
-                    builder.declareRenderPass("Structure mip target", {
+                    builder.declareRenderPass("Depth mip target", {
                             .attachments = { .depth = out }
                     });
                 }
@@ -657,20 +662,19 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
 
                 auto in = resources.getTexture(data.depth);
                 auto& material = getPostProcessMaterial(
-                        config.conservativeDepth ? "mipmapDepthHiZ" : "mipmapDepth");
+                        conservativeDepth ? "mipmapDepthHiZ" : "mipmapDepth");
                 FMaterial const* const ma = material.getMaterial(mEngine);
                 FMaterialInstance* const mi = getMaterialInstance(driver, ma);
                 // Only the depth texture is changing in the material instance (no UBO updates),
                 // we do not move getMaterialInstance() inside the loop.
-
                 auto pipeline = getPipelineState(mi);
 
-                // The first mip already exists, so we process n-1 lods
+                // The first mip already exists, so we process n-1 lods.
                 for (size_t level = 0; level < levelCount - 1; level++) {
                     auto out = resources.getRenderPassInfo(level);
                     auto th = driver.createTextureView(in, level, 1);
                     mi->setParameter("depth", th, SamplerParams{
-                        .filterMin = SamplerMinFilter::NEAREST_MIPMAP_NEAREST });
+                            .filterMin = SamplerMinFilter::NEAREST_MIPMAP_NEAREST });
                     mi->commit(driver, getUboManager());
                     mi->use(driver);
                     renderFullScreenQuad(out, pipeline, driver);
@@ -679,8 +683,55 @@ PostProcessManager::StructurePassOutput PostProcessManager::structure(FrameGraph
                 }
                 unbindAllDescriptorSets(driver);
             });
+}
 
-    return { depth, structurePass->picking };
+FrameGraphId<FrameGraphTexture> PostProcessManager::generateHiZ(FrameGraph& fg,
+        FrameGraphId<FrameGraphTexture> const input) noexcept {
+    auto const& inputDesc = fg.getDescriptor(input);
+    size_t const levelCount = std::min(
+            8, FTexture::maxLevelCount(inputDesc.width, inputDesc.height) - 5);
+    assert_invariant(levelCount >= 1);
+
+    struct HiZBasePassData {
+        FrameGraphId<FrameGraphTexture> input;
+        FrameGraphId<FrameGraphTexture> output;
+    };
+
+    auto const& basePass = fg.addPass<HiZBasePassData>("SSR Hi-Z Base",
+            [&](FrameGraph::Builder& builder, auto& data) {
+                auto source = builder.createSubresource(input, "Structure base", { .level = 0 });
+                data.input = builder.sample(source);
+
+                auto outputDesc = inputDesc;
+                outputDesc.levels = uint8_t(levelCount);
+                data.output = builder.createTexture("SSR Hi-Z Buffer", outputDesc);
+                data.output = builder.write(
+                        data.output, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
+                builder.declareRenderPass("SSR Hi-Z base target", {
+                        .attachments = { .depth = data.output }
+                });
+            },
+            [=, this](FrameGraphResources const& resources, auto const& data, DriverApi& driver) {
+                getStructureDescriptorSet().bind(driver);
+                bindPerRenderableDescriptorSet(driver);
+
+                auto const depth = resources.getTexture(data.input);
+                auto const out = resources.getRenderPassInfo();
+                PostProcessMaterial const& material = getPostProcessMaterial("blitDepth");
+                FMaterialInstance* const mi = getMaterialInstance(mEngine, driver, material);
+                mi->setParameter("depth", depth, SamplerParams{
+                        .filterMag = SamplerMagFilter::NEAREST,
+                        .filterMin = SamplerMinFilter::NEAREST });
+                mi->setParameter("viewport", float4{ 0.0f, 0.0f, 1.0f, 1.0f });
+                commitAndRenderFullScreenQuad(driver, out, mi);
+                unbindAllDescriptorSets(driver);
+            });
+
+    auto const hiZ = basePass->output;
+    if (levelCount > 1) {
+        generateDepthMipmap(fg, hiZ, levelCount, true);
+    }
+    return hiZ;
 }
 
 FrameGraphId<FrameGraphTexture> PostProcessManager::transparentPicking(FrameGraph& fg,

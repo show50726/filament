@@ -1166,14 +1166,18 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // This is normally used by SSAO and contact-shadows.
     // Also, picking is handled here if transparent picking is disabled.
 
+    bool const useHiZ = ssReflectionsOptions.enabled &&
+            ssReflectionsOptions.tracingMode ==
+                    ScreenSpaceReflectionsOptions::TracingMode::HI_Z;
+    bool const separateHiZ = useHiZ && aoOptions.enabled;
+
     // TODO: the scaling should depends on all passes that need the structure pass
     const auto [structure, picking_] = ppm.structure(fg,
             passBuilder, renderFlags, svp.width, svp.height, {
             .scale = aoOptions.resolution,
             .picking = view.hasPicking() && !view.isTransparentPickingEnabled(),
-            .conservativeDepth = ssReflectionsOptions.enabled &&
-                    ssReflectionsOptions.tracingMode ==
-                            ScreenSpaceReflectionsOptions::TracingMode::HI_Z
+            .generateMipmaps = aoOptions.enabled || useHiZ,
+            .conservativeDepth = useHiZ && !separateHiZ
     });
     auto picking = picking_;
 
@@ -1223,8 +1227,9 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // screen-space reflections pass
 
     if (ssReflectionsOptions.enabled) {
+        auto const ssrStructure = separateHiZ ? ppm.generateHiZ(fg, structure) : structure;
         auto reflections = ppm.ssr(fg, passBuilder,
-                view.getFrameHistory(), structure,
+                view.getFrameHistory(), ssrStructure,
                 { .width = svp.width, .height = svp.height });
 
         if (UTILS_LIKELY(reflections)) {

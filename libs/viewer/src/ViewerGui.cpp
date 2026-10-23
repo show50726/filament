@@ -945,6 +945,11 @@ void ViewerGui::updateUserInterface() {
         int tracingMode = (int) ssrefl.tracingMode;
         ImGui::Combo("Tracing mode", &tracingMode, "Linear\0Hi-Z\0\0");
         ssrefl.tracingMode = (ScreenSpaceReflectionsOptions::TracingMode) tracingMode;
+        if (ssrefl.tracingMode == ScreenSpaceReflectionsOptions::TracingMode::HI_Z) {
+            int maxSteps = int(ssrefl.maxSteps);
+            ImGui::SliderInt("Hi-Z max steps", &maxSteps, 8, 512);
+            ssrefl.maxSteps = uint32_t(maxSteps);
+        }
         ImGui::SliderFloat("Ray thickness", &ssrefl.thickness, 0.001f, 0.2f);
         ImGui::SliderFloat("Bias", &ssrefl.bias, 0.001f, 0.5f);
         ImGui::SliderFloat("Max distance", &ssrefl.maxDistance, 0.1, 10.0f);
