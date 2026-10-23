@@ -697,6 +697,8 @@ struct ScreenSpaceReflectionsOptions {
     float stride = 2.0f;
     /** ray tracing method */
     TracingMode tracingMode = TracingMode::LINEAR;
+    /** maximum number of hierarchical-Z traversal iterations, range [1, 4096] */
+    uint32_t maxSteps = 128;
     bool enabled = false;
 };
 

@@ -2437,6 +2437,8 @@ export interface View$ScreenSpaceReflectionsOptions {
     stride?: number;
     /** ray tracing method */
     tracingMode?: View$ScreenSpaceReflectionsOptions$TracingMode;
+    /** maximum number of hierarchical-Z traversal iterations, range [1, 4096] */
+    maxSteps?: number;
     enabled?: boolean;
 }
 
