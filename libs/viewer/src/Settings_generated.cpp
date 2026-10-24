@@ -949,6 +949,8 @@ int parse(jsmntok_t const* tokens, int i, const char* jsonChunk, ScreenSpaceRefl
             i = parse(tokens, i + 1, jsonChunk, &out->maxDistance);
         } else if (compare(tok, jsonChunk, "stride") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->stride);
+        } else if (compare(tok, jsonChunk, "resolution") == 0) {
+            i = parse(tokens, i + 1, jsonChunk, &out->resolution);
         } else if (compare(tok, jsonChunk, "tracingMode") == 0) {
             i = parse(tokens, i + 1, jsonChunk, &out->tracingMode);
         } else if (compare(tok, jsonChunk, "maxSteps") == 0) {
@@ -973,6 +975,7 @@ std::ostream& operator<<(std::ostream& out, const ScreenSpaceReflectionsOptions&
         << "\"bias\": " << (in.bias) << ",\n"
         << "\"maxDistance\": " << (in.maxDistance) << ",\n"
         << "\"stride\": " << (in.stride) << ",\n"
+        << "\"resolution\": " << (in.resolution) << ",\n"
         << "\"tracingMode\": " << (in.tracingMode) << ",\n"
         << "\"maxSteps\": " << (in.maxSteps) << ",\n"
         << "\"enabled\": " << to_string(in.enabled) << "\n"
