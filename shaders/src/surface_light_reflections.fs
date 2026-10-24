@@ -341,6 +341,54 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
             vsZBuffer, vsZThickness, stride, jitterFraction, maxSteps, hitPixel, vsHitPoint);
 }
 
+highp vec3 reconstructViewPosition(const highp sampler2D depthBuffer, highp ivec2 pixel,
+        const highp vec2 resolution) {
+    highp ivec2 size = ivec2(resolution);
+    pixel = clamp(pixel, ivec2(0), size - 1);
+    highp float depth = texelFetch(depthBuffer, pixel, 0).r;
+    highp vec2 uv = (vec2(pixel) + 0.5) / resolution;
+    // hitPixel is in render-target texture space. This conversion is its own inverse and returns
+    // the canonical UV orientation expected by getViewFromClipMatrix().
+    uv = uvToRenderTargetUV(uv);
+    highp vec4 position = getViewFromClipMatrix() * vec4(uv * 2.0 - 1.0, depth, 1.0);
+    return position.xyz * (1.0 / position.w);
+}
+
+bool validateHitNormal(const highp sampler2D depthBuffer, const highp vec2 hitPixel,
+        const highp vec2 resolution, const highp vec3 vsRayDirection,
+        out highp float facing) {
+    highp ivec2 centerPixel = clamp(ivec2(hitPixel), ivec2(0), ivec2(resolution) - 1);
+    highp vec3 center = reconstructViewPosition(depthBuffer, centerPixel, resolution);
+    highp vec3 left = reconstructViewPosition(
+            depthBuffer, centerPixel + ivec2(-1, 0), resolution);
+    highp vec3 right = reconstructViewPosition(
+            depthBuffer, centerPixel + ivec2(1, 0), resolution);
+    highp vec3 bottom = reconstructViewPosition(
+            depthBuffer, centerPixel + ivec2(0, -1), resolution);
+    highp vec3 top = reconstructViewPosition(
+            depthBuffer, centerPixel + ivec2(0, 1), resolution);
+
+    // Pick the shorter one-sided derivatives to avoid constructing normals across depth edges.
+    highp vec3 dx0 = center - left;
+    highp vec3 dx1 = right - center;
+    highp vec3 dy0 = center - bottom;
+    highp vec3 dy1 = top - center;
+    highp vec3 dx = dot(dx0, dx0) < dot(dx1, dx1) ? dx0 : dx1;
+    highp vec3 dy = dot(dy0, dy0) < dot(dy1, dy1) ? dy0 : dy1;
+    highp vec3 normal = cross(dx, dy);
+    highp float normalLengthSquared = dot(normal, normal);
+    if (normalLengthSquared <= 1e-12) {
+        facing = 0.0;
+        return false;
+    }
+    normal *= inversesqrt(normalLengthSquared);
+
+    // Visible geometry is front-facing, so orient the reconstructed normal toward the camera.
+    normal *= dot(normal, -center) < 0.0 ? -1.0 : 1.0;
+    facing = dot(normal, -vsRayDirection);
+    return facing > 0.0;
+}
+
 /**
  * Evaluates screen-space reflections, returning a color if there's a hit.
  * wsRayDirection is the desired reflected vector.
@@ -385,6 +433,10 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
     if (traceScreenSpaceRay(vsOrigin, vsDirection, frameUniforms.ssrUvFromViewMatrix,
             sampler0_structure, res, vsZThickness, nearPlaneZ, stride, jitterFraction, maxSteps,
             maxRayTraceDistance, hitPixel, vsHitPoint)) {
+        highp float hitFacing;
+        if (!validateHitNormal(sampler0_structure, hitPixel, res, vsDirection, hitFacing)) {
+            return Fr;
+        }
         highp vec4 reprojected = mulMat4x4Float3(frameUniforms.ssrReprojection, vsHitPoint);
         reprojected.xy *= (1.0 / reprojected.w);
 
@@ -405,6 +457,9 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
         // Fade when pointing towards the camera (likely to hit a backface)
         // note: vsDirection.z is the cos(vsDirection, view)
         fade *= (1.0 - max(0.0, vsDirection.z));
+
+        // Reject actual backfaces above, then soften hits that only graze the reconstructed surface.
+        fade *= smoothstep(0.0, 0.2, hitFacing);
 
         // we output a premultiplied alpha color because this is going to be mipmapped
         Fr = vec4(textureLod(sampler0_ssr, reprojected.xy, 0.0).rgb * fade, fade);
