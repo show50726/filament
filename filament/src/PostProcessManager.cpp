@@ -297,6 +297,7 @@ static const PostProcessManager::StaticMaterialInfo sMaterialList[] = {
         { "blitArray",                  MATERIAL(MATERIALS, BLITARRAY) },
         { "blitDepth",                  MATERIAL(MATERIALS, BLITDEPTH) },
         { "clearDepth",                 MATERIAL(MATERIALS, CLEARDEPTH) },
+        { "resampleDepth",              MATERIAL(MATERIALS, RESAMPLEDEPTH) },
         { "separableGaussianBlur1",     MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
                 { {"arraySampler", false}, {"componentCount", 1} } },
         { "separableGaussianBlur1L",    MATERIAL(MATERIALS, SEPARABLEGAUSSIANBLUR),
@@ -685,29 +686,38 @@ void PostProcessManager::generateDepthMipmap(FrameGraph& fg,
             });
 }
 
-FrameGraphId<FrameGraphTexture> PostProcessManager::generateHiZ(FrameGraph& fg,
-        FrameGraphId<FrameGraphTexture> const input) noexcept {
+FrameGraphId<FrameGraphTexture> PostProcessManager::resampleStructure(FrameGraph& fg,
+        FrameGraphId<FrameGraphTexture> const input, uint32_t width, uint32_t height,
+        float const scale, bool const generateMipmaps, bool const conservativeDepth) noexcept {
     auto const& inputDesc = fg.getDescriptor(input);
-    size_t const levelCount = std::min(
-            8, FTexture::maxLevelCount(inputDesc.width, inputDesc.height) - 5);
+    width = std::max(32u, uint32_t(std::ceil(float(width) * scale)));
+    height = std::max(32u, uint32_t(std::ceil(float(height) * scale)));
+    size_t const levelCount = generateMipmaps ?
+            std::min(8, FTexture::maxLevelCount(width, height) - 5) : 1;
     assert_invariant(levelCount >= 1);
 
-    struct HiZBasePassData {
+    struct ResampleStructurePassData {
         FrameGraphId<FrameGraphTexture> input;
         FrameGraphId<FrameGraphTexture> output;
     };
 
-    auto const& basePass = fg.addPass<HiZBasePassData>("SSR Hi-Z Base",
+    auto const& basePass = fg.addPass<ResampleStructurePassData>(
+            conservativeDepth ? "SSR Structure Resample" : "SSAO Structure Resample",
             [&](FrameGraph::Builder& builder, auto& data) {
                 auto source = builder.createSubresource(input, "Structure base", { .level = 0 });
                 data.input = builder.sample(source);
 
                 auto outputDesc = inputDesc;
+                outputDesc.width = width;
+                outputDesc.height = height;
                 outputDesc.levels = uint8_t(levelCount);
-                data.output = builder.createTexture("SSR Hi-Z Buffer", outputDesc);
+                utils::StaticString const outputName = conservativeDepth ?
+                        utils::StaticString{ "SSR Structure Buffer" } :
+                        utils::StaticString{ "SSAO Structure Buffer" };
+                data.output = builder.createTexture(outputName, outputDesc);
                 data.output = builder.write(
                         data.output, FrameGraphTexture::Usage::DEPTH_ATTACHMENT);
-                builder.declareRenderPass("SSR Hi-Z base target", {
+                builder.declareRenderPass("Structure resample target", {
                         .attachments = { .depth = data.output }
                 });
             },
@@ -717,21 +727,22 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::generateHiZ(FrameGraph& fg,
 
                 auto const depth = resources.getTexture(data.input);
                 auto const out = resources.getRenderPassInfo();
-                PostProcessMaterial const& material = getPostProcessMaterial("blitDepth");
+                PostProcessMaterial const& material = getPostProcessMaterial("resampleDepth");
                 FMaterialInstance* const mi = getMaterialInstance(mEngine, driver, material);
                 mi->setParameter("depth", depth, SamplerParams{
                         .filterMag = SamplerMagFilter::NEAREST,
                         .filterMin = SamplerMinFilter::NEAREST });
-                mi->setParameter("viewport", float4{ 0.0f, 0.0f, 1.0f, 1.0f });
+                mi->setParameter("targetSize", float2{ float(width), float(height) });
+                mi->setParameter("conservative", conservativeDepth);
                 commitAndRenderFullScreenQuad(driver, out, mi);
                 unbindAllDescriptorSets(driver);
             });
 
-    auto const hiZ = basePass->output;
+    auto const result = basePass->output;
     if (levelCount > 1) {
-        generateDepthMipmap(fg, hiZ, levelCount, true);
+        generateDepthMipmap(fg, result, levelCount, conservativeDepth);
     }
-    return hiZ;
+    return result;
 }
 
 FrameGraphId<FrameGraphTexture> PostProcessManager::transparentPicking(FrameGraph& fg,

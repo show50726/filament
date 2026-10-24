@@ -2423,6 +2423,8 @@ export interface View$ScreenSpaceReflectionsOptions {
     maxDistance?: number;
     /** stride, in texels, for samples along the ray. */
     stride?: number;
+    /** scale factor applied to each dimension of the SSR tracing buffer: 0.25, 0.5, or 1.0 */
+    resolution?: number;
     /** ray tracing method */
     tracingMode?: View$ScreenSpaceReflectionsOptions$TracingMode;
     /** maximum number of hierarchical-Z traversal iterations, range [1, 4096] */

@@ -1,0 +1,62 @@
+material {
+    name : resampleDepth,
+    parameters : [
+        {
+            type : sampler2d,
+            name : depth,
+            precision: high,
+            filterable: false
+        },
+        {
+            type : float2,
+            name : targetSize,
+            precision: high
+        },
+        {
+            type : bool,
+            name : conservative
+        }
+    ],
+    outputs : [
+        {
+            name : depth,
+            target : depth,
+            type : float
+        }
+    ],
+    culling: none,
+    depthWrite : true,
+    depthCulling : false,
+    domain: postprocess,
+}
+
+fragment {
+    void postProcess(inout PostProcessInputs postProcess) {
+        ivec2 sourceSize = textureSize(materialParams_depth, 0);
+        ivec2 targetSize = ivec2(materialParams.targetSize);
+        ivec2 targetCoord = ivec2(gl_FragCoord.xy);
+
+        ivec2 sourceBegin = targetCoord * sourceSize / targetSize;
+        ivec2 sourceEnd = ((targetCoord + 1) * sourceSize + targetSize - 1) / targetSize;
+        sourceBegin = clamp(sourceBegin, ivec2(0), sourceSize - 1);
+        sourceEnd = clamp(sourceEnd, sourceBegin + 1, sourceSize);
+
+        ivec2 sourceCoord = (sourceBegin + sourceEnd - 1) / 2;
+        highp float depth = texelFetch(materialParams_depth, sourceCoord, 0).r;
+
+        if (materialParams.conservative) {
+            // The supported scales (1, 1/2, and 1/4) cover at most a 4x4 source footprint.
+            for (int y = 0; y < 4; y++) {
+                for (int x = 0; x < 4; x++) {
+                    ivec2 coord = sourceBegin + ivec2(x, y);
+                    if (all(lessThan(coord, sourceEnd))) {
+                        // Filament uses reversed-Z, so the closest depth is the maximum value.
+                        depth = max(depth, texelFetch(materialParams_depth, coord, 0).r);
+                    }
+                }
+            }
+        }
+
+        postProcess.depth = depth;
+    }
+}

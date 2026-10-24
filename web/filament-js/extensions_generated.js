@@ -188,6 +188,7 @@ Filament.loadGeneratedExtensions = function() {
             bias: 0.01,
             maxDistance: 3.0,
             stride: 2.0,
+            resolution: 0.5,
             tracingMode: Filament.View$ScreenSpaceReflectionsOptions$TracingMode.LINEAR,
             maxSteps: 128,
             enabled: false,

@@ -111,8 +111,9 @@ public:
             RenderPassBuilder const& passBuilder, uint8_t structureRenderFlags,
             uint32_t width, uint32_t height, StructurePassConfig const& config) noexcept;
 
-    FrameGraphId<FrameGraphTexture> generateHiZ(FrameGraph& fg,
-            FrameGraphId<FrameGraphTexture> input) noexcept;
+    FrameGraphId<FrameGraphTexture> resampleStructure(FrameGraph& fg,
+            FrameGraphId<FrameGraphTexture> input, uint32_t width, uint32_t height, float scale,
+            bool generateMipmaps, bool conservativeDepth) noexcept;
 
     FrameGraphId<FrameGraphTexture> transparentPicking(FrameGraph& fg,
             RenderPassBuilder const& passBuilder, uint8_t structureRenderFlags,

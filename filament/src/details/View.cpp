@@ -1623,6 +1623,8 @@ void FView::setScreenSpaceReflectionsOptions(ScreenSpaceReflectionsOptions optio
     options.bias = std::max(0.0f, options.bias);
     options.maxDistance = std::max(0.0f, options.maxDistance);
     options.stride = std::max(1.0f, options.stride);
+    options.resolution = options.resolution < 0.375f ? 0.25f :
+            options.resolution < 0.75f ? 0.5f : 1.0f;
     mScreenSpaceReflectionsOptions = options;
 }
 

@@ -1011,6 +1011,21 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
      * Update the PER_VIEW UBO use for the structure pass. It never updated again after this point.
      */
 
+    bool const useHiZ = ssReflectionsOptions.enabled &&
+            ssReflectionsOptions.tracingMode ==
+                    ScreenSpaceReflectionsOptions::TracingMode::HI_Z;
+    bool const hasNonSsrStructureConsumer =
+            aoOptions.enabled || view.hasContactShadows() || view.hasPicking();
+    float const structureScale = std::max(
+            hasNonSsrStructureConsumer ? aoOptions.resolution : 0.0f,
+            ssReflectionsOptions.enabled ? ssReflectionsOptions.resolution : 0.0f);
+    bool const aoUsesStructureResolution = aoOptions.resolution == structureScale;
+    bool const ssrUsesStructureResolution =
+            ssReflectionsOptions.resolution == structureScale;
+    bool const structureHasAoMipmaps = aoOptions.enabled && aoUsesStructureResolution;
+    bool const structureHasHiZMipmaps = useHiZ && ssrUsesStructureResolution &&
+            !structureHasAoMipmaps;
+
     // Set the PER_VIEW UBO for the passes that use the user materials, but are not the color pass
     // (e.g. structure, ssao). The PER_VIEW UBO may be different because these passes don't run
     // at the same resolution. We set only the values that are relevant to both user-materials
@@ -1021,10 +1036,10 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
         ds.prepareCamera(engine, cameraInfo);
         ds.prepareTime(engine, getShaderUserTime());
         ds.prepareViewport(svp, {
-            int32_t(float(xvp.left) * aoOptions.resolution),
-            int32_t(float(xvp.bottom) * aoOptions.resolution),
-            uint32_t(float(xvp.width) * aoOptions.resolution),
-            uint32_t(float(xvp.height) * aoOptions.resolution) });
+            int32_t(float(xvp.left) * structureScale),
+            int32_t(float(xvp.bottom) * structureScale),
+            uint32_t(float(xvp.width) * structureScale),
+            uint32_t(float(xvp.height) * structureScale) });
         ds.prepareLodBias(bias, derivativeScale);
         ds.prepareMaterialGlobals(view.getMaterialGlobals());
     }
@@ -1166,20 +1181,15 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // This is normally used by SSAO and contact-shadows.
     // Also, picking is handled here if transparent picking is disabled.
 
-    bool const useHiZ = ssReflectionsOptions.enabled &&
-            ssReflectionsOptions.tracingMode ==
-                    ScreenSpaceReflectionsOptions::TracingMode::HI_Z;
-    bool const separateHiZ = useHiZ && aoOptions.enabled;
-
-    // TODO: the scaling should depends on all passes that need the structure pass
     const auto [structure, picking_] = ppm.structure(fg,
             passBuilder, renderFlags, svp.width, svp.height, {
-            .scale = aoOptions.resolution,
+            .scale = structureScale,
             .picking = view.hasPicking() && !view.isTransparentPickingEnabled(),
-            .generateMipmaps = aoOptions.enabled || useHiZ,
-            .conservativeDepth = useHiZ && !separateHiZ
+            .generateMipmaps = structureHasAoMipmaps || structureHasHiZMipmaps,
+            .conservativeDepth = structureHasHiZMipmaps
     });
     auto picking = picking_;
+    float pickingScale = structureScale;
 
     // --------------------------------------------------------------------------------------------
     // Picking pass -- automatically culled if not used
@@ -1188,7 +1198,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     if (view.hasPicking()) {
         if (view.isTransparentPickingEnabled()) {
             picking = ppm.transparentPicking(fg,
-                    passBuilder, renderFlags, svp.width, svp.height, aoOptions.resolution);
+                    passBuilder, renderFlags, svp.width, svp.height, structureScale);
         }
 
         struct PickingResolvePassData {
@@ -1210,7 +1220,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 },
                 [=, &view](FrameGraphResources const& resources, auto&, DriverApi& driver) mutable {
                     auto [target, params] = resources.getRenderPassInfo();
-                    view.executePickingQueries(driver, target, scale * aoOptions.resolution);
+                    view.executePickingQueries(driver, target, scale * pickingScale);
                 });
     }
 
@@ -1219,7 +1229,11 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
 
     if (aoOptions.enabled) {
         // we could rely on FrameGraph culling, but this creates unnecessary CPU work
-        auto ssao = ppm.screenSpaceAmbientOcclusion(fg, svp, cameraInfo, structure, aoOptions);
+        auto const aoStructure = structureHasAoMipmaps ? structure :
+                ppm.resampleStructure(fg, structure, svp.width, svp.height,
+                        aoOptions.resolution, true, false);
+        auto ssao = ppm.screenSpaceAmbientOcclusion(
+                fg, svp, cameraInfo, aoStructure, aoOptions);
         blackboard["ssao"] = ssao;
     }
 
@@ -1227,10 +1241,18 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // screen-space reflections pass
 
     if (ssReflectionsOptions.enabled) {
-        auto const ssrStructure = separateHiZ ? ppm.generateHiZ(fg, structure) : structure;
+        bool const structureReadyForSsr = ssrUsesStructureResolution &&
+                (!useHiZ || structureHasHiZMipmaps);
+        auto const ssrStructure = structureReadyForSsr ? structure :
+                ppm.resampleStructure(fg, structure, svp.width, svp.height,
+                        ssReflectionsOptions.resolution, useHiZ, true);
+        uint32_t const ssrWidth = std::max(32u, uint32_t(std::ceil(
+                float(svp.width) * ssReflectionsOptions.resolution)));
+        uint32_t const ssrHeight = std::max(32u, uint32_t(std::ceil(
+                float(svp.height) * ssReflectionsOptions.resolution)));
         auto reflections = ppm.ssr(fg, passBuilder,
                 view.getFrameHistory(), ssrStructure,
-                { .width = svp.width, .height = svp.height });
+                { .width = ssrWidth, .height = ssrHeight });
 
         if (UTILS_LIKELY(reflections)) {
             // generate the mipchain

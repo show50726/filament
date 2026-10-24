@@ -945,6 +945,10 @@ void ViewerGui::updateUserInterface() {
         int tracingMode = (int) ssrefl.tracingMode;
         ImGui::Combo("Tracing mode", &tracingMode, "Linear\0Hi-Z\0\0");
         ssrefl.tracingMode = (ScreenSpaceReflectionsOptions::TracingMode) tracingMode;
+        int resolution = ssrefl.resolution < 0.375f ? 0 : ssrefl.resolution < 0.75f ? 1 : 2;
+        ImGui::Combo("Tracing resolution", &resolution, "Quarter\0Half\0Full\0\0");
+        constexpr float RESOLUTIONS[] = { 0.25f, 0.5f, 1.0f };
+        ssrefl.resolution = RESOLUTIONS[resolution];
         if (ssrefl.tracingMode == ScreenSpaceReflectionsOptions::TracingMode::HI_Z) {
             int maxSteps = int(ssrefl.maxSteps);
             ImGui::SliderInt("Hi-Z max steps", &maxSteps, 8, 512);

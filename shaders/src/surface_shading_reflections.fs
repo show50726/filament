@@ -5,23 +5,29 @@ vec4 evaluateMaterial(const MaterialInputs material) {
 #if defined(MATERIAL_HAS_REFLECTIONS)
     vec4 color = vec4(0.0);
     if (frameUniforms.ssrDistance > 0.0) {
-#if defined(MATERIAL_HAS_ANISOTROPY)
-#if defined(GEOMETRIC_SPECULAR_AA)
-        float kernelRoughness = computeKernelRoughness(getWorldGeometricNormalVector());
+#if defined(SHADING_MODEL_SPECULAR_GLOSSINESS)
+        float perceptualRoughness = computeRoughnessFromGlossiness(material.glossiness);
 #else
-        float kernelRoughness = 0.0;
+        float perceptualRoughness = material.roughness;
 #endif
-        PixelParams pixel;
-        getRoughnessPixelParams(material, pixel, kernelRoughness);
-        getAnisotropyPixelParams(material, pixel);
-        vec3 r = getReflectedVector(pixel, shading_view, shading_normal);
+        // The lighting pass ignores SSR at and above this roughness, so avoid tracing rays whose
+        // result would be discarded during composition. Use the material roughness here because
+        // geometric specular AA helpers are not available in this specialized material variant.
+        const float maxPerceptualRoughness = sqrt(0.5);
+        if (perceptualRoughness < maxPerceptualRoughness) {
+#if defined(MATERIAL_HAS_ANISOTROPY)
+            PixelParams pixel;
+            pixel.perceptualRoughness = perceptualRoughness;
+            getAnisotropyPixelParams(material, pixel);
+            vec3 r = getReflectedVector(pixel, shading_view, shading_normal);
 #else
-        vec3 r = shading_reflected;
+            vec3 r = shading_reflected;
 #endif
 
-        // evaluateScreenSpaceReflections will set the value of color if there's a hit.
-        // color.a contains the reflection's contribution.
-        color = evaluateScreenSpaceReflections(r);
+            // evaluateScreenSpaceReflections will set the value of color if there's a hit.
+            // color.a contains the reflection's contribution.
+            color = evaluateScreenSpaceReflections(r);
+        }
     }
 #else
     // objects without reflections just erase the framebuffer, they need to be drawn in the
