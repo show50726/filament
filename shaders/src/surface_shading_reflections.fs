@@ -27,6 +27,8 @@ vec4 evaluateMaterial(const MaterialInputs material) {
             // evaluateScreenSpaceReflections will set the value of color if there's a hit.
             // color.a contains the reflection's contribution.
             color = evaluateScreenSpaceReflections(r);
+        } else if (frameUniforms.ssrDebugTraceStatus != 0u) {
+            color = getSsrTraceStatusColor(SSR_TRACE_STATUS_ROUGHNESS);
         }
     }
 #else
