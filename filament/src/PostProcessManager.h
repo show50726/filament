@@ -378,6 +378,10 @@ public:
             Viewport const& svp, Viewport const& xvp,
             FrameHistory const& frameHistory, bool objectOnly, float scale) noexcept;
 
+    FrameGraphId<FrameGraphTexture> debugDisplaySsrTraceStatus(FrameGraph& fg,
+            FrameGraphId<FrameGraphTexture> input,
+            FrameGraphId<FrameGraphTexture> ssr) noexcept;
+
     // Combine an array texture pointed to by `input` into a single image, then return it.
     // This is only useful to check the multiview rendered scene as a debugging purpose, thus this
     // is not expected to be used in normal cases.

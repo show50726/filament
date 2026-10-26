@@ -31,6 +31,8 @@ set(SHADERS
         src/surface_light_directional.fs
         src/surface_light_indirect.fs
         src/surface_light_reflections.fs
+        src/surface_light_reflections_hiz.glsl
+        src/surface_light_reflections_linear.glsl
         src/surface_light_punctual.fs
         src/surface_main.cs
         src/surface_main.fs
