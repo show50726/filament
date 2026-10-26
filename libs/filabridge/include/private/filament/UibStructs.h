@@ -205,7 +205,7 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     float ssrStride;                    // ssr texel stride, >= 1.0
     uint32_t ssrTracingMode;            // 0: linear, 1: hi-z
     uint32_t ssrMaxSteps;               // maximum hi-z traversal iteration count
-    float ssrReserved1;
+    uint32_t ssrDebugTraceStatus;       // display ray termination status
     float ssrReserved2;
 
     // --------------------------------------------------------------------------------------------

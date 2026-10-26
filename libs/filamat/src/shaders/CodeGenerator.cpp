@@ -1178,6 +1178,8 @@ io::sstream& CodeGenerator::generateSurfaceReflections(io::sstream& out,
     if (stage == ShaderStage::FRAGMENT) {
         out << SHADERS_SURFACE_LIGHTING_FS_DATA;
         out << SHADERS_SURFACE_LIGHT_REFLECTIONS_FS_DATA;
+        out << SHADERS_SURFACE_LIGHT_REFLECTIONS_LINEAR_GLSL_DATA;
+        out << SHADERS_SURFACE_LIGHT_REFLECTIONS_HIZ_GLSL_DATA;
         out << SHADERS_SURFACE_SHADING_REFLECTIONS_FS_DATA;
     }
     return out;

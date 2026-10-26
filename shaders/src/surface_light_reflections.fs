@@ -7,6 +7,36 @@
 #define SSR_TRACING_MODE_LINEAR 0u
 #define SSR_TRACING_MODE_HI_Z   1u
 
+#define SSR_TRACE_STATUS_HIT       0u
+#define SSR_TRACE_STATUS_MAX_STEPS 1u
+#define SSR_TRACE_STATUS_OFFSCREEN 2u
+#define SSR_TRACE_STATUS_RAY_END   3u
+#define SSR_TRACE_STATUS_NO_DEPTH  4u
+#define SSR_TRACE_STATUS_BACKFACE  5u
+#define SSR_TRACE_STATUS_ROUGHNESS 6u
+
+vec4 getSsrTraceStatusColor(highp uint status) {
+    if (status == SSR_TRACE_STATUS_HIT) {
+        return vec4(0.0, 1.0, 0.0, 1.0);
+    }
+    if (status == SSR_TRACE_STATUS_MAX_STEPS) {
+        return vec4(1.0, 0.0, 0.0, 1.0);
+    }
+    if (status == SSR_TRACE_STATUS_OFFSCREEN) {
+        return vec4(0.0, 0.0, 1.0, 1.0);
+    }
+    if (status == SSR_TRACE_STATUS_RAY_END) {
+        return vec4(1.0, 1.0, 0.0, 1.0);
+    }
+    if (status == SSR_TRACE_STATUS_NO_DEPTH) {
+        return vec4(0.0, 1.0, 1.0, 1.0);
+    }
+    if (status == SSR_TRACE_STATUS_BACKFACE) {
+        return vec4(1.0, 0.0, 1.0, 1.0);
+    }
+    return vec4(0.5, 0.5, 0.5, 1.0);
+}
+
 // Copied from depthUtils.fs
 highp float linearizeDepth(highp float depth) {
     // Our far plane is at infinity, which causes a division by zero below, which in turn
@@ -19,281 +49,18 @@ highp float linearizeDepth(highp float depth) {
     return (depth * p[2].z + p[3].z) / max(depth * p[2].w + p[3].w, preventDiv0);
 }
 
-// Code adapted from McGuire and Mara, Efficient GPU Screen-Space Ray Tracing, Journal of Computer
-// Graphics Techniques, 2014
-//
-// Copyright (c) 2014, Morgan McGuire and Michael Mara
-// All rights reserved.
-//
-// This software is open source under the "BSD 2-clause license":
-//
-//    Redistribution and use in source and binary forms, with or without modification, are permitted
-//    provided that the following conditions are met:
-//
-//    1. Redistributions of source code must retain the above copyright notice, this list of
-//    conditions and the following disclaimer.
-//
-//    2. Redistributions in binary form must reproduce the above copyright notice, this list of
-//    conditions and the following disclaimer in the documentation and/or other materials provided
-//    with the distribution.
-//
-//    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
-//    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
-//    AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
-//    CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-//    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-//    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-//    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-//    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-//    POSSIBILITY OF SUCH DAMAGE.
-
-void swap(inout highp float a, inout highp float b) {
-     highp float temp = a;
-     a = b;
-     b = temp;
-}
-
-highp float distanceSquared(highp vec2 a, highp vec2 b) {
-    a -= b;
-    return dot(a, a);
-}
-
 bool traceScreenSpaceRayLinear(highp vec2 P0, highp vec2 P1, highp vec3 Q0, highp vec3 Q1,
         highp float k0, highp float k1, const highp float vsOriginZ,
         const highp sampler2D vsZBuffer, const float vsZThickness, const float stride,
         const float jitterFraction, const highp float maxSteps,
-        out highp vec2 hitPixel, out highp vec3 vsHitPoint) {
-    // If the line is degenerate, make it cover at least one pixel to avoid handling zero-pixel
-    // extent as a special case later
-    P1 += vec2((distanceSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
-
-    highp vec2 delta = P1 - P0;
-
-    // Permute so that the primary iteration is in x to reduce large branches later
-    bool permute = false;
-    if (abs(delta.x) < abs(delta.y)) {
-        // More-vertical line. Create a permutation that swaps x and y in the output
-        permute = true;
-        // Directly swizzle the inputs
-        delta = delta.yx;
-        P1 = P1.yx;
-        P0 = P0.yx;
-    }
-
-    // From now on, "x" is the primary iteration direction and "y" is the secondary one
-
-    float stepDirection = sign(delta.x);
-    highp float invdx = stepDirection / delta.x;
-    highp vec2 dP = vec2(stepDirection, invdx * delta.y);
-
-    // Track the derivatives of Q and k
-    highp vec3  dQ = (Q1 - Q0) * invdx;
-    highp float dk = (k1 - k0) * invdx;
-
-    // Scale derivatives by the desired pixel stride
-    dP *= stride; dQ *= stride; dk *= stride;
-
-    // Offset the starting values by the jitter fraction
-    P0 += dP * jitterFraction; Q0 += dQ * jitterFraction; k0 += dk * jitterFraction;
-
-    // Slide P from P0 to P1, (now-homogeneous) Q from Q0 to Q1, and k from k0 to k1
-    highp vec3  Q = Q0;
-    highp float k = k0;
-
-    // We track the ray depth at +/- 1/2 pixel to treat pixels as clip-space solid voxels. Because
-    // the depth at -1/2 for a given pixel will be the same as at +1/2 for the previous iteration,
-    // we actually only have to compute one value per iteration.
-    highp float prevZMaxEstimate = vsOriginZ;
-    highp float stepCount = 0.0;
-    highp float rayZMax = prevZMaxEstimate;
-    highp float rayZMin = prevZMaxEstimate;
-    highp float sceneZMax = rayZMax + 1e4;
-
-    // P1.x is never modified after this point, so pre-scale it by the step direction for a signed
-    // comparison
-    highp float end = P1.x * stepDirection;
-
-    // We only advance the z field of Q in the inner loop, since Q.xy is never used until after the
-    // loop terminates.
-
-    for (highp vec2 P = P0;
-        ((P.x * stepDirection) <= end) &&
-        (stepCount < maxSteps) &&
-        ((rayZMax < sceneZMax - vsZThickness) ||
-            (rayZMin > sceneZMax)) &&
-        (sceneZMax != 0.0);
-        P += dP, Q.z += dQ.z, k += dk, stepCount += 1.0) {
-
-        hitPixel = permute ? P.yx : P;
-
-        // The depth range that the ray covers within this loop iteration.  Assume that the ray is
-        // moving in increasing z and swap if backwards.  Because one end of the interval is shared
-        // between adjacent iterations, we track the previous value and then swap as needed to
-        // ensure correct ordering
-        rayZMin = prevZMaxEstimate;
-
-        // Compute the value at 1/2 pixel into the future
-        rayZMax = (dQ.z * 0.5 + Q.z) / (dk * 0.5 + k);
-        prevZMaxEstimate = rayZMax;
-        if (rayZMin > rayZMax) { swap(rayZMin, rayZMax); }
-
-        // View-space z of the background
-        // TODO: explore if we can avoid the linearization of the depth sample here.
-        sceneZMax = linearizeDepth(texelFetch(vsZBuffer, int2(hitPixel), 0).r);
-    } // pixel on ray
-
-    Q.xy += dQ.xy * stepCount;
-    vsHitPoint = Q * (1.0 / k);
-    // Matches the new loop condition:
-    return (rayZMax >= sceneZMax - vsZThickness) && (rayZMin <= sceneZMax);
-}
-
-// -- end "BSD 2-clause license" -------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// Hi-Z ray tracing
-// Reference: Sugu Lee, "Screen Space Reflections: Implementation and
-// optimization - Part 2: HI-Z Tracing Method"
-//------------------------------------------------------------------------------
-
-highp vec2 getCellCount(const highp sampler2D vsZBuffer, int mipLevel) {
-    return vec2(textureSize(vsZBuffer, mipLevel));
-}
-
-highp vec2 getCell(highp vec2 pos, highp vec2 cellCount) {
-    return floor(pos * cellCount);
-}
-
-highp vec3 intersectDepthPlane(highp vec3 o, highp vec3 d, highp float t) {
-    return o + d * t;
-}
-
-highp vec3 intersectCellBoundary(highp vec3 o, highp vec3 d, highp vec2 cell,
-        highp vec2 cellCount, highp vec2 crossStep, highp vec2 crossOffset) {
-    highp vec2 index = cell + crossStep;
-    highp vec2 boundary = index / cellCount;
-    boundary += crossOffset;
-
-    highp vec2 delta = boundary - o.xy;
-    delta.x = abs(d.x) > 1e-8 ? (delta.x / d.x) : 1e6;
-    delta.y = abs(d.y) > 1e-8 ? (delta.y / d.y) : 1e6;
-    highp float t = min(delta.x, delta.y);
-
-    return intersectDepthPlane(o, d, t);
-}
-
-highp float getMinimumDepthPlane(const highp sampler2D vsZBuffer, highp vec2 p, int mipLevel,
-        highp vec2 cellCount) {
-    // Filament uses a reversed-Z depth buffer (1.0 at near plane, 0.0 at far plane).
-    // Invert to [0, 1] (0.0 at near, 1.0 at far) so that closer surfaces have smaller Z values.
-    return 1.0 - texelFetch(vsZBuffer, int2(p * cellCount), mipLevel).r;
-}
-
-bool crossedCellBoundary(highp vec2 oldCellIdx, highp vec2 newCellIdx) {
-    return (oldCellIdx.x != newCellIdx.x) || (oldCellIdx.y != newCellIdx.y);
-}
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus,
+        out highp float traceHitDistance);
 
 bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 reflPosInTS,
         const highp vec3 Q0, const highp vec3 Q1, const highp float k0, const highp float k1,
         const highp sampler2D vsZBuffer, const highp vec2 res, const float vsZThickness,
-        const highp float maxSteps, out highp vec2 hitPixel, out highp vec3 vsHitPoint) {
-    highp vec3 vReflDirInTS = reflPosInTS - samplePosInTS;
-
-    // Compute the maximum distance to trace before the ray goes outside of the visible area [0, 1].
-    highp vec3 dist = vec3(1.0);
-    if (abs(vReflDirInTS.x) > 1e-6) {
-        dist.x = (vReflDirInTS.x >= 0.0) ?
-                ((1.0 - samplePosInTS.x) / vReflDirInTS.x) : (-samplePosInTS.x / vReflDirInTS.x);
-    }
-    if (abs(vReflDirInTS.y) > 1e-6) {
-        dist.y = (vReflDirInTS.y >= 0.0) ?
-                ((1.0 - samplePosInTS.y) / vReflDirInTS.y) : (-samplePosInTS.y / vReflDirInTS.y);
-    }
-    if (abs(vReflDirInTS.z) > 1e-6) {
-        dist.z = (vReflDirInTS.z >= 0.0) ?
-                ((1.0 - samplePosInTS.z) / vReflDirInTS.z) : (-samplePosInTS.z / vReflDirInTS.z);
-    }
-    highp float maxTraceDistance = clamp(min(min(dist.x, dist.y), dist.z), 0.0, 1.0);
-
-    // Match the structure buffer mipmap count in PostProcessManager::structure().
-    int maxLevel = clamp(int(floor(log2(max(res.x, res.y)))) - 5, 0, 7);
-
-    highp vec2 crossStep = vec2(vReflDirInTS.x >= 0.0 ? 1.0 : -1.0,
-                                vReflDirInTS.y >= 0.0 ? 1.0 : -1.0);
-    highp vec2 crossOffset = crossStep / res / 128.0;
-    crossStep = saturate(crossStep);
-
-    highp vec3 ray = samplePosInTS;
-    highp float minZ = ray.z;
-    highp float maxZ = ray.z + vReflDirInTS.z * maxTraceDistance;
-    highp float deltaZ = maxZ - minZ;
-
-    highp vec3 o = ray;
-    highp vec3 d = vReflDirInTS * maxTraceDistance;
-
-    int startLevel = min(2, maxLevel);
-    int stopLevel = 0;
-    highp vec2 startCellCount = getCellCount(vsZBuffer, startLevel);
-
-    highp vec2 rayCell = getCell(ray.xy, startCellCount);
-    ray = intersectCellBoundary(o, d, rayCell, startCellCount, crossStep, crossOffset);
-
-    int level = startLevel;
-    highp float stepCount = 0.0;
-    bool isBackwardRay = vReflDirInTS.z < 0.0;
-    highp float rayDir = isBackwardRay ? -1.0 : 1.0;
-    highp float lastCellMinZ = 1.0;
-
-    while (level >= stopLevel &&
-           (ray.z * rayDir) <= (maxZ * rayDir) &&
-           stepCount < maxSteps) {
-        if (any(lessThan(ray.xy, vec2(0.0))) || any(greaterThan(ray.xy, vec2(1.0)))) {
-            break;
-        }
-
-        highp vec2 cellCount = getCellCount(vsZBuffer, level);
-        highp vec2 oldCellIdx = getCell(ray.xy, cellCount);
-
-        highp float cellMinZ = getMinimumDepthPlane(vsZBuffer, ray.xy, level, cellCount);
-        lastCellMinZ = cellMinZ;
-        highp vec3 tmpRay = ((cellMinZ > ray.z) && !isBackwardRay && (deltaZ > 1e-7)) ?
-                intersectDepthPlane(o, d, (cellMinZ - minZ) / deltaZ) : ray;
-
-        highp vec2 newCellIdx = getCell(tmpRay.xy, cellCount);
-
-        highp float thickness = (level == 0) ?
-                (linearizeDepth(1.0 - cellMinZ) - linearizeDepth(1.0 - ray.z)) : 0.0;
-        bool crossed = ((isBackwardRay || (deltaZ <= 1e-7)) && (cellMinZ > ray.z)) ||
-                (thickness > vsZThickness) ||
-                crossedCellBoundary(oldCellIdx, newCellIdx);
-
-        ray = crossed ?
-                intersectCellBoundary(o, d, oldCellIdx, cellCount, crossStep, crossOffset) : tmpRay;
-        level = crossed ? min(maxLevel, level + 1) : (level - 1);
-
-        stepCount += 1.0;
-    }
-
-    bool intersected = (level < stopLevel) &&
-            ((ray.z * rayDir) <= (maxZ * rayDir)) &&
-            (lastCellMinZ < 1.0);
-    hitPixel = ray.xy * res;
-
-    // Reconstruct the 3D view-space hit point using the shared homogeneous endpoints (Q0, k0) and (Q1, k1).
-    highp vec3 absDir = abs(vReflDirInTS);
-    highp float alpha = 0.0;
-    if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
-        alpha = (absDir.x > 1e-6) ? ((ray.x - samplePosInTS.x) / vReflDirInTS.x) : 0.0;
-    } else if (absDir.y >= absDir.z) {
-        alpha = (absDir.y > 1e-6) ? ((ray.y - samplePosInTS.y) / vReflDirInTS.y) : 0.0;
-    } else {
-        alpha = (absDir.z > 1e-6) ? ((ray.z - samplePosInTS.z) / vReflDirInTS.z) : 0.0;
-    }
-    alpha = clamp(alpha, 0.0, 1.0);
-    vsHitPoint = mix(Q0, Q1, alpha) * (1.0 / mix(k0, k1, alpha));
-
-    return intersected;
-}
+        const highp float maxSteps, out highp vec2 hitPixel, out highp vec3 vsHitPoint,
+        out highp uint traceStatus, out highp float traceHitDistance);
 
 // Note: McGuire and Mara use the "cs" prefix to stand for "camera space", equivalent to Filament's
 // "view space". "cs" has been replaced with "vs" to avoid confusion.
@@ -301,7 +68,8 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
         highp_mat4 uvFromViewMatrix, const highp sampler2D vsZBuffer, const highp vec2 res,
         const float vsZThickness, const highp float nearPlaneZ, const float stride,
         const float jitterFraction, const highp float maxSteps, const float maxRayTraceDistance,
-        out highp vec2 hitPixel, out highp vec3 vsHitPoint) {
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus,
+        out highp float traceHitDistance) {
     // Clip ray to a near plane in 3D (doesn't have to be *the* near plane, although that would be a
     // good idea)
     highp float rayLength = ((vsOrigin.z + vsDirection.z * maxRayTraceDistance) > nearPlaneZ) ?
@@ -331,14 +99,24 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
         highp vec3 samplePosInTS = vec3(H0.xy * k0, 1.0 - H0.z * k0);
         highp vec3 reflPosInTS = vec3(H1.xy * k1, 1.0 - H1.z * k1);
         return traceScreenSpaceRayHiZ(samplePosInTS, reflPosInTS, Q0, Q1, k0, k1,
-                vsZBuffer, res, vsZThickness, maxSteps, hitPixel, vsHitPoint);
+                vsZBuffer, res, vsZThickness, maxSteps, hitPixel, vsHitPoint, traceStatus,
+                traceHitDistance);
     }
 
     // Screen-space endpoints in pixels
     highp vec2 P0 = H0.xy * k0 * res;
     highp vec2 P1 = H1.xy * k1 * res;
     return traceScreenSpaceRayLinear(P0, P1, Q0, Q1, k0, k1, vsOrigin.z,
-            vsZBuffer, vsZThickness, stride, jitterFraction, maxSteps, hitPixel, vsHitPoint);
+            vsZBuffer, vsZThickness, stride, jitterFraction, maxSteps, hitPixel, vsHitPoint,
+            traceStatus, traceHitDistance);
+}
+
+highp vec3 reconstructViewPositionFromDepth(highp float depth, highp vec2 uv) {
+    // hitPixel is in render-target texture space. This conversion is its own inverse and returns
+    // the canonical UV orientation expected by getViewFromClipMatrix().
+    uv = uvToRenderTargetUV(uv);
+    highp vec4 position = getViewFromClipMatrix() * vec4(uv * 2.0 - 1.0, depth, 1.0);
+    return position.xyz * (1.0 / position.w);
 }
 
 highp vec3 reconstructViewPosition(const highp sampler2D depthBuffer, highp ivec2 pixel,
@@ -347,46 +125,69 @@ highp vec3 reconstructViewPosition(const highp sampler2D depthBuffer, highp ivec
     pixel = clamp(pixel, ivec2(0), size - 1);
     highp float depth = texelFetch(depthBuffer, pixel, 0).r;
     highp vec2 uv = (vec2(pixel) + 0.5) / resolution;
-    // hitPixel is in render-target texture space. This conversion is its own inverse and returns
-    // the canonical UV orientation expected by getViewFromClipMatrix().
-    uv = uvToRenderTargetUV(uv);
-    highp vec4 position = getViewFromClipMatrix() * vec4(uv * 2.0 - 1.0, depth, 1.0);
-    return position.xyz * (1.0 / position.w);
+    return reconstructViewPositionFromDepth(depth, uv);
 }
 
 bool validateHitNormal(const highp sampler2D depthBuffer, const highp vec2 hitPixel,
-        const highp vec2 resolution, const highp vec3 vsRayDirection,
-        out highp float facing) {
+        const highp vec2 rayOriginPixel, const highp vec2 resolution,
+        const highp vec3 vsRayDirection,
+        out highp float facing, out highp vec3 vsSurfacePoint) {
     highp ivec2 centerPixel = clamp(ivec2(hitPixel), ivec2(0), ivec2(resolution) - 1);
-    highp vec3 center = reconstructViewPosition(depthBuffer, centerPixel, resolution);
-    highp vec3 left = reconstructViewPosition(
-            depthBuffer, centerPixel + ivec2(-1, 0), resolution);
-    highp vec3 right = reconstructViewPosition(
-            depthBuffer, centerPixel + ivec2(1, 0), resolution);
-    highp vec3 bottom = reconstructViewPosition(
-            depthBuffer, centerPixel + ivec2(0, -1), resolution);
-    highp vec3 top = reconstructViewPosition(
-            depthBuffer, centerPixel + ivec2(0, 1), resolution);
+    highp float centerDepth = texelFetch(depthBuffer, centerPixel, 0).r;
+    highp vec2 centerUv = (vec2(centerPixel) + 0.5) / resolution;
+    highp vec3 center = reconstructViewPositionFromDepth(centerDepth, centerUv);
+    highp vec2 hitUv = clamp(hitPixel / resolution, vec2(0.0), vec2(1.0));
+    vsSurfacePoint = reconstructViewPositionFromDepth(centerDepth, hitUv);
 
-    // Pick the shorter one-sided derivatives to avoid constructing normals across depth edges.
-    highp vec3 dx0 = center - left;
-    highp vec3 dx1 = right - center;
-    highp vec3 dy0 = center - bottom;
-    highp vec3 dy1 = top - center;
-    highp vec3 dx = dot(dx0, dx0) < dot(dx1, dx1) ? dx0 : dx1;
-    highp vec3 dy = dot(dy0, dy0) < dot(dy1, dy1) ? dy0 : dy1;
-    highp vec3 normal = cross(dx, dy);
+    // Match Godot's hit validation policy: only use a hit normal to reject immediate self-hits.
+    // A depth-derived normal is not reliable enough at thin silhouettes to reject distant hits.
+    facing = 1.0;
+    if (any(greaterThanEqual(abs(hitPixel - rayOriginPixel), vec2(2.0)))) {
+        return true;
+    }
+
+    highp ivec2 size = ivec2(resolution);
+    highp ivec2 left1Pixel = clamp(centerPixel + ivec2(-1, 0), ivec2(0), size - 1);
+    highp ivec2 left2Pixel = clamp(centerPixel + ivec2(-2, 0), ivec2(0), size - 1);
+    highp ivec2 right1Pixel = clamp(centerPixel + ivec2(1, 0), ivec2(0), size - 1);
+    highp ivec2 right2Pixel = clamp(centerPixel + ivec2(2, 0), ivec2(0), size - 1);
+    highp ivec2 bottom1Pixel = clamp(centerPixel + ivec2(0, -1), ivec2(0), size - 1);
+    highp ivec2 bottom2Pixel = clamp(centerPixel + ivec2(0, -2), ivec2(0), size - 1);
+    highp ivec2 top1Pixel = clamp(centerPixel + ivec2(0, 1), ivec2(0), size - 1);
+    highp ivec2 top2Pixel = clamp(centerPixel + ivec2(0, 2), ivec2(0), size - 1);
+
+    highp float left1Depth = texelFetch(depthBuffer, left1Pixel, 0).r;
+    highp float left2Depth = texelFetch(depthBuffer, left2Pixel, 0).r;
+    highp float right1Depth = texelFetch(depthBuffer, right1Pixel, 0).r;
+    highp float right2Depth = texelFetch(depthBuffer, right2Pixel, 0).r;
+    highp float bottom1Depth = texelFetch(depthBuffer, bottom1Pixel, 0).r;
+    highp float bottom2Depth = texelFetch(depthBuffer, bottom2Pixel, 0).r;
+    highp float top1Depth = texelFetch(depthBuffer, top1Pixel, 0).r;
+    highp float top2Depth = texelFetch(depthBuffer, top2Pixel, 0).r;
+
+    // Compare the second-order depth error on both sides of each axis. This selects the side that
+    // most likely belongs to the center surface instead of merely selecting the closest 3D point.
+    bool useLeft = abs(2.0 * left1Depth - left2Depth - centerDepth) <
+            abs(2.0 * right1Depth - right2Depth - centerDepth);
+    bool useBottom = abs(2.0 * bottom1Depth - bottom2Depth - centerDepth) <
+            abs(2.0 * top1Depth - top2Depth - centerDepth);
+    highp ivec2 horizontalPixel = useLeft ? left1Pixel : right1Pixel;
+    highp ivec2 verticalPixel = useBottom ? bottom1Pixel : top1Pixel;
+    highp vec3 horizontal = reconstructViewPosition(depthBuffer, horizontalPixel, resolution);
+    highp vec3 vertical = reconstructViewPosition(depthBuffer, verticalPixel, resolution);
+    highp vec3 horizontalDerivative = (useLeft ? -1.0 : 1.0) * (horizontal - center);
+    highp vec3 verticalDerivative = (useBottom ? -1.0 : 1.0) * (vertical - center);
+    highp vec3 normal = cross(horizontalDerivative, verticalDerivative);
     highp float normalLengthSquared = dot(normal, normal);
     if (normalLengthSquared <= 1e-12) {
-        facing = 0.0;
-        return false;
+        return true;
     }
     normal *= inversesqrt(normalLengthSquared);
 
     // Visible geometry is front-facing, so orient the reconstructed normal toward the camera.
     normal *= dot(normal, -center) < 0.0 ? -1.0 : 1.0;
     facing = dot(normal, -vsRayDirection);
-    return facing > 0.0;
+    return facing >= 0.0;
 }
 
 /**
@@ -427,43 +228,66 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
     }
 
     // Outputs from the traceScreenSpaceRay function.
-    highp vec2 hitPixel;  // not currently used
+    highp vec2 hitPixel;
     highp vec3 vsHitPoint;
+    highp uint traceStatus;
+    highp float traceHitDistance;
 
-    if (traceScreenSpaceRay(vsOrigin, vsDirection, frameUniforms.ssrUvFromViewMatrix,
+    bool intersected = traceScreenSpaceRay(
+            vsOrigin, vsDirection, frameUniforms.ssrUvFromViewMatrix,
             sampler0_structure, res, vsZThickness, nearPlaneZ, stride, jitterFraction, maxSteps,
-            maxRayTraceDistance, hitPixel, vsHitPoint)) {
-        highp float hitFacing;
-        if (!validateHitNormal(sampler0_structure, hitPixel, res, vsDirection, hitFacing)) {
-            return Fr;
-        }
-        highp vec4 reprojected = mulMat4x4Float3(frameUniforms.ssrReprojection, vsHitPoint);
-        reprojected.xy *= (1.0 / reprojected.w);
-
-        // Compute the screen-space reflection's contribution.
-
-        // TODO: parameterize fadeRate.
-        const float fadeRateEdge = 12.0;
-        const float fadeRateDistance = 4.0;
-
-        // Fade the reflections out near the edges.
-        vec2 edgeFactor = max(fadeRateEdge * abs(reprojected.xy - 0.5) - (fadeRateEdge * 0.5 - 1.0), 0.0);
-        float fade = saturate(1.0 - dot(edgeFactor, edgeFactor));
-
-        // Fade the reflections out near maxRayTraceDistance.
-        float t = distance(vsOrigin, vsHitPoint) / maxRayTraceDistance;
-        fade *= saturate(fadeRateDistance - fadeRateDistance * t);
-
-        // Fade when pointing towards the camera (likely to hit a backface)
-        // note: vsDirection.z is the cos(vsDirection, view)
-        fade *= (1.0 - max(0.0, vsDirection.z));
-
-        // Reject actual backfaces above, then soften hits that only graze the reconstructed surface.
-        fade *= smoothstep(0.0, 0.2, hitFacing);
-
-        // we output a premultiplied alpha color because this is going to be mipmapped
-        Fr = vec4(textureLod(sampler0_ssr, reprojected.xy, 0.0).rgb * fade, fade);
+            maxRayTraceDistance, hitPixel, vsHitPoint, traceStatus, traceHitDistance);
+    if (!intersected) {
+        return frameUniforms.ssrDebugTraceStatus != 0u ?
+                getSsrTraceStatusColor(traceStatus) : Fr;
     }
+
+    highp float hitFacing;
+    highp vec3 vsSurfacePoint;
+    highp vec4 rayOriginInUv = frameUniforms.ssrUvFromViewMatrix * vec4(vsOrigin, 1.0);
+    highp vec2 rayOriginPixel = rayOriginInUv.xy * (1.0 / rayOriginInUv.w) * res;
+    if (!validateHitNormal(
+            sampler0_structure, hitPixel, rayOriginPixel, res, vsDirection, hitFacing,
+            vsSurfacePoint)) {
+        return frameUniforms.ssrDebugTraceStatus != 0u ?
+                getSsrTraceStatusColor(SSR_TRACE_STATUS_BACKFACE) : Fr;
+    }
+    if (frameUniforms.ssrDebugTraceStatus != 0u) {
+        return getSsrTraceStatusColor(hitFacing > 0.0 ?
+                SSR_TRACE_STATUS_HIT : SSR_TRACE_STATUS_BACKFACE);
+    }
+    highp vec4 reprojected = mulMat4x4Float3(frameUniforms.ssrReprojection, vsHitPoint);
+    reprojected.xy *= (1.0 / reprojected.w);
+
+    // Compute the screen-space reflection's contribution.
+
+    // TODO: parameterize fadeRate.
+    const float fadeRateEdge = 12.0;
+    const float fadeRateDistance = 4.0;
+
+    // Fade the reflections out near the edges.
+    vec2 edgeFactor = max(fadeRateEdge * abs(reprojected.xy - 0.5) - (fadeRateEdge * 0.5 - 1.0), 0.0);
+    float fade = saturate(1.0 - dot(edgeFactor, edgeFactor));
+
+    // Fade the reflections out near maxRayTraceDistance.
+    float t = distance(vsOrigin, vsHitPoint) / maxRayTraceDistance;
+    fade *= saturate(fadeRateDistance - fadeRateDistance * t);
+
+    // Fade when pointing towards the camera (likely to hit a backface)
+    // note: vsDirection.z is the cos(vsDirection, view)
+    fade *= (1.0 - max(0.0, vsDirection.z));
+
+    // Convert the distance between the ray candidate and the actual depth surface into a smooth
+    // hit confidence. This retains thickness for traversal robustness without treating every
+    // candidate inside that interval as an equally reliable hit.
+    highp float hitDistance = traceHitDistance >= 0.0 ?
+            traceHitDistance : distance(vsSurfacePoint, vsHitPoint);
+    float hitConfidence = 1.0 - smoothstep(
+            0.0, max(vsZThickness, 1e-5), hitDistance);
+    fade *= hitConfidence * hitConfidence;
+
+    // we output a premultiplied alpha color because this is going to be mipmapped
+    Fr = vec4(textureLod(sampler0_ssr, reprojected.xy, 0.0).rgb * fade, fade);
     return Fr;
 }
 

@@ -217,7 +217,7 @@ BufferInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             { "ssrStride",               0, Type::FLOAT                  },
             { "ssrTracingMode",          0, Type::UINT                   },
             { "ssrMaxSteps",             0, Type::UINT                   },
-            { "ssrReserved1",            0, Type::FLOAT                  },
+            { "ssrDebugTraceStatus",     0, Type::UINT                   },
             { "ssrReserved2",            0, Type::FLOAT                  },
 
             // --------------------------------------------------------------------------------------------

@@ -807,6 +807,9 @@ public:
             float display_shadow_texture_power = 1;
         } shadowmap;
         struct {
+            bool trace_status = false;
+        } ssr;
+        struct {
             bool camera_at_origin = true;
             struct {
                 float kp = 0.0f;

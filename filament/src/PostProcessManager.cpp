@@ -4184,4 +4184,46 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::debugDisplayShadowTexture(
     return input;
 }
 
+FrameGraphId<FrameGraphTexture> PostProcessManager::debugDisplaySsrTraceStatus(
+        FrameGraph& fg, FrameGraphId<FrameGraphTexture> input,
+        FrameGraphId<FrameGraphTexture> const ssr) noexcept {
+    if (ssr) {
+        struct SsrTraceStatusData {
+            FrameGraphId<FrameGraphTexture> color;
+            FrameGraphId<FrameGraphTexture> status;
+        };
+
+        auto const& traceStatusPass = fg.addPass<SsrTraceStatusData>("SSR trace status debug pass",
+                [&](FrameGraph::Builder& builder, auto& data) {
+                    data.color = builder.read(input,
+                            FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                    data.color = builder.write(data.color,
+                            FrameGraphTexture::Usage::COLOR_ATTACHMENT);
+                    data.status = builder.sample(ssr);
+                    builder.declareRenderPass("SSR trace status target", {
+                            .attachments = { .color = { data.color }}
+                    });
+                },
+                [this](FrameGraphResources const& resources, auto const& data, DriverApi& driver) {
+                    bindPostProcessDescriptorSet(driver);
+                    bindPerRenderableDescriptorSet(driver);
+
+                    auto const out = resources.getRenderPassInfo();
+                    auto const status = resources.getTexture(data.status);
+                    auto const& material = getPostProcessMaterial("blitArray");
+                    FMaterialInstance* const mi = getMaterialInstance(mEngine, driver, material);
+                    mi->setParameter("color", status, SamplerParams{
+                            .filterMag = SamplerMagFilter::NEAREST,
+                            .filterMin = SamplerMinFilter::NEAREST_MIPMAP_NEAREST });
+                    mi->setParameter("viewport", float4{ 0.0f, 0.0f, 1.0f, 1.0f });
+                    mi->setParameter("layerIndex", 1);
+                    mi->setParameter("levelOfDetail", 0.0f);
+                    commitAndRenderFullScreenQuad(driver, out, mi);
+                    unbindAllDescriptorSets(driver);
+                });
+        input = traceStatusPass->color;
+    }
+    return input;
+}
+
 } // namespace filament

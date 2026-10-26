@@ -655,7 +655,7 @@ public class View {
      */
     public void setScreenSpaceReflectionsOptions(@NonNull ScreenSpaceReflectionsOptions options) {
         mScreenSpaceReflectionsOptions = options;
-        nSetScreenSpaceReflectionsOptions(getNativeObject(), options.thickness, options.bias, options.maxDistance, options.stride, options.tracingMode.toFilamentNative(), options.maxSteps, options.enabled);
+        nSetScreenSpaceReflectionsOptions(getNativeObject(), options.thickness, options.bias, options.maxDistance, options.stride, options.resolution, options.tracingMode.toFilamentNative(), options.maxSteps, options.enabled);
     }
 
     /**
@@ -2300,6 +2300,8 @@ public class View {
         public float maxDistance = 3.0f;
         /** stride, in texels, for samples along the ray. */
         public float stride = 2.0f;
+        /** scale factor applied to each dimension of the SSR tracing buffer: 0.25, 0.5, or 1.0 */
+        public float resolution = 0.5f;
         /** ray tracing method */
         @NonNull
         public ScreenSpaceReflectionsOptions.TracingMode tracingMode = ScreenSpaceReflectionsOptions.TracingMode.LINEAR;
@@ -2376,7 +2378,7 @@ public class View {
     private static native void nSetAntiAliasing(long nativeView, int type);
     private static native int nGetAntiAliasing(long nativeView);
     private static native void nSetTemporalAntiAliasingOptions(long nativeView, float filterWidth, float feedback, float lodBias, float sharpness, boolean enabled, float upscaling, boolean filterHistory, boolean filterInput, boolean useYCoCg, boolean hdr, int boxType, int boxClipping, int jitterPattern, float varianceGamma, boolean preventFlickering, boolean historyReprojection);
-    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, int tracingMode, int maxSteps, boolean enabled);
+    private static native void nSetScreenSpaceReflectionsOptions(long nativeView, float thickness, float bias, float maxDistance, float stride, float resolution, int tracingMode, int maxSteps, boolean enabled);
     private static native void nSetGuardBandOptions(long nativeView, boolean enabled);
     private static native void nSetMultiSampleAntiAliasingOptions(long nativeView, boolean enabled, int sampleCount, boolean customResolve);
     private static native void nSetColorGrading(long nativeView, long nativeColorGrading);

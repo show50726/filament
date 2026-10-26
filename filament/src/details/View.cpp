@@ -1252,6 +1252,7 @@ void FView::prepareSSR(FEngine& engine, CameraInfo const& cameraInfo,
     s.ssrStride = options.stride;
     s.ssrTracingMode = uint32_t(options.tracingMode);
     s.ssrMaxSteps = std::clamp(options.maxSteps, 1u, 4096u);
+    s.ssrDebugTraceStatus = engine.debug.ssr.trace_status;
     s.refractionLodOffset = refractionLodOffset;
     s.ssrDistance = (options.enabled && !disableSSR) ? options.maxDistance : 0.0f;
 }

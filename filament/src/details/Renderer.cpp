@@ -137,6 +137,8 @@ FRenderer::FRenderer(FEngine& engine) :
             &engine.debug.shadowmap.display_shadow_texture_level_count);
     debugRegistry.registerProperty("d.shadowmap.display_shadow_texture_power",
             &engine.debug.shadowmap.display_shadow_texture_power);
+    debugRegistry.registerProperty("d.ssr.trace_status",
+            &engine.debug.ssr.trace_status);
     debugRegistry.registerProperty("d.stereo.combine_multiview_images",
         &engine.debug.stereo.combine_multiview_images);
 
@@ -1240,6 +1242,7 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
     // --------------------------------------------------------------------------------------------
     // screen-space reflections pass
 
+    FrameGraphId<FrameGraphTexture> ssrTraceStatus;
     if (ssReflectionsOptions.enabled) {
         bool const structureReadyForSsr = ssrUsesStructureResolution &&
                 (!useHiZ || structureHasHiZMipmaps);
@@ -1258,6 +1261,9 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
             // generate the mipchain
             PostProcessManager::generateMipmapSSR(ppm, fg,
                     reflections, ssrConfig.reflection, false, ssrConfig);
+            if (UTILS_UNLIKELY(engine.debug.ssr.trace_status)) {
+                ssrTraceStatus = ssrConfig.ssr;
+            }
         }
     }
 
@@ -1672,6 +1678,10 @@ void FRenderer::renderJob(DriverApi& driver, LinearAllocatorArena& arena, FView&
                 engine.debug.shadowmap.display_shadow_texture_level,
                 engine.debug.shadowmap.display_shadow_texture_channel,
                 engine.debug.shadowmap.display_shadow_texture_power);
+    }
+
+    if (UTILS_UNLIKELY(engine.debug.ssr.trace_status)) {
+        input = ppm.debugDisplaySsrTraceStatus(fg, input, ssrTraceStatus);
     }
 
 //    auto debug = structure
