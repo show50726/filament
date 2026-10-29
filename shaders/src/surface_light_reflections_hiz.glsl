@@ -36,7 +36,10 @@ highp float getMinimumDepthPlane(const highp sampler2D vsZBuffer, highp vec2 p, 
         highp vec2 cellCount) {
     // Filament uses a reversed-Z depth buffer (1.0 at near plane, 0.0 at far plane).
     // Invert to [0, 1] (0.0 at near, 1.0 at far) so that closer surfaces have smaller Z values.
-    return 1.0 - texelFetch(vsZBuffer, int2(p * cellCount), mipLevel).r;
+    // p may be exactly 1.0 (the viewport test is inclusive) or slightly outside because of
+    // crossOffset; clamp to avoid an out-of-bounds texelFetch, which is undefined behavior.
+    highp ivec2 texel = clamp(ivec2(p * cellCount), ivec2(0), ivec2(cellCount) - 1);
+    return 1.0 - texelFetch(vsZBuffer, texel, mipLevel).r;
 }
 
 bool crossedCellBoundary(highp vec2 oldCellIdx, highp vec2 newCellIdx) {
