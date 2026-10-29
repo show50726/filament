@@ -119,13 +119,20 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
 
         highp float thickness = (level == 0) ?
                 (linearizeDepth(1.0 - cellMinZ) - linearizeDepth(1.0 - ray.z)) : 0.0;
+        // Only possible at level 0: the ray is behind the surface by more than the thickness.
+        bool behindSurface = thickness > vsZThickness;
         bool crossed = ((isBackwardRay || (deltaZ <= 1e-7)) && (cellMinZ > ray.z)) ||
-                (thickness > vsZThickness) ||
+                behindSurface ||
                 crossedCellBoundary(oldCellIdx, newCellIdx);
 
         ray = crossed ?
                 intersectCellBoundary(o, d, oldCellIdx, cellCount, crossStep, crossOffset) : tmpRay;
-        level = crossed ? min(maxLevel, level + 1) : (level - 1);
+        // When the ray passes behind an occluder, a min-only Hi-Z cannot skip any coarser cell
+        // covering that occluder (its minimum depth is in front of the ray), so ascending would
+        // only cost an extra iteration that descends right back. Stay at level 0 instead; regular
+        // ascent resumes as soon as the ray is in front of the depth surface again.
+        level = !crossed ? (level - 1) :
+                behindSurface ? level : min(maxLevel, level + 1);
 
         stepCount += 1.0;
     }
