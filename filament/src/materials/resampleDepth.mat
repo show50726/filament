@@ -45,9 +45,11 @@ fragment {
         highp float depth = texelFetch(materialParams_depth, sourceCoord, 0).r;
 
         if (materialParams.conservative) {
-            // The supported scales (1, 1/2, and 1/4) cover at most a 4x4 source footprint.
-            for (int y = 0; y < 4; y++) {
-                for (int x = 0; x < 4; x++) {
+            // The supported scales (1, 1/2, and 1/4) have a ratio of at most 4, but because the
+            // sizes are rounded up, the ratio is generally not an integer and a target texel can
+            // overlap up to ceil(4) + 1 = 5 source texels in each dimension.
+            for (int y = 0; y < 5; y++) {
+                for (int x = 0; x < 5; x++) {
                     ivec2 coord = sourceBegin + ivec2(x, y);
                     if (all(lessThan(coord, sourceEnd))) {
                         // Filament uses reversed-Z, so the closest depth is the maximum value.
