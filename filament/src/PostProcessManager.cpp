@@ -704,6 +704,8 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::resampleStructure(FrameGraph
     auto const& inputDesc = fg.getDescriptor(input);
     width = std::max(32u, uint32_t(std::ceil(float(width) * scale)));
     height = std::max(32u, uint32_t(std::ceil(float(height) * scale)));
+    bool const needConservativeResample = conservativeDepth &&
+            (width < inputDesc.width || height < inputDesc.height);
     size_t const levelCount = generateMipmaps ?
             std::min(8, FTexture::maxLevelCount(width, height) - 5) : 1;
     assert_invariant(levelCount >= 1);
@@ -745,7 +747,7 @@ FrameGraphId<FrameGraphTexture> PostProcessManager::resampleStructure(FrameGraph
                         .filterMag = SamplerMagFilter::NEAREST,
                         .filterMin = SamplerMinFilter::NEAREST });
                 mi->setParameter("targetSize", float2{ float(width), float(height) });
-                mi->setParameter("conservative", conservativeDepth);
+                mi->setParameter("conservative", needConservativeResample);
                 commitAndRenderFullScreenQuad(driver, out, mi);
                 unbindAllDescriptorSets(driver);
             });
