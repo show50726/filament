@@ -28,9 +28,9 @@ fragment {
     // Note: Filament uses a reversed-Z depth buffer (1.0 at the near plane, 0.0 at the far plane),
     // so the conservative closest depth to the camera is the maximum raw depth value.
     void postProcess(inout PostProcessInputs postProcess) {
-        ivec2 icoord = ivec2(gl_FragCoord.xy);
-        ivec2 baseCoord = 2 * icoord;
-        ivec2 prevDim = textureSize(materialParams_depth, 0);
+        highp ivec2 icoord = ivec2(gl_FragCoord.xy);
+        highp ivec2 baseCoord = 2 * icoord;
+        highp ivec2 prevDim = textureSize(materialParams_depth, 0);
 
         highp float d00 = texelFetch(materialParams_depth, baseCoord + ivec2(0, 0), 0).r;
         highp float d10 = texelFetch(materialParams_depth, baseCoord + ivec2(1, 0), 0).r;
