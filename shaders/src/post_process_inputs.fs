@@ -25,6 +25,6 @@ struct PostProcessInputs {
     FRAG_OUTPUT_PRECISION7 FRAG_OUTPUT_MATERIAL_TYPE7 FRAG_OUTPUT7;
 #endif
 #if defined(FRAG_OUTPUT_DEPTH)
-    float depth;
+    highp float depth;
 #endif
 };
