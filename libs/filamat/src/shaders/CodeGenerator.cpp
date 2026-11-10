@@ -371,6 +371,8 @@ io::sstream& CodeGenerator::generateCommonProlog(io::sstream& out, ShaderStage c
                         +DynamicSpecializationConstants::RUNTIME_CONFIG_HAS_FOG,
                 false);
     }
+    // Note: RUNTIME_CONFIG_HAS_SHADOWING is only declared by shaders that can receive shadows
+    // (i.e. alongside MATERIAL_HAS_SHADOWING), see ShaderGenerator.
 
     out << '\n';
     out << SHADERS_COMMON_DEFINES_GLSL_DATA;
@@ -1119,10 +1121,10 @@ io::sstream& CodeGenerator::generateSurfaceParameters(io::sstream& out, ShaderSt
 }
 
 io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage const stage,
-        filament::Variant const variant, Shading const shading, bool const customSurfaceShading) {
+        bool const hasShadowing, Shading const shading, bool const customSurfaceShading) {
     if (stage == ShaderStage::FRAGMENT) {
         out << SHADERS_SURFACE_LIGHTING_FS_DATA;
-        if (filament::Variant::isShadowReceiverVariant(variant)) {
+        if (hasShadowing) {
             out << SHADERS_SURFACE_SHADOWING_FS_DATA;
         }
 
@@ -1161,10 +1163,10 @@ io::sstream& CodeGenerator::generateSurfaceLit(io::sstream& out, ShaderStage con
 }
 
 io::sstream& CodeGenerator::generateSurfaceUnlit(io::sstream& out, ShaderStage const stage,
-        filament::Variant const variant, bool const hasShadowMultiplier) {
+        bool const hasShadowing, bool const hasShadowMultiplier) {
     if (stage == ShaderStage::FRAGMENT) {
         if (hasShadowMultiplier) {
-            if (filament::Variant::isShadowReceiverVariant(variant)) {
+            if (hasShadowing) {
                 out << SHADERS_SURFACE_SHADOWING_FS_DATA;
             }
         }

@@ -64,12 +64,15 @@ struct Variant {
     //
     // Standard variants:
     //                            +-----+-----+-----+-----+-----+-----+
-    //                            | S2D |  0  |  0  | SKN | SRE | STE |   16 - 4 = 12
+    //                            | S2D |  0  |  0  | SKN |  0  | STE |   16 - 8 = 8
     //                            +-----+-----+-----+-----+-----+-----+
-    //      Vertex shader            0     0     0     X     X     X
-    //    Fragment shader            X     0     0     0     X     0
-    //           Reserved            1     0     0     X     0     X      [-4]
+    //      Vertex shader            0     0     0     X     0     X
+    //    Fragment shader            X     0     0     0     0     0
+    //           Reserved            X     0     0     X     1     X      [-8]  (SRE)
     //           Reserved            X     1     0     X     X     X      [-16] (PCK)
+    //
+    // Note: SRE has been turned into a specialization constant (RUNTIME_CONFIG_HAS_SHADOWING).
+    // filterVariant() always removes it and the bit is reserved, so S2D no longer requires SRE.
     //
     // SSR variant:
     //                            +-----+-----+-----+-----+-----+-----+
@@ -88,10 +91,10 @@ struct Variant {
     //    Fragment motion            1     1     1     0     0     0
     //                SSR            1     1     1     X     0     1      [  -2]
     //
-    // 28 variants used (12 standard + 2 SSR + 12 depth + 2 motion vectors), 36 reserved
+    // 24 variants used (8 standard + 2 SSR + 12 depth + 2 motion vectors), 40 reserved
     //
     // note: a valid variant can be neither a valid vertex nor a valid fragment variant
-    //       (e.g.: S2D|SRE|SKN variants), the proper bits are filtered appropriately,
+    //       (e.g.: S2D|SKN variants), the proper bits are filtered appropriately,
     //       see filterVariantVertex(), filterVariantFragment().
 
     type_t key = 0u;
@@ -155,12 +158,11 @@ struct Variant {
    }
 
     static constexpr bool isValidStandardVariant(Variant variant) noexcept {
-        // can't have VSM without shadow receiver
-        constexpr type_t RESERVED_MASK = S2D | SRE;
-        constexpr type_t RESERVED_VALUE = S2D;
-
-        return ((variant.key & STANDARD_MASK) == STANDARD_VARIANT) &&
-               ((variant.key & RESERVED_MASK) != RESERVED_VALUE);
+        // SRE is a specialization constant (RUNTIME_CONFIG_HAS_SHADOWING), the bit is reserved.
+        // TODO: Remove this after SRE is fully transferred to spec constant
+        // S2D no longer requires SRE, so S2D alone is a valid standard variant.
+        constexpr type_t RESERVED_MASK = STANDARD_MASK | SRE;
+        return (variant.key & RESERVED_MASK) == STANDARD_VARIANT;
     }
 
     static constexpr bool isSSRVariant(Variant variant) noexcept {
@@ -250,15 +252,17 @@ struct Variant {
             return variant;
         }
 
+        // filter SRE out since it's turned into spec constant
+        // TODO: Remove this after SRE is fully transferred to spec constant
+        variant.key &= ~SRE;
+
         if (!isLit) {
             // when the shading mode is unlit, remove all the lighting variants
             return variant & UNLIT_MASK;
         }
 
-        // if shadow receiver is disabled, we pick the shadow sampler
-        if (!(variant.key & SRE)) {
-            return variant & ~S2D;
-        }
+        // S2D no longer depends on SRE: shadow receiving is decided by the
+        // RUNTIME_CONFIG_HAS_SHADOWING specialization constant.
         return variant;
     }
 

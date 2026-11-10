@@ -58,7 +58,8 @@ public:
             MaterialBuilder::FeatureLevel featureLevel,
             MaterialInfo const& material, filament::Variant variant,
             filament::Interpolation interpolation,
-            filament::VertexDomain vertexDomain, uint32_t apiLevel) const noexcept;
+            filament::VertexDomain vertexDomain,
+            filament::UserVariantFilterMask variantFilter, uint32_t apiLevel) const noexcept;
 
     std::string createSurfaceFragmentProgram(filament::backend::ShaderModel shaderModel,
             MaterialBuilder::TargetApi targetApi, MaterialBuilder::TargetLanguage targetLanguage,
@@ -91,10 +92,12 @@ private:
             MaterialBuilder::PropertyList const properties,
             const MaterialBuilder::PreprocessorDefineList& defines) noexcept;
 
-    static void generateSurfaceMaterialVariantDefines(utils::io::sstream& out,
+    static void generateSurfaceMaterialVariantDefines(CodeGenerator const& cg,
+            utils::io::sstream& out,
             filament::backend::ShaderStage stage,
             MaterialBuilder::FeatureLevel featureLevel,
-            MaterialInfo const& material, filament::Variant variant) noexcept;
+            MaterialInfo const& material, filament::Variant variant,
+            filament::UserVariantFilterMask variantFilter) noexcept;
 
     static void generatePostProcessMaterialVariantDefines(utils::io::sstream& out,
             filament::backend::ShaderStage stage,
@@ -129,6 +132,12 @@ private:
             MaterialBuilder::FeatureLevel featureLevel) noexcept;
 
     static bool hasLighting(MaterialInfo const& material, filament::Variant variant) noexcept;
+
+    // Whether the shadow receiving code is compiled in. When true, shadow receiving is
+    // controlled at runtime by the RUNTIME_CONFIG_HAS_SHADOWING specialization constant.
+    static bool hasShadowing(MaterialInfo const& material, filament::Variant variant,
+            filament::UserVariantFilterMask variantFilter,
+            MaterialBuilder::FeatureLevel featureLevel) noexcept;
 
     MaterialBuilder::PropertyList mProperties;
     MaterialBuilder::VariableList mVariables;

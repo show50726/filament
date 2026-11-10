@@ -94,14 +94,20 @@ TEST(Variant, PunctualShadowReceiversDoNotAliasSsr) {
             for (V::type_t const stereo : STEREO_STATES) {
                 V const requested(V::SRE | sampler | skinning | stereo);
                 V const filtered = V::filterVariant(requested, true);
+                // SRE is handled via dynamic specialization constants.
+                V const expected(requested.key & ~V::SRE);
 
-                EXPECT_EQ(filtered, requested)
-                        << "filterVariant must not alter lit shadow-receiver variants";
+                // ...so the SRE bit is reserved in standard variants.
+                EXPECT_TRUE(V::isReserved(requested));
+                EXPECT_FALSE(V::isValidStandardVariant(requested));
+
+                EXPECT_EQ(filtered, expected)
+                        << "filterVariant must only remove SRE from lit standard variants";
                 EXPECT_TRUE(V::isValidStandardVariant(filtered));
                 EXPECT_TRUE(V::isValidSurfaceVariant(filtered));
                 EXPECT_FALSE(V::isSSRVariant(filtered));
                 EXPECT_FALSE(V::isValidDepthVariant(filtered));
-                EXPECT_TRUE(V::isShadowReceiverVariant(filtered));
+                EXPECT_FALSE(V::isShadowReceiverVariant(filtered));
                 EXPECT_EQ(V::isShadowSampler2DVariant(filtered), sampler == V::S2D);
                 EXPECT_EQ(V::filterUserVariant(filtered, SSR_FILTER), filtered);
             }
@@ -243,36 +249,39 @@ TEST(Variant, SurfaceShaderEnumerationKeepsShadowVariantsWhenSsrIsFiltered) {
     constexpr UserVariantFilterMask SHADOW_RECEIVER_FILTER =
             uint32_t(UserVariantFilterBit::SHADOW_RECEIVER);
 
+    // SRE is a dynamic specialization constant, it never appears in the shader variants. The S2D
+    // sampler variant no longer requires SRE.
     std::vector<Variant> const all = determineSurfaceVariants(0, true, false);
-    EXPECT_TRUE(containsVariant(all, V(V::SRE), filament::backend::ShaderStage::VERTEX));
-    EXPECT_TRUE(containsVariant(all, V(V::SRE), filament::backend::ShaderStage::FRAGMENT));
-    EXPECT_TRUE(containsVariant(
+    EXPECT_FALSE(containsVariant(all, V(V::SRE), filament::backend::ShaderStage::VERTEX));
+    EXPECT_FALSE(containsVariant(all, V(V::SRE), filament::backend::ShaderStage::FRAGMENT));
+    EXPECT_FALSE(containsVariant(
             all, V(V::S2D | V::SRE), filament::backend::ShaderStage::FRAGMENT));
+    EXPECT_TRUE(containsVariant(all, V(V::S2D), filament::backend::ShaderStage::FRAGMENT));
     EXPECT_TRUE(containsVariant(
             all, V(V::SPECIAL_SSR_VARIANT), filament::backend::ShaderStage::FRAGMENT));
 
     std::vector<Variant> const withoutSsr =
             determineSurfaceVariants(SSR_FILTER, true, false);
     EXPECT_TRUE(containsVariant(
-            withoutSsr, V(V::S2D | V::SRE), filament::backend::ShaderStage::FRAGMENT));
+            withoutSsr, V(V::S2D), filament::backend::ShaderStage::FRAGMENT));
     EXPECT_FALSE(containsVariant(
             withoutSsr, V(V::SPECIAL_SSR_VARIANT), filament::backend::ShaderStage::FRAGMENT));
 
     std::vector<Variant> const withoutVsm =
             determineSurfaceVariants(VSM_FILTER, true, false);
     EXPECT_TRUE(containsVariant(
-            withoutVsm, V(V::SRE), filament::backend::ShaderStage::FRAGMENT));
+            withoutVsm, V(V::NO_VARIANT), filament::backend::ShaderStage::FRAGMENT));
     EXPECT_FALSE(containsVariant(
-            withoutVsm, V(V::S2D | V::SRE), filament::backend::ShaderStage::FRAGMENT));
+            withoutVsm, V(V::S2D), filament::backend::ShaderStage::FRAGMENT));
     EXPECT_TRUE(containsVariant(
             withoutVsm, V(V::SPECIAL_SSR_VARIANT), filament::backend::ShaderStage::FRAGMENT));
 
+    // The shadow receiver filter only removes the shadowing code, S2D is decided per view so it
+    // must still be available.
     std::vector<Variant> const withoutShadowReceiver =
             determineSurfaceVariants(SHADOW_RECEIVER_FILTER, true, false);
-    EXPECT_FALSE(containsVariant(
-            withoutShadowReceiver, V(V::SRE), filament::backend::ShaderStage::FRAGMENT));
-    EXPECT_FALSE(containsVariant(
-            withoutShadowReceiver, V(V::S2D | V::SRE), filament::backend::ShaderStage::FRAGMENT));
+    EXPECT_TRUE(containsVariant(
+            withoutShadowReceiver, V(V::S2D), filament::backend::ShaderStage::FRAGMENT));
     EXPECT_TRUE(containsVariant(
             withoutShadowReceiver, V(V::SPECIAL_SSR_VARIANT),
             filament::backend::ShaderStage::FRAGMENT));
@@ -280,16 +289,21 @@ TEST(Variant, SurfaceShaderEnumerationKeepsShadowVariantsWhenSsrIsFiltered) {
     std::vector<Variant> const shadowMultiplier =
             determineSurfaceVariants(SSR_FILTER, false, true);
     EXPECT_TRUE(containsVariant(
-            shadowMultiplier, V(V::S2D | V::SRE), filament::backend::ShaderStage::FRAGMENT));
+            shadowMultiplier, V(V::S2D), filament::backend::ShaderStage::FRAGMENT));
 }
 
 TEST(Variant, RuntimeProgramEnumerationContainsShadowAndSsrVariants) {
     using V = filament::Variant;
     utils::Slice<const V> const lit = filament::VariantUtils::getLitVariants();
 
-    EXPECT_TRUE(containsVariant(lit, V(V::SRE)));
-    EXPECT_TRUE(containsVariant(lit, V(V::SRE | V::SKN)));
-    EXPECT_TRUE(containsVariant(lit, V(V::S2D | V::SRE)));
+    // SRE is a dynamic specialization constant.
+    EXPECT_FALSE(containsVariant(lit, V(V::SRE)));
+    EXPECT_FALSE(containsVariant(lit, V(V::SRE | V::SKN)));
+    EXPECT_FALSE(containsVariant(lit, V(V::S2D | V::SRE)));
+    EXPECT_TRUE(containsVariant(lit, V(V::NO_VARIANT)));
+    EXPECT_TRUE(containsVariant(lit, V(V::SKN)));
+    EXPECT_TRUE(containsVariant(lit, V(V::S2D)));
+    EXPECT_TRUE(containsVariant(lit, V(V::S2D | V::SKN)));
     EXPECT_TRUE(containsVariant(lit, V(V::SPECIAL_SSR_VARIANT)));
 }
 
@@ -370,8 +384,8 @@ TEST(Variant, VariantCountsIncludeMotionVectors) {
             ++motionVectorsCount;
         }
     }
-    // 12 standard + 2 SSR + 12 depth + 2 motion vectors
-    EXPECT_EQ(validCount, 28u);
+    // 8 standard + 2 SSR + 12 depth + 2 motion vectors
+    EXPECT_EQ(validCount, 24u);
     EXPECT_EQ(depthCount, 14u);
     EXPECT_EQ(motionVectorsCount, 2u);
 

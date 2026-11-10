@@ -42,6 +42,7 @@ struct DynamicSpecConstKey {
     static constexpr type_t EXTRA_DIRECTIONAL_LIGHTS = 0x2;
     static constexpr type_t DIRECTIONAL_LIGHTING = 0x4;
     static constexpr type_t FOG = 0x8;
+    static constexpr type_t SHADOW_RECEIVER = 0x10;
 
     constexpr bool operator==(DynamicSpecConstKey rhs) const noexcept {
         return key == rhs.key;
@@ -95,6 +96,14 @@ struct DynamicSpecConstKey {
         key = (key & ~FOG) | (v ? FOG : type_t(0));
     }
 
+    constexpr bool hasShadowReceiver() const noexcept {
+        return key & SHADOW_RECEIVER;
+    }
+
+    constexpr void setShadowReceiver(bool v) noexcept {
+        key = (key & ~SHADOW_RECEIVER) | (v ? SHADOW_RECEIVER : type_t(0));
+    }
+
     static constexpr DynamicSpecConstKey filterUserVariant(
             DynamicSpecConstKey key, UserVariantFilterMask filterMask) noexcept {
         if (filterMask & uint32_t(UserVariantFilterBit::DYNAMIC_LIGHTING)) {
@@ -106,6 +115,9 @@ struct DynamicSpecConstKey {
         }
         if (filterMask & uint32_t(UserVariantFilterBit::FOG)) {
             key.setFog(false);
+        }
+        if (filterMask & uint32_t(UserVariantFilterBit::SHADOW_RECEIVER)) {
+            key.setShadowReceiver(false);
         }
         return key;
     }
@@ -137,6 +149,16 @@ struct DynamicSpecConstKey {
                !Variant::isValidDepthVariant(variant) && !Variant::isSSRVariant(variant);
     }
 
+    static constexpr bool canSupportShadowReceiver(Variant const variant,
+        MaterialDomain const materialDomain, bool const isLit) noexcept {
+        // Shadows are only received by lit surface materials (isLit includes unlit materials
+        // with a shadow multiplier), and never by depth or SSR variants. Whether the material
+        // was compiled with shadow receiving support at all (variantFilter: [shadowReceiver]) is
+        // handled by MaterialDefinition::filterProgramSpecKey() and isValidProgram().
+        return materialDomain == MaterialDomain::SURFACE && isLit &&
+               !Variant::isValidDepthVariant(variant) && !Variant::isSSRVariant(variant);
+    }
+
     static constexpr bool isValidProgramSpecKey(Variant const variant,
             DynamicSpecConstKey const specKey, MaterialDomain const materialDomain,
             bool const isLit) noexcept {
@@ -149,7 +171,9 @@ struct DynamicSpecConstKey {
                (!specKey.hasDirectionalLighting() ||
                        canSupportDirectionalLighting(variant, materialDomain, isLit)) &&
                (!specKey.hasFog() ||
-                       canSupportFog(variant, materialDomain, isLit));
+                       canSupportFog(variant, materialDomain, isLit)) &&
+               (!specKey.hasShadowReceiver() ||
+                       canSupportShadowReceiver(variant, materialDomain, isLit));
     }
 
     // Clears the specKey bits that are meaningless for this kind of program, based only on the
@@ -171,6 +195,9 @@ struct DynamicSpecConstKey {
         }
         if (!canSupportFog(variant, materialDomain, isLit)) {
             specKey.setFog(false);
+        }
+        if (!canSupportShadowReceiver(variant, materialDomain, isLit)) {
+            specKey.setShadowReceiver(false);
         }
         return specKey;
     }

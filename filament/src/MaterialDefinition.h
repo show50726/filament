@@ -179,9 +179,15 @@ struct MaterialDefinition {
         return !(variantFilterMask & UserVariantFilterMask(UserVariantFilterBit::FOG));
     }
 
+    // Materials compiled with variantFilter: [shadowReceiver] have no shadow receiving code.
+    bool isShadowReceiverSupported() const noexcept {
+        return !(variantFilterMask & UserVariantFilterMask(UserVariantFilterBit::SHADOW_RECEIVER));
+    }
+
     // Material-aware version of DynamicSpecConstKey::filterProgramSpecKey(): on top of the
     // generic variant/domain/lighting rules, it applies this material's compile-time
-    // restrictions (currently: no fog code when compiled with variantFilter: [fog]).
+    // restrictions (currently: no fog code when compiled with variantFilter: [fog], and no
+    // shadow receiving code when compiled with variantFilter: [shadowReceiver]).
     // Prefer this over the DynamicSpecConstKey version whenever a material is available.
     // The result always passes the specKey checks of isValidProgram().
     DynamicSpecConstKey filterProgramSpecKey(Variant const variant,
@@ -191,6 +197,10 @@ struct MaterialDefinition {
         // Without fog code, the fog specialization would be a redundant program.
         if (UTILS_UNLIKELY(!isFogSupported())) {
             specKey.setFog(false);
+        }
+        // Same for the shadow receiver specialization without shadowing code.
+        if (UTILS_UNLIKELY(!isShadowReceiverSupported())) {
+            specKey.setShadowReceiver(false);
         }
         return specKey;
     }
