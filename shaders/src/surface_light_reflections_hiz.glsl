@@ -85,7 +85,10 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
     highp vec3 o = ray;
     highp vec3 d = vReflDirInTS * maxTraceDistance;
 
-    int startLevel = min(2, maxLevel);
+    // Start at the finest level: the initial advance below then skips at most one texel, so hits
+    // right next to the ray origin (contact reflections) are not missed. Immediate self-hits are
+    // rejected by validateHitNormal().
+    int startLevel = 0;
     int stopLevel = 0;
     highp vec2 startCellCount = getCellCount(vsZBuffer, startLevel);
 
