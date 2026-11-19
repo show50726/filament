@@ -2377,7 +2377,7 @@ public class View {
         /** stride, in texels, for samples along the ray. */
         public float stride = 2.0f;
         /** scale factor applied to each dimension of the SSR tracing buffer: 0.25, 0.5, or 1.0 */
-        public float resolution = 0.5f;
+        public float resolution = 1.0f;
         /** ray tracing method */
         @NonNull
         public ScreenSpaceReflectionsOptions.TracingMode tracingMode = ScreenSpaceReflectionsOptions.TracingMode.LINEAR;
