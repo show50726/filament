@@ -47,8 +47,7 @@ bool traceScreenSpaceRayLinear(highp vec2 P0, highp vec2 P1, highp vec3 Q0, high
         highp float k0, highp float k1, const highp float vsOriginZ,
         const highp sampler2D vsZBuffer, const float vsZThickness, const float stride,
         const float jitterFraction, const highp float maxSteps,
-        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus,
-        out highp float traceHitDistance) {
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus) {
     // If the line is degenerate, make it cover at least one pixel to avoid handling zero-pixel
     // extent as a special case later
     P1 += vec2((distanceSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
@@ -144,9 +143,6 @@ bool traceScreenSpaceRayLinear(highp vec2 P0, highp vec2 P1, highp vec3 Q0, high
             leftViewport ? SSR_TRACE_STATUS_OFFSCREEN :
             stepCount >= maxSteps ? SSR_TRACE_STATUS_MAX_STEPS :
             sceneZMax == 0.0 ? SSR_TRACE_STATUS_NO_DEPTH : SSR_TRACE_STATUS_RAY_END;
-    // The DDA exits after advancing Q and k beyond the pixel stored in hitPixel. Its ray-depth
-    // interval is therefore a more accurate validation input than the reconstructed vsHitPoint.
-    traceHitDistance = intersected ? max(0.0, sceneZMax - rayZMax) : 0.0;
     return intersected;
 }
 

@@ -50,7 +50,7 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
         const highp vec3 Q0, const highp vec3 Q1, const highp float k0, const highp float k1,
         const highp sampler2D vsZBuffer, const highp vec2 res, const float vsZThickness,
         const highp float maxSteps, out highp vec2 hitPixel, out highp vec3 vsHitPoint,
-        out highp uint traceStatus, out highp float traceHitDistance) {
+        out highp uint traceStatus) {
     highp vec3 vReflDirInTS = reflPosInTS - samplePosInTS;
 
     // Compute the maximum distance to trace before the ray goes outside of the visible area [0, 1].
@@ -162,9 +162,6 @@ bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 ref
     }
     alpha = clamp(alpha, 0.0, 1.0);
     vsHitPoint = mix(Q0, Q1, alpha) * (1.0 / mix(k0, k1, alpha));
-    // Hi-Z returns a candidate at the traversed texture-space position. Ask the common validation
-    // path to compare it against the reconstructed depth surface in three dimensions.
-    traceHitDistance = -1.0;
 
     return intersected;
 }

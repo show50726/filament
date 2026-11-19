@@ -53,14 +53,13 @@ bool traceScreenSpaceRayLinear(highp vec2 P0, highp vec2 P1, highp vec3 Q0, high
         highp float k0, highp float k1, const highp float vsOriginZ,
         const highp sampler2D vsZBuffer, const float vsZThickness, const float stride,
         const float jitterFraction, const highp float maxSteps,
-        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus,
-        out highp float traceHitDistance);
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus);
 
 bool traceScreenSpaceRayHiZ(const highp vec3 samplePosInTS, const highp vec3 reflPosInTS,
         const highp vec3 Q0, const highp vec3 Q1, const highp float k0, const highp float k1,
         const highp sampler2D vsZBuffer, const highp vec2 res, const float vsZThickness,
         const highp float maxSteps, out highp vec2 hitPixel, out highp vec3 vsHitPoint,
-        out highp uint traceStatus, out highp float traceHitDistance);
+        out highp uint traceStatus);
 
 // Note: McGuire and Mara use the "cs" prefix to stand for "camera space", equivalent to Filament's
 // "view space". "cs" has been replaced with "vs" to avoid confusion.
@@ -68,8 +67,7 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
         highp_mat4 uvFromViewMatrix, const highp sampler2D vsZBuffer, const highp vec2 res,
         const float vsZThickness, const highp float nearPlaneZ, const float stride,
         const float jitterFraction, const highp float maxSteps, const float maxRayTraceDistance,
-        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus,
-        out highp float traceHitDistance) {
+        out highp vec2 hitPixel, out highp vec3 vsHitPoint, out highp uint traceStatus) {
     // Clip ray to a near plane in 3D (doesn't have to be *the* near plane, although that would be a
     // good idea)
     highp float rayLength = ((vsOrigin.z + vsDirection.z * maxRayTraceDistance) > nearPlaneZ) ?
@@ -99,8 +97,7 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
         highp vec3 samplePosInTS = vec3(H0.xy * k0, 1.0 - H0.z * k0);
         highp vec3 reflPosInTS = vec3(H1.xy * k1, 1.0 - H1.z * k1);
         return traceScreenSpaceRayHiZ(samplePosInTS, reflPosInTS, Q0, Q1, k0, k1,
-                vsZBuffer, res, vsZThickness, maxSteps, hitPixel, vsHitPoint, traceStatus,
-                traceHitDistance);
+                vsZBuffer, res, vsZThickness, maxSteps, hitPixel, vsHitPoint, traceStatus);
     }
 
     // Screen-space endpoints in pixels
@@ -108,7 +105,7 @@ bool traceScreenSpaceRay(const highp vec3 vsOrigin, const highp vec3 vsDirection
     highp vec2 P1 = H1.xy * k1 * res;
     return traceScreenSpaceRayLinear(P0, P1, Q0, Q1, k0, k1, vsOrigin.z,
             vsZBuffer, vsZThickness, stride, jitterFraction, maxSteps, hitPixel, vsHitPoint,
-            traceStatus, traceHitDistance);
+            traceStatus);
 }
 
 highp vec3 reconstructViewPositionFromDepth(highp float depth, highp vec2 uv) {
@@ -231,24 +228,28 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
     highp vec2 hitPixel;
     highp vec3 vsHitPoint;
     highp uint traceStatus;
-    highp float traceHitDistance;
 
     bool intersected = traceScreenSpaceRay(
             vsOrigin, vsDirection, frameUniforms.ssrUvFromViewMatrix,
             sampler0_structure, res, vsZThickness, nearPlaneZ, stride, jitterFraction, maxSteps,
-            maxRayTraceDistance, hitPixel, vsHitPoint, traceStatus, traceHitDistance);
+            maxRayTraceDistance, hitPixel, vsHitPoint, traceStatus);
     if (!intersected) {
         return frameUniforms.ssrDebugTraceStatus != 0u ?
                 getSsrTraceStatusColor(traceStatus) : Fr;
     }
 
-    highp float hitFacing;
-    highp vec3 vsSurfacePoint;
+    highp float hitFacing = 1.0;
+    highp vec3 vsSurfacePoint = vsHitPoint;
     highp vec4 rayOriginInUv = frameUniforms.ssrUvFromViewMatrix * vec4(vsOrigin, 1.0);
     highp vec2 rayOriginPixel = rayOriginInUv.xy * (1.0 / rayOriginInUv.w) * res;
-    if (!validateHitNormal(
-            sampler0_structure, hitPixel, rayOriginPixel, res, vsDirection, hitFacing,
-            vsSurfacePoint)) {
+    // Only the Hi-Z tracer validates the hit normal. validateHitNormal() can only reject hits
+    // within two pixels of the ray origin, which the jittered linear tracer produces in a
+    // per-pixel pattern; rejecting them discards the whole ray and leaves stipple in the
+    // reflection. The linear tracer therefore accepts them, as it did before Hi-Z was added.
+    if (frameUniforms.ssrTracingMode == SSR_TRACING_MODE_HI_Z &&
+            !validateHitNormal(
+                    sampler0_structure, hitPixel, rayOriginPixel, res, vsDirection, hitFacing,
+                    vsSurfacePoint)) {
         return frameUniforms.ssrDebugTraceStatus != 0u ?
                 getSsrTraceStatusColor(SSR_TRACE_STATUS_BACKFACE) : Fr;
     }
@@ -277,14 +278,16 @@ vec4 evaluateScreenSpaceReflections(const highp vec3 wsRayDirection) {
     // note: vsDirection.z is the cos(vsDirection, view)
     fade *= (1.0 - max(0.0, vsDirection.z));
 
-    // Convert the distance between the ray candidate and the actual depth surface into a smooth
-    // hit confidence. This retains thickness for traversal robustness without treating every
-    // candidate inside that interval as an equally reliable hit.
-    highp float hitDistance = traceHitDistance >= 0.0 ?
-            traceHitDistance : distance(vsSurfacePoint, vsHitPoint);
-    float hitConfidence = 1.0 - smoothstep(
-            0.0, max(vsZThickness, 1e-5), hitDistance);
-    fade *= hitConfidence * hitConfidence;
+    if (frameUniforms.ssrTracingMode == SSR_TRACING_MODE_HI_Z) {
+        // The Hi-Z tracer returns a candidate at the traversed texture-space position. Convert
+        // its distance to the reconstructed depth surface into a smooth hit confidence. This
+        // retains thickness for traversal robustness without treating every candidate inside
+        // that interval as an equally reliable hit. The linear tracer keeps full confidence for
+        // every hit, as it did before Hi-Z was added.
+        highp float hitDistance = distance(vsSurfacePoint, vsHitPoint);
+        float hitConfidence = 1.0 - smoothstep(0.0, max(vsZThickness, 1e-5), hitDistance);
+        fade *= hitConfidence * hitConfidence;
+    }
 
     // we output a premultiplied alpha color because this is going to be mipmapped
     Fr = vec4(textureLod(sampler0_ssr, reprojected.xy, 0.0).rgb * fade, fade);

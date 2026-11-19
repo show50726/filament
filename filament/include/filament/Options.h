@@ -696,7 +696,7 @@ struct ScreenSpaceReflectionsOptions {
     /** stride, in texels, for samples along the ray. */
     float stride = 2.0f;
     /** scale factor applied to each dimension of the SSR tracing buffer: 0.25, 0.5, or 1.0 */
-    float resolution = 0.5f;
+    float resolution = 1.0f;
     /** ray tracing method */
     TracingMode tracingMode = TracingMode::LINEAR;
     /** maximum number of hierarchical-Z traversal iterations, range [1, 4096] */
